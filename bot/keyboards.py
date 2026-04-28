@@ -81,9 +81,19 @@ def kb_onb_accounts_more_done() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("➕ Додати ще", callback_data="onb:acct:more"),
+                InlineKeyboardButton("+ Додати ще", callback_data="onb:acct:more"),
                 InlineKeyboardButton("Готово", callback_data="onb:acct:done"),
             ]
+        ]
+    )
+
+
+def kb_onb_categories() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("Стандарт UA", callback_data="onb:cats:standard")],
+            [InlineKeyboardButton("Мінімальний", callback_data="onb:cats:minimal")],
+            [InlineKeyboardButton("Порожньо", callback_data="onb:cats:empty")],
         ]
     )
 
@@ -92,20 +102,20 @@ def kb_onb_confirm() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("✅ Підтвердити", callback_data="onb:confirm:ok"),
-                InlineKeyboardButton("✏️ Редагувати", callback_data="onb:confirm:edit"),
+                InlineKeyboardButton("Підтвердити", callback_data="onb:confirm:ok"),
+                InlineKeyboardButton("Редагувати", callback_data="onb:confirm:edit"),
             ],
-            [InlineKeyboardButton("🔄 Почати спочатку", callback_data="onb:confirm:restart")],
+            [InlineKeyboardButton("Почати спочатку", callback_data="onb:confirm:restart")],
         ]
     )
 
 
 def kb_onb_edit_accounts(accounts: list[tuple[int, str]]) -> InlineKeyboardMarkup:
-    buttons = [InlineKeyboardButton(f"🗑️ {label}", callback_data=f"onb:edit:del:{account_id}") for account_id, label in accounts]
+    buttons = [InlineKeyboardButton(f"Видалити {label}", callback_data=f"onb:edit:del:{account_id}") for account_id, label in accounts]
     rows = _rows2(buttons)
     rows.append(
         [
-            InlineKeyboardButton("➕ Додати рахунок", callback_data="onb:edit:add"),
+            InlineKeyboardButton("Додати рахунок", callback_data="onb:edit:add"),
             InlineKeyboardButton("Назад", callback_data="onb:edit:back"),
         ]
     )
@@ -116,20 +126,20 @@ def kb_home() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("➕ Витрата", callback_data="home:add:expense"),
-                InlineKeyboardButton("➕ Дохід", callback_data="home:add:income"),
+                InlineKeyboardButton("+ Витрата", callback_data="home:add:expense"),
+                InlineKeyboardButton("+ Дохід", callback_data="home:add:income"),
             ],
-            [InlineKeyboardButton("🔁 Переказ", callback_data="home:add:transfer")],
+            [InlineKeyboardButton("Переказ", callback_data="home:add:transfer")],
             [
-                InlineKeyboardButton("📊 Звіти", callback_data="home:cmd:reports"),
-                InlineKeyboardButton("📂 Категорії", callback_data="home:cmd:categories"),
+                InlineKeyboardButton("Звіти", callback_data="home:cmd:reports"),
+                InlineKeyboardButton("Категорії", callback_data="home:cmd:categories"),
             ],
             [
-                InlineKeyboardButton("🤝 Борги", callback_data="home:cmd:debts"),
-                InlineKeyboardButton("👪 Сімʼя", callback_data="home:cmd:family"),
+                InlineKeyboardButton("Борги", callback_data="home:cmd:debts"),
+                InlineKeyboardButton("Сімʼя", callback_data="home:cmd:family"),
             ],
-            [InlineKeyboardButton("⚙️ Налаштування", callback_data="home:cmd:settings")],
-            [InlineKeyboardButton("📄 Експорт (CSV)", callback_data="home:cmd:export")],
+            [InlineKeyboardButton("Налаштування", callback_data="home:cmd:settings")],
+            [InlineKeyboardButton("Експорт (CSV)", callback_data="home:cmd:export")],
         ]
     )
 
@@ -149,7 +159,7 @@ def kb_reports_menu() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("3 місяці", callback_data="reports:range:3m"),
                 InlineKeyboardButton("6 місяців", callback_data="reports:range:6m"),
             ],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="reports:back")],
+            [InlineKeyboardButton("Назад", callback_data="reports:back")],
         ]
     )
 
@@ -157,14 +167,14 @@ def kb_reports_menu() -> InlineKeyboardMarkup:
 def kb_pick_account(accounts: list[tuple[int, str]], kind: str) -> InlineKeyboardMarkup:
     buttons = [InlineKeyboardButton(label, callback_data=f"pick:acct:{kind}:{account_id}") for account_id, label in accounts]
     rows = _rows2(buttons)
-    rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="pick:acct:back")])
+    rows.append([InlineKeyboardButton("Назад", callback_data="pick:acct:back")])
     return InlineKeyboardMarkup(rows)
 
 
 def kb_pick_category(categories: list[tuple[int, str]], kind: str) -> InlineKeyboardMarkup:
     buttons = [InlineKeyboardButton(name, callback_data=f"pick:cat:{kind}:{category_id}") for category_id, name in categories]
     rows = _rows2(buttons)
-    rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="pick:cat:back")])
+    rows.append([InlineKeyboardButton("Назад", callback_data="pick:cat:back")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -172,13 +182,13 @@ def kb_debts_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("➕ Мені винні", callback_data="debts:add:owed_to_me"),
-                InlineKeyboardButton("➕ Я винен", callback_data="debts:add:i_owe"),
+                InlineKeyboardButton("Додати: мені винні", callback_data="debts:add:owed_to_me"),
+                InlineKeyboardButton("Додати: я винен", callback_data="debts:add:i_owe"),
             ],
             [
-                InlineKeyboardButton("✅ Погашення (мені)", callback_data="debts:repay:owed_to_me"),
-                InlineKeyboardButton("✅ Погашення (я)", callback_data="debts:repay:i_owe"),
+                InlineKeyboardButton("Погашення: мені", callback_data="debts:repay:owed_to_me"),
+                InlineKeyboardButton("Погашення: я", callback_data="debts:repay:i_owe"),
             ],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="debts:back")],
+            [InlineKeyboardButton("Назад", callback_data="debts:back")],
         ]
     )
