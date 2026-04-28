@@ -34,7 +34,7 @@ from keyboards import (
     kb_pick_category,
     kb_reports_menu,
 )
-from parsing import parse_amount, parse_tx
+from parsing import parse_amount
 from stt import transcribe_ogg_bytes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -488,7 +488,6 @@ async def onb_account_last4_choice(update: Update, context: ContextTypes.DEFAULT
 
 
 async def onb_account_last4_text_direct(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    # User typed something while we were waiting for a button.
     if not update.message or not update.message.text:
         return ACC_LAST4_CHOICE
 
@@ -852,19 +851,17 @@ async def pick_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await q.message.reply_text("Почни з «Витрата» або «Дохід».", reply_markup=kb_home())
         return
 
-    parts = q.data.split(":")
-    if len(parts) < 3:
+    if q.data == "pick:acct:back":
+        _reset_tx_flow(context)
+        await q.message.reply_text("Ок.", reply_markup=kb_home())
         return
+
+    parts = q.data.split(":")
 
     async with _pool(context).acquire() as conn:
         await _ensure_default_categories(conn, user.id)
 
-        if q.data == "pick:acct:back":
-            _reset_tx_flow(context)
-            await q.message.reply_text("Ок.", reply_markup=kb_home())
-            return
-
-        if parts[0] == "pick" and parts[1] == "acct" and len(parts) == 5:
+        if parts[:2] == ["pick", "acct"] and len(parts) == 4:
             kind = parts[2]
             account_id = int(parts[3])
             context.user_data["tx_flow"]["account_id"] = account_id
@@ -881,7 +878,7 @@ async def pick_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             await q.message.reply_text("Крок 1/3: Обери рахунок:", reply_markup=kb_pick_account(accounts, kind))
             return
 
-        if parts[0] == "pick" and parts[1] == "cat" and len(parts) == 5:
+        if parts[:2] == ["pick", "cat"] and len(parts) == 4:
             kind = parts[2]
             category_id = int(parts[3])
             context.user_data["tx_flow"]["category_id"] = category_id
@@ -893,16 +890,10 @@ async def pick_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             return
 
 
-def _today_range() -> tuple[date, date]:
-    start = datetime.now().date()
-    return start, start + timedelta(days=1)
-
-
 def _range_for_key(key: str) -> tuple[date, date, str]:
     today = datetime.now().date()
     if key == "today":
-        s, e = _today_range()
-        return s, e, "Сьогодні"
+        return today, today + timedelta(days=1), "Сьогодні"
     if key == "7d":
         s = today - timedelta(days=6)
         return s, today + timedelta(days=1), "Останні 7 днів"
@@ -1057,7 +1048,7 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     async with _pool(context).acquire() as conn:
         u = await conn.fetchrow(
-            "SELECT base_currency, onboarding_completed FROM users WHERE tg_user_id=$1",
+            "SELECT onboarding_completed FROM users WHERE tg_user_id=$1",
             user.id,
         )
         if not u or not bool(u.get("onboarding_completed")):
