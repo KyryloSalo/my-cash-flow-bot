@@ -82,16 +82,16 @@ MIN_INCOME_CATEGORIES = DEFAULT_INCOME_CATEGORIES[:3]
 
 
 async def _connect_pool(dsn: str) -> asyncpg.Pool:
-    last_err: Exception | None = None
+    last_error: Exception | None = None
     for attempt in range(30):
         try:
             return await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=5)
         except Exception as exc:
-            last_err = exc
-            wait_s = 1 + attempt * 0.2
-            logger.warning("DB connect failed (attempt %s/30): %s; retry in %.1fs", attempt + 1, exc, wait_s)
-            await asyncio.sleep(wait_s)
-    raise RuntimeError(f"DB connect failed after retries: {last_err}")
+            last_error = exc
+            wait_seconds = 1 + attempt * 0.2
+            logger.warning("DB connect failed (%s/30): %s; retry in %.1fs", attempt + 1, exc, wait_seconds)
+            await asyncio.sleep(wait_seconds)
+    raise RuntimeError(f"DB connect failed after retries: {last_error}")
 
 
 async def init_db(application: Application) -> None:
@@ -158,6 +158,11 @@ async def init_db(application: Application) -> None:
               currency TEXT NOT NULL,
               comment TEXT,
               source TEXT NOT NULL,
+              account_id BIGINT,
+              category_id BIGINT,
+              flow_kind TEXT NOT NULL DEFAULT 'normal',
+              counterparty TEXT,
+              debt_action TEXT,
               created_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
             """
@@ -209,7 +214,6 @@ def _parse_decimal(text: str) -> Decimal | None:
 
 def _reset_onboarding(context: ContextTypes.DEFAULT_TYPE) -> None:
     context.user_data.pop("onb", None)
-    context.user_data.pop("onb_waiting_date", None)
 
 
 def _reset_tx_flow(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -218,6 +222,11 @@ def _reset_tx_flow(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def _reset_debt_flow(context: ContextTypes.DEFAULT_TYPE) -> None:
     context.user_data.pop("debt_flow", None)
+
+
+def _reset_runtime_flows(context: ContextTypes.DEFAULT_TYPE) -> None:
+    _reset_tx_flow(context)
+    _reset_debt_flow(context)
 
 
 def _onboarding_active(context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -262,9 +271,9 @@ async def _user_ready(conn: asyncpg.Connection, tg_user_id: int) -> bool:
 
 async def _seed_categories(conn: asyncpg.Connection, tg_user_id: int, choice: str) -> None:
     await conn.execute("DELETE FROM categories WHERE tg_user_id=$1", tg_user_id)
-
     if choice == "empty":
         return
+
     if choice == "minimal":
         expense_names = MIN_EXPENSE_CATEGORIES
         income_names = MIN_INCOME_CATEGORIES
@@ -290,8 +299,13 @@ async def _ensure_default_categories(conn: asyncpg.Connection, tg_user_id: int) 
     await _seed_categories(conn, tg_user_id, "standard")
 
 
-async def _reply_home(message) -> None:
-    await message.reply_text("Головне меню. Обери дію нижче.", reply_markup=kb_home())
+async def _reply_home(message, text: str = "🏠 Головне меню. Обери дію нижче.") -> None:
+    await message.reply_text(text, reply_markup=kb_home())
+
+
+async def _reply_and_return_home(message, text: str) -> None:
+    await message.reply_text(text)
+    await _reply_home(message)
 
 
 async def _show_home(update: Update) -> None:
@@ -301,16 +315,27 @@ async def _show_home(update: Update) -> None:
         await _reply_home(update.callback_query.message)
 
 
+def _format_decimal(value: Decimal | float | int | None) -> str:
+    if value is None:
+        return "0"
+    decimal_value = value if isinstance(value, Decimal) else Decimal(str(value))
+    normalized = decimal_value.quantize(Decimal("0.01"))
+    text = format(normalized, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text
+
+
 async def _render_accounts_text(conn: asyncpg.Connection, tg_user_id: int) -> str:
     accounts = await conn.fetch(
         "SELECT label, currency, starting_balance FROM accounts WHERE tg_user_id=$1 ORDER BY id ASC",
         tg_user_id,
     )
     if not accounts:
-        return "Рахунків поки немає. Додай хоча б один."
+        return "Рахунків поки немає. Додай хоча б один рахунок."
     lines = ["Поточні рахунки:"]
     for row in accounts:
-        lines.append(f"- {row['label']} ({row['currency']}), баланс {row['starting_balance']}")
+        lines.append(f"- {row['label']} ({row['currency']}), баланс {_format_decimal(row['starting_balance'])}")
     return "\n".join(lines)
 
 
@@ -325,6 +350,8 @@ async def _render_onboarding_summary(conn: asyncpg.Connection, tg_user_id: int, 
     start_date = user.get("start_date") if user else None
     return "\n".join(
         [
+            "Крок 6/6: Підтвердження.",
+            "",
             "Перевір налаштування:",
             f"- Мова: {(user.get('lang') if user else None) or '—'}",
             f"- Базова валюта: {(user.get('base_currency') if user else None) or '—'}",
@@ -338,6 +365,19 @@ async def _render_onboarding_summary(conn: asyncpg.Connection, tg_user_id: int, 
     )
 
 
+async def _show_onboarding_summary(message, context: ContextTypes.DEFAULT_TYPE) -> int:
+    tg_user_id = context.user_data.get("tg_user_id")
+    if not tg_user_id:
+        await message.reply_text("Не зміг визначити користувача. Запусти /start ще раз.")
+        return ConversationHandler.END
+
+    cats_choice = context.user_data.get("onb", {}).get("cats_choice", "standard")
+    async with _pool(context).acquire() as conn:
+        summary = await _render_onboarding_summary(conn, tg_user_id, cats_choice)
+    await message.reply_text(summary, reply_markup=kb_onb_confirm())
+    return ONB_CONFIRM
+
+
 async def _start_accounts_step(message, context: ContextTypes.DEFAULT_TYPE, force_add: bool = False) -> int:
     tg_user_id = context.user_data.get("tg_user_id")
     if not tg_user_id:
@@ -348,11 +388,14 @@ async def _start_accounts_step(message, context: ContextTypes.DEFAULT_TYPE, forc
         accounts = await _get_accounts(conn, tg_user_id)
 
     if accounts and not force_add:
-        await message.reply_text(
-            "Крок 4/6: Рахунки.\n\nЗнайшов уже налаштовані рахунки. Можеш додати ще або одразу натиснути «Готово».\n\n"
-            + "\n".join(f"- {label}" for _, label in accounts),
-            reply_markup=kb_onb_accounts_more_done(),
-        )
+        lines = [
+            "Крок 4/6: Рахунки.",
+            "",
+            "Ось рахунки, які вже налаштовані. Можеш додати ще один або завершити цей крок.",
+            "",
+        ]
+        lines.extend(f"- {label}" for _, label in accounts)
+        await message.reply_text("\n".join(lines), reply_markup=kb_onb_accounts_more_done())
         return ACC_MORE_DONE
 
     next_number = len(accounts) + 1
@@ -371,8 +414,7 @@ async def start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     context.user_data["tg_user_id"] = user.id
     _reset_onboarding(context)
-    _reset_tx_flow(context)
-    _reset_debt_flow(context)
+    _reset_runtime_flows(context)
 
     async with _pool(context).acquire() as conn:
         await conn.execute(
@@ -400,7 +442,9 @@ async def start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     context.user_data["onb"] = {}
     await update.message.reply_text(
-        "Привіт! Це My Cash Flow Bot.\n\nЗараз пройдемо стартове налаштування: мова, базова валюта, стартова дата, рахунки та пакет категорій. Після цього відкриється головне меню.\n\nОбери мову:",
+        "Привіт! Це My Cash Flow Bot.\n\n"
+        "Зараз швидко пройдемо стартове налаштування: мова, базова валюта, стартова дата, рахунки та пакет категорій.\n\n"
+        "Крок 1/6: Обери мову.",
         reply_markup=kb_language(),
     )
     return LANG
@@ -414,7 +458,7 @@ async def onb_lang(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = q.data.rsplit(":", 1)[-1]
     context.user_data.setdefault("onb", {})["lang"] = lang
     await q.message.reply_text(
-        "Крок 2/6: Базова валюта.\n\nУ цій валюті бот показуватиме звіти за замовчуванням.",
+        "Крок 2/6: Базова валюта.\n\nУ цій валюті бот показуватиме звіти та підказки за замовчуванням.",
         reply_markup=kb_currency("onb:cur"),
     )
     return BASE_CURRENCY
@@ -427,7 +471,8 @@ async def _save_base_currency(message, context: ContextTypes.DEFAULT_TYPE, value
         return BASE_CURRENCY
     context.user_data.setdefault("onb", {})["base_currency"] = currency
     await message.reply_text(
-        "Крок 3/6: Стартова дата.\n\nЗ якого дня рахувати звіти? Можеш натиснути кнопку або просто ввести дату у форматі `dd.mm.yyyy`.",
+        "Крок 3/6: Стартова дата.\n\n"
+        "З якого дня рахувати звіти? Можеш натиснути кнопку або ввести дату у форматі `dd.mm.yyyy`.",
         reply_markup=kb_onb_start_date(),
         parse_mode="Markdown",
     )
@@ -441,7 +486,7 @@ async def onb_currency_callback(update: Update, context: ContextTypes.DEFAULT_TY
     await q.answer()
     value = q.data.rsplit(":", 1)[-1]
     if value == "OTHER":
-        await q.message.reply_text("Введи валюту 3 літерами (напр. UAH, USD, EUR):")
+        await q.message.reply_text("Введи валюту 3 літерами, напр. UAH, USD, EUR:")
         return BASE_CURRENCY
     return await _save_base_currency(q.message, context, value)
 
@@ -457,18 +502,22 @@ async def _save_start_date(message, context: ContextTypes.DEFAULT_TYPE, value: s
     if not parsed:
         await message.reply_text("Не зрозумів дату. Приклад: 27.04.2026 або «сьогодні». Спробуй ще раз:")
         return START_DATE
-    context.user_data.setdefault("onb", {})["start_date"] = parsed.isoformat()
 
     tg_user_id = context.user_data.get("tg_user_id")
-    if tg_user_id:
-        async with _pool(context).acquire() as conn:
-            await conn.execute(
-                "UPDATE users SET lang=$2, base_currency=$3, start_date=$4, onboarding_completed=false, onboarding_version=0 WHERE tg_user_id=$1",
-                tg_user_id,
-                context.user_data["onb"].get("lang"),
-                context.user_data["onb"].get("base_currency"),
-                parsed,
-            )
+    if not tg_user_id:
+        await message.reply_text("Не зміг визначити користувача. Запусти /start ще раз.")
+        return ConversationHandler.END
+
+    context.user_data.setdefault("onb", {})["start_date"] = parsed.isoformat()
+
+    async with _pool(context).acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET lang=$2, base_currency=$3, start_date=$4, onboarding_completed=false, onboarding_version=0 WHERE tg_user_id=$1",
+            tg_user_id,
+            context.user_data["onb"].get("lang"),
+            context.user_data["onb"].get("base_currency"),
+            parsed,
+        )
 
     return await _start_accounts_step(message, context)
 
@@ -478,10 +527,11 @@ async def onb_start_date_choice(update: Update, context: ContextTypes.DEFAULT_TY
     if not q:
         return START_DATE
     await q.answer()
-    if q.data == "onb:date:today":
-        return await _save_start_date(q.message, context, "сьогодні")
-    await q.message.reply_text("Введи дату у форматі dd.mm.yyyy (напр. 27.04.2026):")
-    return START_DATE
+    value = q.data.rsplit(":", 1)[-1]
+    if value == "pick":
+        await q.message.reply_text("Введи дату у форматі `dd.mm.yyyy`, напр. `27.04.2026`.", parse_mode="Markdown")
+        return START_DATE
+    return await _save_start_date(q.message, context, "сьогодні")
 
 
 async def onb_start_date_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -495,21 +545,33 @@ async def onb_account_bank(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if not q:
         return ACC_BANK
     await q.answer()
-    bank = q.data.rsplit(":", 1)[-1]
-    if bank == "other":
-        await q.message.reply_text("Напиши назву банку або рахунку (напр. Revolut, Картка, Wise):")
+
+    bank_key = q.data.rsplit(":", 1)[-1]
+    label_map = {
+        "mono": "Monobank",
+        "privat": "ПриватБанк",
+        "cash": "Готівка",
+    }
+
+    current = context.user_data.setdefault("onb", {}).setdefault("current_account", {})
+    current["bank_key"] = bank_key
+
+    if bank_key == "other":
+        await q.message.reply_text("Введи назву банку або рахунку текстом, напр. `Райф`.", parse_mode="Markdown")
         return ACC_BANK_TEXT
 
-    account = context.user_data.setdefault("onb", {}).setdefault("current_account", {})
-    account["bank"] = bank
-
-    if bank == "cash":
-        account["last4"] = None
-        await q.message.reply_text("Валюта рахунку:", reply_markup=kb_currency("onb:acct:cur"))
+    current["label_base"] = label_map[bank_key]
+    if bank_key == "cash":
+        current["last4"] = None
+        await q.message.reply_text(
+            "Це готівка, тому номер картки не потрібен.\n\nТепер обери валюту цього рахунку.",
+            reply_markup=kb_currency("onb:acct:cur"),
+        )
         return ACC_CURRENCY
 
     await q.message.reply_text(
-        "Останні 4 цифри картки — опційно. Можеш натиснути кнопку або просто ввести 4 цифри.",
+        "Останні 4 цифри картки — опційно.\n\n"
+        "Якщо хочеш відрізняти картки між собою, введи 4 цифри. Якщо ні — пропусти цей крок.",
         reply_markup=kb_onb_account_last4(),
     )
     return ACC_LAST4_CHOICE
@@ -518,22 +580,30 @@ async def onb_account_bank(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def onb_account_bank_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not update.message or not update.message.text:
         return ACC_BANK_TEXT
-    value = update.message.text.strip()
-    if not value:
-        await update.message.reply_text("Назва не може бути порожньою. Спробуй ще раз:")
+
+    label = update.message.text.strip()[:40]
+    if len(label) < 2:
+        await update.message.reply_text("Назва занадто коротка. Напиши щось на кшталт `Райф` або `Wise`.", parse_mode="Markdown")
         return ACC_BANK_TEXT
-    account = context.user_data.setdefault("onb", {}).setdefault("current_account", {})
-    account["bank"] = "other"
-    account["bank_label"] = value
+
+    current = context.user_data.setdefault("onb", {}).setdefault("current_account", {})
+    current["label_base"] = label
     await update.message.reply_text(
-        "Останні 4 цифри картки — опційно. Можеш натиснути кнопку або просто ввести 4 цифри.",
+        "Останні 4 цифри картки — опційно.\n\n"
+        "Можеш ввести 4 цифри для зручності або пропустити крок.",
         reply_markup=kb_onb_account_last4(),
     )
     return ACC_LAST4_CHOICE
 
 
-async def _go_to_account_currency(message, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await message.reply_text("Валюта рахунку:", reply_markup=kb_currency("onb:acct:cur"))
+async def _go_to_account_currency(message, context: ContextTypes.DEFAULT_TYPE, last4: str | None) -> int:
+    current = context.user_data.setdefault("onb", {}).setdefault("current_account", {})
+    current["last4"] = last4
+    await message.reply_text(
+        "Добре. Тепер обери валюту цього рахунку.\n\n"
+        "Якщо валюти немає в кнопках, введи її 3 літерами текстом.",
+        reply_markup=kb_currency("onb:acct:cur"),
+    )
     return ACC_CURRENCY
 
 
@@ -542,36 +612,41 @@ async def onb_account_last4_choice(update: Update, context: ContextTypes.DEFAULT
     if not q:
         return ACC_LAST4_CHOICE
     await q.answer()
-    account = context.user_data.setdefault("onb", {}).setdefault("current_account", {})
-    if q.data.endswith(":skip"):
-        account["last4"] = None
-        return await _go_to_account_currency(q.message, context)
-    await q.message.reply_text("Введи 4 цифри (напр. 1234):")
+
+    choice = q.data.rsplit(":", 1)[-1]
+    if choice == "skip":
+        return await _go_to_account_currency(q.message, context, None)
+
+    await q.message.reply_text(
+        "Введи рівно 4 цифри, напр. `1234`.\n\n"
+        "Якщо передумав — натисни «Пропустити».",
+        parse_mode="Markdown",
+    )
     return ACC_LAST4_TEXT
 
 
-async def _save_last4(message, context: ContextTypes.DEFAULT_TYPE, value: str, return_state: int) -> int:
-    digits = value.strip()
-    if len(digits) == 4 and digits.isdigit():
-        context.user_data.setdefault("onb", {}).setdefault("current_account", {})["last4"] = digits
-        return await _go_to_account_currency(message, context)
-    await message.reply_text(
-        "Потрібно рівно 4 цифри або натисни «Пропустити». Спробуй ще раз:",
-        reply_markup=kb_onb_account_last4(),
-    )
-    return return_state
-
-
-async def onb_account_last4_text_direct(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if not update.message or not update.message.text:
-        return ACC_LAST4_CHOICE
-    return await _save_last4(update.message, context, update.message.text, ACC_LAST4_CHOICE)
+async def _save_last4(message, context: ContextTypes.DEFAULT_TYPE, value: str) -> int:
+    last4 = (value or "").strip()
+    if len(last4) != 4 or not last4.isdigit():
+        await message.reply_text(
+            "⚠️ Тут потрібні рівно 4 цифри, напр. `1234`.\n"
+            "Якщо картка без цифр або вони не потрібні — натисни «Пропустити».",
+            parse_mode="Markdown",
+        )
+        return ACC_LAST4_TEXT
+    return await _go_to_account_currency(message, context, last4)
 
 
 async def onb_account_last4_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not update.message or not update.message.text:
         return ACC_LAST4_TEXT
-    return await _save_last4(update.message, context, update.message.text, ACC_LAST4_TEXT)
+    return await _save_last4(update.message, context, update.message.text)
+
+
+async def onb_account_last4_text_direct(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not update.message or not update.message.text:
+        return ACC_LAST4_CHOICE
+    return await _save_last4(update.message, context, update.message.text)
 
 
 async def _save_account_currency(message, context: ContextTypes.DEFAULT_TYPE, value: str) -> int:
@@ -579,8 +654,14 @@ async def _save_account_currency(message, context: ContextTypes.DEFAULT_TYPE, va
     if len(currency) != 3 or not currency.isalpha():
         await message.reply_text("Потрібно 3 літери, напр. UAH / USD / EUR. Спробуй ще раз:")
         return ACC_CURRENCY
-    context.user_data.setdefault("onb", {}).setdefault("current_account", {})["currency"] = currency
-    await message.reply_text("Баланс рахунку. Можна з мінусом, напр. `1500` або `-200.50`.", parse_mode="Markdown")
+
+    current = context.user_data.setdefault("onb", {}).setdefault("current_account", {})
+    current["currency"] = currency
+    await message.reply_text(
+        "Тепер введи стартовий баланс цього рахунку.\n\n"
+        "Приклади: `0`, `5000`, `-100`.",
+        parse_mode="Markdown",
+    )
     return ACC_BALANCE
 
 
@@ -591,7 +672,7 @@ async def onb_account_currency_callback(update: Update, context: ContextTypes.DE
     await q.answer()
     value = q.data.rsplit(":", 1)[-1]
     if value == "OTHER":
-        await q.message.reply_text("Введи валюту рахунку 3 літерами (напр. UAH, USD, EUR):")
+        await q.message.reply_text("Введи валюту 3 літерами, напр. `PLN` або `GBP`.", parse_mode="Markdown")
         return ACC_CURRENCY
     return await _save_account_currency(q.message, context, value)
 
@@ -603,43 +684,37 @@ async def onb_account_currency_text(update: Update, context: ContextTypes.DEFAUL
 
 
 async def onb_account_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user = update.effective_user
-    if not user or not update.message or not update.message.text:
+    if not update.message or not update.message.text:
         return ACC_BALANCE
 
     balance = _parse_decimal(update.message.text)
     if balance is None:
-        await update.message.reply_text("Не схоже на число. Приклад: 1500 або -200.50. Спробуй ще раз:")
+        await update.message.reply_text("Не бачу коректну суму. Приклад: `5000` або `-100`.", parse_mode="Markdown")
         return ACC_BALANCE
 
-    account = context.user_data.setdefault("onb", {}).setdefault("current_account", {})
-    bank = account.get("bank")
-    bank_label = account.get("bank_label")
-    last4 = account.get("last4")
-    currency = account.get("currency") or context.user_data["onb"].get("base_currency") or "UAH"
+    tg_user_id = context.user_data.get("tg_user_id")
+    current = context.user_data.setdefault("onb", {}).get("current_account") or {}
+    if not tg_user_id or not current.get("label_base") or not current.get("currency"):
+        await update.message.reply_text("Щось збилось у кроці рахунку. Натисни /start і повтори onboarding.")
+        return ConversationHandler.END
 
-    if bank == "mono":
-        label = "Monobank"
-    elif bank == "privat":
-        label = "ПриватБанк"
-    elif bank == "cash":
-        label = "Готівка"
-    else:
-        label = bank_label or "Рахунок"
-    if last4:
-        label = f"{label} *{last4}"
+    label = current["label_base"]
+    if current.get("last4"):
+        label = f"{label} •{current['last4']}"
 
     async with _pool(context).acquire() as conn:
         await conn.execute(
             "INSERT INTO accounts (tg_user_id, label, currency, starting_balance) VALUES ($1, $2, $3, $4)",
-            user.id,
+            tg_user_id,
             label,
-            currency,
-            str(balance),
+            current["currency"],
+            balance,
         )
+        accounts = await _get_accounts(conn, tg_user_id)
 
+    context.user_data["onb"]["current_account"] = {}
     await update.message.reply_text(
-        f"Рахунок додано: {label} ({currency}), баланс {balance}.",
+        f"✅ Додано рахунок ({len(accounts)}/5): {label} ({current['currency']}), баланс {_format_decimal(balance)}",
         reply_markup=kb_onb_accounts_more_done(),
     )
     return ACC_MORE_DONE
@@ -656,22 +731,23 @@ async def onb_accounts_more_done(update: Update, context: ContextTypes.DEFAULT_T
         await q.message.reply_text("Не зміг визначити користувача. Запусти /start ще раз.")
         return ConversationHandler.END
 
-    if q.data.endswith(":more"):
-        async with _pool(context).acquire() as conn:
-            accounts_count = await conn.fetchval("SELECT count(1) FROM accounts WHERE tg_user_id=$1", tg_user_id)
-        if accounts_count and int(accounts_count) >= 5:
-            await q.message.reply_text("Ліміт 5 рахунків. Можеш натиснути «Готово».", reply_markup=kb_onb_accounts_more_done())
+    async with _pool(context).acquire() as conn:
+        accounts = await _get_accounts(conn, tg_user_id)
+
+    action = q.data.rsplit(":", 1)[-1]
+    if action == "more":
+        if len(accounts) >= 5:
+            await q.message.reply_text("У MVP можна додати до 5 рахунків. Якщо все готово — натисни «Готово».")
             return ACC_MORE_DONE
         return await _start_accounts_step(q.message, context, force_add=True)
 
-    async with _pool(context).acquire() as conn:
-        accounts_count = await conn.fetchval("SELECT count(1) FROM accounts WHERE tg_user_id=$1", tg_user_id)
-    if not accounts_count or int(accounts_count) <= 0:
-        await q.message.reply_text("Потрібно додати хоча б один рахунок.", reply_markup=kb_onb_accounts_more_done())
-        return ACC_MORE_DONE
+    if not accounts:
+        await q.message.reply_text("Потрібен хоча б один рахунок, щоб продовжити.")
+        return await _start_accounts_step(q.message, context, force_add=True)
 
     await q.message.reply_text(
-        "Крок 5/6: Категорії.\n\nОбери стартовий пакет категорій. Його можна буде змінити пізніше.",
+        "Крок 5/6: Категорії.\n\n"
+        "Обери стартовий пакет категорій. Його можна буде змінити пізніше.",
         reply_markup=kb_onb_categories(),
     )
     return ONB_CATS
@@ -684,9 +760,6 @@ async def onb_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await q.answer()
 
     choice = q.data.rsplit(":", 1)[-1]
-    if choice not in {"standard", "minimal", "empty"}:
-        return ONB_CATS
-
     tg_user_id = context.user_data.get("tg_user_id")
     if not tg_user_id:
         await q.message.reply_text("Не зміг визначити користувача. Запусти /start ще раз.")
@@ -695,13 +768,8 @@ async def onb_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     context.user_data.setdefault("onb", {})["cats_choice"] = choice
     async with _pool(context).acquire() as conn:
         await _seed_categories(conn, tg_user_id, choice)
-        summary = await _render_onboarding_summary(conn, tg_user_id, choice)
 
-    await q.message.reply_text(
-        "Крок 6/6: Підтвердження.\n\n" + summary,
-        reply_markup=kb_onb_confirm(),
-    )
-    return ONB_CONFIRM
+    return await _show_onboarding_summary(q.message, context)
 
 
 async def onb_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -710,50 +778,46 @@ async def onb_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         return ONB_CONFIRM
     await q.answer()
 
+    action = q.data.rsplit(":", 1)[-1]
     tg_user_id = context.user_data.get("tg_user_id")
     if not tg_user_id:
         await q.message.reply_text("Не зміг визначити користувача. Запусти /start ще раз.")
         return ConversationHandler.END
 
-    if q.data.endswith(":restart"):
+    if action == "ok":
         async with _pool(context).acquire() as conn:
-            await conn.execute("DELETE FROM accounts WHERE tg_user_id=$1", tg_user_id)
-            await conn.execute("DELETE FROM categories WHERE tg_user_id=$1", tg_user_id)
             await conn.execute(
-                "UPDATE users SET start_date=NULL, onboarding_completed=false, onboarding_version=0 WHERE tg_user_id=$1",
+                "UPDATE users SET onboarding_completed=true, onboarding_version=$2 WHERE tg_user_id=$1",
                 tg_user_id,
+                CURRENT_ONBOARDING_VERSION,
             )
+            await _ensure_default_categories(conn, tg_user_id)
         _reset_onboarding(context)
-        context.user_data["onb"] = {}
-        await q.message.reply_text("Починаємо спочатку. Обери мову:", reply_markup=kb_language())
-        return LANG
+        await q.message.reply_text("✅ Готово. Онбординг завершено.")
+        await _reply_home(q.message, "🏠 Тепер можна додавати витрати/доходи текстом або голосом.")
+        return ConversationHandler.END
 
-    if q.data.endswith(":edit"):
+    if action == "edit":
         async with _pool(context).acquire() as conn:
             accounts = await _get_accounts(conn, tg_user_id)
         await q.message.reply_text(
-            "Редагування рахунків. Можеш видалити помилковий рахунок або додати новий.",
+            "Редагування рахунків.\n\nМожеш видалити зайве, додати новий рахунок або повернутись до підтвердження.",
             reply_markup=kb_onb_edit_accounts(accounts),
         )
         return ONB_EDIT_ACCOUNTS
 
     async with _pool(context).acquire() as conn:
-        ready_accounts = await conn.fetchval("SELECT count(1) FROM accounts WHERE tg_user_id=$1", tg_user_id)
-        if not ready_accounts or int(ready_accounts) <= 0:
-            await q.message.reply_text("Потрібно мати хоча б один рахунок.", reply_markup=kb_onb_confirm())
-            return ONB_CONFIRM
+        await conn.execute("DELETE FROM accounts WHERE tg_user_id=$1", tg_user_id)
+        await conn.execute("DELETE FROM categories WHERE tg_user_id=$1", tg_user_id)
         await conn.execute(
-            "UPDATE users SET onboarding_completed=true, onboarding_version=$2, last_seen_at=now() WHERE tg_user_id=$1",
+            "UPDATE users SET onboarding_completed=false, onboarding_version=0, start_date=NULL WHERE tg_user_id=$1",
             tg_user_id,
-            CURRENT_ONBOARDING_VERSION,
         )
 
     _reset_onboarding(context)
-    await q.message.reply_text(
-        "Налаштування збережено. Тепер відкриваю головне меню.",
-        reply_markup=kb_home(),
-    )
-    return ConversationHandler.END
+    context.user_data["onb"] = {}
+    await q.message.reply_text("🔄 Починаємо onboarding спочатку.\n\nКрок 1/6: Обери мову.", reply_markup=kb_language())
+    return LANG
 
 
 async def onb_edit_accounts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -767,22 +831,26 @@ async def onb_edit_accounts(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await q.message.reply_text("Не зміг визначити користувача. Запусти /start ще раз.")
         return ConversationHandler.END
 
-    if q.data.endswith(":back"):
-        async with _pool(context).acquire() as conn:
-            summary = await _render_onboarding_summary(conn, tg_user_id, context.user_data.get("onb", {}).get("cats_choice", "standard"))
-        await q.message.reply_text("Повертаю підсумок.\n\n" + summary, reply_markup=kb_onb_confirm())
-        return ONB_CONFIRM
+    action = q.data.split(":")
+    async with _pool(context).acquire() as conn:
+        if action[2] == "back":
+            return await _show_onboarding_summary(q.message, context)
 
-    if q.data.endswith(":add"):
-        return await _start_accounts_step(q.message, context, force_add=True)
-
-    if ":del:" in q.data:
-        account_id = int(q.data.rsplit(":", 1)[-1])
-        async with _pool(context).acquire() as conn:
-            await conn.execute("DELETE FROM accounts WHERE tg_user_id=$1 AND id=$2", tg_user_id, account_id)
+        if action[2] == "add":
             accounts = await _get_accounts(conn, tg_user_id)
-        await q.message.reply_text("Рахунок видалено.", reply_markup=kb_onb_edit_accounts(accounts))
-        return ONB_EDIT_ACCOUNTS
+            if len(accounts) >= 5:
+                await q.message.reply_text("У MVP можна додати до 5 рахунків.")
+                return ONB_EDIT_ACCOUNTS
+            return await _start_accounts_step(q.message, context, force_add=True)
+
+        if action[2] == "del" and len(action) == 4:
+            await conn.execute("DELETE FROM accounts WHERE tg_user_id=$1 AND id=$2", tg_user_id, int(action[3]))
+            accounts = await _get_accounts(conn, tg_user_id)
+            if not accounts:
+                await q.message.reply_text("Рахунків не залишилось. Додай хоча б один новий.")
+                return await _start_accounts_step(q.message, context, force_add=True)
+            await q.message.reply_text("Оновив список рахунків.", reply_markup=kb_onb_edit_accounts(accounts))
+            return ONB_EDIT_ACCOUNTS
 
     return ONB_EDIT_ACCOUNTS
 
@@ -802,39 +870,59 @@ async def home_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             await q.message.reply_text("Спочатку пройди /start (онбординг).")
             return
 
-        _, action, value = q.data.split(":", 2)
+        parts = q.data.split(":")
+        action = parts[1] if len(parts) > 1 else ""
+        value = parts[2] if len(parts) > 2 else ""
 
         if action == "add" and value in {"expense", "income"}:
+            _reset_debt_flow(context)
             accounts = await _get_accounts(conn, user.id)
-            _reset_tx_flow(context)
+            await _ensure_default_categories(conn, user.id)
+            if not accounts:
+                await _reply_and_return_home(q.message, "⚠️ Спочатку додай хоча б один рахунок у налаштуваннях.")
+                return
             context.user_data["tx_flow"] = {"kind": value}
-            await q.message.reply_text("Крок 1/3: Обери рахунок.", reply_markup=kb_pick_account(accounts, value))
+            await q.message.reply_text(
+                f"Крок 1/3: Обери рахунок для {'витрати' if value == 'expense' else 'доходу'}.",
+                reply_markup=kb_pick_account(accounts, value),
+            )
             return
 
         if action == "add" and value == "transfer":
-            await q.message.reply_text("Перекази ще не реалізовані в цій версії. Повернись до витрат або доходів.")
+            _reset_runtime_flows(context)
+            await _reply_and_return_home(q.message, "🔁 Перекази ще в роботі.")
             return
 
         if action == "cmd" and value == "reports":
-            await q.message.reply_text("Звіти: обери період.", reply_markup=kb_reports_menu())
+            _reset_runtime_flows(context)
+            await q.message.reply_text("📊 Звіти: обери період.", reply_markup=kb_reports_menu())
             return
 
         if action == "cmd" and value == "categories":
+            _reset_runtime_flows(context)
             expense = await _get_categories(conn, user.id, "expense")
             income = await _get_categories(conn, user.id, "income")
-            lines = ["Категорії:", "", "Витрати:"]
-            lines += [f"- {name}" for _, name in expense]
+            lines = ["📂 Категорії", "", "Витрати:"]
+            lines += [f"- {name}" for _, name in expense] or ["- немає"]
             lines += ["", "Доходи:"]
-            lines += [f"- {name}" for _, name in income]
+            lines += [f"- {name}" for _, name in income] or ["- немає"]
             await q.message.reply_text("\n".join(lines))
+            await _reply_home(q.message)
             return
 
         if action == "cmd" and value == "debts":
+            _reset_tx_flow(context)
             await q.message.reply_text(await _debts_report_text(conn, user.id), reply_markup=kb_debts_menu())
             return
 
         if action == "cmd" and value in {"family", "settings", "export"}:
-            await q.message.reply_text("Цей розділ ще в роботі.")
+            _reset_runtime_flows(context)
+            placeholders = {
+                "family": "👨‍👩‍👧 Розділ «Сімʼя» ще в роботі.",
+                "settings": "⚙️ Розділ «Налаштування» ще в роботі.",
+                "export": "📄 Експорт CSV ще в роботі.",
+            }
+            await _reply_and_return_home(q.message, placeholders[value])
             return
 
     await _show_home(update)
@@ -857,7 +945,7 @@ async def pick_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     if q.data == "pick:acct:back":
         _reset_tx_flow(context)
-        await q.message.reply_text("Повертаю в головне меню.", reply_markup=kb_home())
+        await _reply_home(q.message)
         return
 
     async with _pool(context).acquire() as conn:
@@ -877,23 +965,29 @@ async def pick_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             tx_flow["category_id"] = int(parts[3])
             tx_flow["await_amount"] = True
             await q.message.reply_text(
-                "Крок 3/3: Напиши суму транзакції та, за бажанням, короткий коментар.\nПриклад: `продукти 1000`\n\nАбо надішли голосове.",
+                "Крок 3/3: Напиши суму транзакції та, за бажанням, короткий коментар.\n"
+                "Приклад: `Продукти 500`\n\n"
+                "Або надішли голосове.",
                 parse_mode="Markdown",
             )
-            return
 
 
 async def _save_tx_amount(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_text: str) -> None:
     user = update.effective_user
-    if not user:
+    if not user or not update.message:
         return
 
     amount = parse_amount(raw_text)
     if amount is None or amount <= 0:
-        await update.message.reply_text("Не бачу суму. Приклад: `продукти 1000`", parse_mode="Markdown")
+        await update.message.reply_text("Не бачу суму. Приклад: `Продукти 500`", parse_mode="Markdown")
         return
 
     tx_flow = context.user_data.get("tx_flow") or {}
+    if not tx_flow.get("account_id") or not tx_flow.get("category_id") or tx_flow.get("kind") not in {"expense", "income"}:
+        _reset_tx_flow(context)
+        await _reply_and_return_home(update.message, "⚠️ Схоже, flow транзакції збився. Почни ще раз з меню.")
+        return
+
     async with _pool(context).acquire() as conn:
         db_user = await _get_user(conn, user.id)
         currency = (db_user.get("base_currency") if db_user else None) or "UAH"
@@ -904,17 +998,18 @@ async def _save_tx_amount(update: Update, context: ContextTypes.DEFAULT_TYPE, ra
             """,
             user.id,
             datetime.now().date(),
-            tx_flow.get("kind"),
+            tx_flow["kind"],
             float(amount),
             currency,
             raw_text.strip()[:500] or None,
             "text",
-            tx_flow.get("account_id"),
-            tx_flow.get("category_id"),
+            tx_flow["account_id"],
+            tx_flow["category_id"],
         )
 
     _reset_tx_flow(context)
-    await update.message.reply_text("Транзакцію збережено.", reply_markup=kb_home())
+    await update.message.reply_text("✅ Транзакцію збережено.")
+    await _reply_home(update.message)
 
 
 async def _debts_report_text(conn: asyncpg.Connection, tg_user_id: int) -> str:
@@ -926,6 +1021,7 @@ async def _debts_report_text(conn: asyncpg.Connection, tg_user_id: int) -> str:
         FROM transactions
         WHERE tg_user_id=$1 AND flow_kind='debt'
         GROUP BY counterparty, currency
+        ORDER BY counterparty ASC
         """,
         tg_user_id,
     )
@@ -933,16 +1029,16 @@ async def _debts_report_text(conn: asyncpg.Connection, tg_user_id: int) -> str:
     owed_to_me: list[str] = []
     i_owe: list[str] = []
     for row in rows:
-        cp = (row["counterparty"] or "—").strip() or "—"
-        cur = (row["currency"] or "").strip() or ""
-        owed = float(row["owed_to_me"] or 0)
-        owe = float(row["i_owe"] or 0)
+        counterparty = (row["counterparty"] or "—").strip() or "—"
+        currency = (row["currency"] or "").strip()
+        owed = Decimal(str(row["owed_to_me"] or 0))
+        owe = Decimal(str(row["i_owe"] or 0))
         if owed > 0:
-            owed_to_me.append(f"- {cp}: {owed:.2f} {cur}")
+            owed_to_me.append(f"- {counterparty}: {_format_decimal(owed)} {currency}")
         if owe > 0:
-            i_owe.append(f"- {cp}: {owe:.2f} {cur}")
+            i_owe.append(f"- {counterparty}: {_format_decimal(owe)} {currency}")
 
-    lines = ["Борги:", "", "Мені винні:"]
+    lines = ["🤝 Борги", "", "Мені винні:"]
     lines += owed_to_me or ["- немає"]
     lines += ["", "Я винен:"]
     lines += i_owe or ["- немає"]
@@ -961,7 +1057,7 @@ async def debts_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if q.data == "debts:back":
         _reset_debt_flow(context)
-        await q.message.reply_text("Повертаю в головне меню.", reply_markup=kb_home())
+        await _reply_home(q.message)
         return
 
     async with _pool(context).acquire() as conn:
@@ -971,17 +1067,17 @@ async def debts_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         db_user = await _get_user(conn, user.id)
         base_currency = (db_user.get("base_currency") if db_user else None) or "UAH"
 
+    _reset_tx_flow(context)
     if q.data.startswith("debts:add:"):
         direction = q.data.rsplit(":", 1)[-1]
         context.user_data["debt_flow"] = {"step": "name", "direction": direction, "repay": False, "currency": base_currency}
-        await q.message.reply_text("Імʼя контрагента:")
+        await q.message.reply_text("Введи імʼя людини або назву контрагента:")
         return
 
     if q.data.startswith("debts:repay:"):
         direction = q.data.rsplit(":", 1)[-1]
         context.user_data["debt_flow"] = {"step": "name", "direction": direction, "repay": True, "currency": base_currency}
-        await q.message.reply_text("Імʼя контрагента:")
-        return
+        await q.message.reply_text("Введи імʼя людини або назву контрагента:")
 
 
 async def _handle_debt_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -998,12 +1094,12 @@ async def _handle_debt_text(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         flow["name"] = name
         flow["step"] = "amount"
         context.user_data["debt_flow"] = flow
-        await update.message.reply_text("Сума боргу:")
+        await update.message.reply_text("Введи суму боргу або погашення:")
         return
 
     amount = parse_amount(update.message.text)
     if amount is None or amount <= 0:
-        await update.message.reply_text("Не схоже на суму. Приклад: 500 або 1200.50. Спробуй ще раз:")
+        await update.message.reply_text("Не схоже на суму. Приклад: `500` або `1200.50`.", parse_mode="Markdown")
         return
 
     if flow.get("direction") == "owed_to_me":
@@ -1029,7 +1125,7 @@ async def _handle_debt_text(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         report = await _debts_report_text(conn, user.id)
 
     _reset_debt_flow(context)
-    await update.message.reply_text("Борг збережено.")
+    await update.message.reply_text("✅ Борг збережено.")
     await update.message.reply_text(report, reply_markup=kb_debts_menu())
 
 
@@ -1044,7 +1140,7 @@ async def reports_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     if q.data == "reports:back":
-        await q.message.reply_text("Повертаю в головне меню.", reply_markup=kb_home())
+        await _reply_home(q.message)
         return
 
     key = q.data.rsplit(":", 1)[-1]
@@ -1065,21 +1161,31 @@ async def reports_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         title = "Поточний місяць"
 
     async with _pool(context).acquire() as conn:
+        db_user = await _get_user(conn, user.id)
+        user_start = db_user.get("start_date") if db_user else None
+        effective_start = max(start_date, user_start) if user_start else start_date
         rows = await conn.fetch(
             """
             SELECT type, sum(amount) AS total
             FROM transactions
-            WHERE tg_user_id=$1 AND date >= $2 AND date < $3 AND flow_kind='normal'
+            WHERE tg_user_id=$1
+              AND date >= $2
+              AND date < $3
+              AND flow_kind='normal'
+              AND account_id IS NOT NULL
+              AND category_id IS NOT NULL
             GROUP BY type
             """,
             user.id,
-            start_date,
+            effective_start,
             end_date,
         )
 
-    totals = {row["type"]: float(row["total"] or 0) for row in rows}
+    totals = {row["type"]: Decimal(str(row["total"] or 0)) for row in rows}
     await q.message.reply_text(
-        f"Звіт: {title}\n\nВитрати: {totals.get('expense', 0.0):.2f}\nДоходи: {totals.get('income', 0.0):.2f}",
+        f"📊 Звіт: {title}\n\n"
+        f"Витрати: {_format_decimal(totals.get('expense'))}\n"
+        f"Доходи: {_format_decimal(totals.get('income'))}",
         reply_markup=kb_reports_menu(),
     )
 
@@ -1089,16 +1195,16 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if not user or not update.message or not update.message.text:
         return
 
-    if _onboarding_active(context):
-        await update.message.reply_text("Зараз активний онбординг. Заверши кроки вище або запусти /start заново.")
+    if context.user_data.get("tx_flow", {}).get("await_amount"):
+        await _save_tx_amount(update, context, update.message.text)
         return
 
     if context.user_data.get("debt_flow"):
         await _handle_debt_text(update, context)
         return
 
-    if context.user_data.get("tx_flow", {}).get("await_amount"):
-        await _save_tx_amount(update, context, update.message.text)
+    if _onboarding_active(context):
+        await update.message.reply_text("Зараз активний онбординг. Заверши крок вище або запусти /start заново.")
         return
 
     async with _pool(context).acquire() as conn:
@@ -1106,7 +1212,7 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await update.message.reply_text("Спочатку пройди /start (онбординг).")
             return
 
-    await update.message.reply_text("Натисни «Витрата» або «Дохід», щоб почати нову транзакцію.", reply_markup=kb_home())
+    await _reply_home(update.message, "Щоб додати нову операцію, натисни «Витрата» або «Дохід».")
 
 
 async def voice_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1123,7 +1229,9 @@ async def voice_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     if not context.user_data.get("tx_flow", {}).get("await_amount"):
-        await update.message.reply_text("Спочатку натисни «Витрата» або «Дохід», обери рахунок і категорію, а потім можеш диктувати суму голосом.")
+        await update.message.reply_text(
+            "Спочатку натисни «Витрата» або «Дохід», обери рахунок і категорію, а потім можеш надиктувати суму голосом."
+        )
         return
 
     async with _pool(context).acquire() as conn:
