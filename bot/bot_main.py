@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import date, datetime
 
 import asyncpg
 from telegram import Update
@@ -12,17 +12,20 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
+    ConversationHandler,
     MessageHandler,
     filters,
 )
 
 import config
-from keyboards import kb_home
+from keyboards import kb_currency, kb_home, kb_language
 from parsing import parse_tx
 from stt import transcribe_ogg_bytes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("mcf-bot")
+
+LANG, CURRENCY, START_DATE = range(3)
 
 
 async def _connect_pool(dsn: str) -> asyncpg.Pool:
@@ -53,11 +56,19 @@ async def init_db(application: Application) -> None:
               username TEXT,
               lang TEXT,
               base_currency TEXT,
+              start_date DATE,
+              onboarding_completed BOOLEAN NOT NULL DEFAULT false,
               created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
               last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
             """
         )
+        # Backward-compatible schema upgrades
+        await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS start_date DATE")
+        await conn.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT false"
+        )
+
         await conn.execute(
             """
             CREATE TABLE IF NOT EXISTS transactions (
@@ -89,10 +100,36 @@ def _pool(context: ContextTypes.DEFAULT_TYPE) -> asyncpg.Pool:
     return context.application.bot_data["db_pool"]
 
 
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def _show_home(update: Update) -> None:
+    if not update.message:
+        return
+    await update.message.reply_text(
+        "Привіт! Надішли транзакцію текстом або голосом (≤20с). Напр: `продукти 1000`",
+        reply_markup=kb_home(),
+        parse_mode="Markdown",
+    )
+
+
+def _parse_date_text(text: str) -> date | None:
+    t = (text or "").strip().lower()
+    if not t:
+        return None
+    if t in {"сьогодні", "сегодня", "today"}:
+        return datetime.now().date()
+    if t in {"вчора", "вчера", "yesterday"}:
+        return (datetime.now().date()).fromordinal(datetime.now().date().toordinal() - 1)
+
+    # DD.MM.YYYY
+    try:
+        return datetime.strptime(t, "%d.%m.%Y").date()
+    except ValueError:
+        return None
+
+
+async def start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     if not user or not update.message:
-        return
+        return ConversationHandler.END
 
     async with _pool(context).acquire() as conn:
         await conn.execute(
@@ -112,12 +149,108 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             user.language_code,
             "UAH",
         )
+        u = await conn.fetchrow(
+            "SELECT onboarding_completed FROM users WHERE tg_user_id=$1",
+            user.id,
+        )
+
+    if u and bool(u.get("onboarding_completed")):
+        await _show_home(update)
+        return ConversationHandler.END
 
     await update.message.reply_text(
-        "Привіт! Надішли транзакцію текстом або голосом (≤20с). Напр: `продукти 1000`",
-        reply_markup=kb_home(),
-        parse_mode="Markdown",
+        "Привіт! Давай швидко налаштуємо все під тебе. Обери мову:",
+        reply_markup=kb_language(),
     )
+    return LANG
+
+
+async def onb_lang(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    q = update.callback_query
+    if not q:
+        return LANG
+    await q.answer()
+
+    try:
+        _, _, lang = q.data.split(":", 2)
+    except Exception:
+        return LANG
+
+    context.user_data.setdefault("onb", {})["lang"] = lang
+    await q.message.reply_text("Базова валюта:", reply_markup=kb_currency())
+    return CURRENCY
+
+
+async def onb_currency(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    q = update.callback_query
+    if not q:
+        return CURRENCY
+    await q.answer()
+
+    try:
+        _, _, cur = q.data.split(":", 2)
+    except Exception:
+        return CURRENCY
+
+    if cur == "OTHER":
+        await q.message.reply_text("Введи валюту (напр. UAH, USD, EUR):")
+        return CURRENCY
+
+    context.user_data.setdefault("onb", {})["base_currency"] = cur
+    await q.message.reply_text("Дата старту обліку? (напр. 27.04.2026 або 'сьогодні'):")
+    return START_DATE
+
+
+async def onb_currency_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not update.message or not update.message.text:
+        return CURRENCY
+
+    cur = update.message.text.strip().upper()
+    if len(cur) != 3 or not cur.isalpha():
+        await update.message.reply_text("Потрібно 3 літери, напр. UAH / USD / EUR. Спробуй ще раз:")
+        return CURRENCY
+
+    context.user_data.setdefault("onb", {})["base_currency"] = cur
+    await update.message.reply_text("Дата старту обліку? (напр. 27.04.2026 або 'сьогодні'):")
+    return START_DATE
+
+
+async def onb_start_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    if not user or not update.message or not update.message.text:
+        return START_DATE
+
+    start_date = _parse_date_text(update.message.text)
+    if not start_date:
+        await update.message.reply_text("Не зрозумів дату. Приклад: 27.04.2026 або 'сьогодні'. Спробуй ще раз:")
+        return START_DATE
+
+    onb = context.user_data.get("onb", {})
+    lang = onb.get("lang")
+    base_currency = (onb.get("base_currency") or "UAH").strip().upper() or "UAH"
+
+    async with _pool(context).acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE users
+            SET lang = COALESCE($2, lang),
+                base_currency = COALESCE($3, base_currency),
+                start_date = $4,
+                onboarding_completed = true,
+                last_seen_at = now()
+            WHERE tg_user_id=$1
+            """,
+            user.id,
+            lang,
+            base_currency,
+            start_date,
+        )
+
+    await update.message.reply_text(
+        "Готово ✅ Тепер можна додавати витрати/доходи текстом або голосом.",
+        reply_markup=kb_home(),
+    )
+    return ConversationHandler.END
 
 
 async def home_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -143,9 +276,12 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     async with _pool(context).acquire() as conn:
-        u = await conn.fetchrow("SELECT base_currency FROM users WHERE tg_user_id=$1", user.id)
-        if not u:
-            await update.message.reply_text("Спочатку /start")
+        u = await conn.fetchrow(
+            "SELECT base_currency, onboarding_completed FROM users WHERE tg_user_id=$1",
+            user.id,
+        )
+        if not u or not bool(u.get("onboarding_completed")):
+            await update.message.reply_text("Спочатку пройди /start (онбординг).")
             return
         base_currency = (u.get("base_currency") or "UAH").strip() or "UAH"
 
@@ -188,6 +324,15 @@ async def voice_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await update.message.reply_text("Голосове має бути ≤20с. Спробуй коротше або надішли текстом.")
         return
 
+    async with _pool(context).acquire() as conn:
+        u = await conn.fetchrow(
+            "SELECT onboarding_completed FROM users WHERE tg_user_id=$1",
+            user.id,
+        )
+        if not u or not bool(u.get("onboarding_completed")):
+            await update.message.reply_text("Спочатку пройди /start (онбординг).")
+            return
+
     if not config.OPENAI_API_KEY:
         await update.message.reply_text("Голосові поки не налаштовані (OPENAI_API_KEY відсутній).")
         return
@@ -217,14 +362,24 @@ def build_app() -> Application:
         raise SystemExit("BOT_TOKEN is missing. Put it into /opt/my-cash-flow-bot/.env")
 
     app = (
-        Application.builder()
-        .token(config.BOT_TOKEN)
-        .post_init(init_db)
-        .post_shutdown(shutdown_db)
-        .build()
+        Application.builder().token(config.BOT_TOKEN).post_init(init_db).post_shutdown(shutdown_db).build()
     )
 
-    app.add_handler(CommandHandler("start", cmd_start))
+    onboarding = ConversationHandler(
+        entry_points=[CommandHandler("start", start_entry)],
+        states={
+            LANG: [CallbackQueryHandler(onb_lang, pattern=r"^onb:lang:")],
+            CURRENCY: [
+                CallbackQueryHandler(onb_currency, pattern=r"^onb:cur:"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, onb_currency_text),
+            ],
+            START_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, onb_start_date)],
+        },
+        fallbacks=[],
+        allow_reentry=True,
+    )
+
+    app.add_handler(onboarding)
     app.add_handler(CallbackQueryHandler(home_callback, pattern=r"^home:"))
     app.add_handler(MessageHandler(filters.VOICE, voice_message))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message))
