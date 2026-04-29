@@ -436,7 +436,8 @@ async def start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         )
         ready = await _user_ready(conn, user.id)
 
-    if ready:
+    force_onboarding = bool(context.user_data.pop("force_onboarding", False))
+    if ready and not force_onboarding:
         await _show_home(update)
         return ConversationHandler.END
 
@@ -448,6 +449,16 @@ async def start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         reply_markup=kb_language(),
     )
     return LANG
+
+
+async def restart_onboarding_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["force_onboarding"] = True
+    if update.message:
+        await update.message.reply_text(
+            "🔄 Запускаю онбординг повторно для цього акаунта.\n\n"
+            "Поточні транзакції не чіпаю. За потреби рахунки можна буде відредагувати на кроці підтвердження."
+        )
+    return await start_entry(update, context)
 
 
 async def onb_lang(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -1264,7 +1275,10 @@ def build_app() -> Application:
     app = Application.builder().token(config.BOT_TOKEN).post_init(init_db).post_shutdown(shutdown_db).build()
 
     onboarding = ConversationHandler(
-        entry_points=[CommandHandler("start", start_entry)],
+        entry_points=[
+            CommandHandler("start", start_entry),
+            CommandHandler("onboarding", restart_onboarding_entry),
+        ],
         states={
             LANG: [CallbackQueryHandler(onb_lang, pattern=r"^onb:lang:")],
             BASE_CURRENCY: [
