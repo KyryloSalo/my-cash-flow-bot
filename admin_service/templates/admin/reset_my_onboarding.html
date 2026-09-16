@@ -1,0 +1,35 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<style>
+  .ops-card { border:1px solid #d8d1c4; border-radius:14px; padding:18px; background:#fffef9; margin-bottom:18px; }
+</style>
+
+<div id="content-main">
+  <h1>{{ title }}</h1>
+
+  {% if not admin_test_telegram_ids %}
+    <div class="ops-card">
+      <strong>ADMIN_TEST_TELEGRAM_IDS не налаштовано.</strong>
+      <p>Додайте свій Telegram ID у `.env`, щоб швидко скидувати власний онбординг.</p>
+    </div>
+  {% endif %}
+
+  <div class="ops-card">
+    <p>Основний сценарій: оберіть свого тестового користувача, скиньте онбординг, потім напишіть `/start` у Telegram.</p>
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit" class="default">Скинути онбординг</button>
+    </form>
+  </div>
+
+  {% if action_result %}
+    <div class="ops-card">
+      <h2>Результат</h2>
+      <pre>{{ action_result|pprint }}</pre>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

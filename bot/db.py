@@ -218,6 +218,7 @@ async def rename_category(
             old_name,
             new_name,
         )
+    # asyncpg returns "UPDATE <n>"
     return int(res.split()[-1])
 
 
@@ -425,6 +426,9 @@ async def category_report(
 
 
 async def debts_report(conn: asyncpg.Connection, scope: Scope) -> dict[str, list[dict[str, Any]]]:
+    # Outstanding:
+    # owed_to_me = lend - lend_repaid
+    # i_owe = borrow - borrow_repaid
     if scope.kind == "family":
         rows = await conn.fetch(
             """

@@ -37,7 +37,10 @@ async def run_migrations(pool: asyncpg.Pool, migrations_dir: str) -> None:
 
     async with pool.acquire() as conn:
         await ensure_schema_migrations(conn)
-        applied = {r["id"] for r in await conn.fetch("SELECT id FROM schema_migrations ORDER BY applied_at ASC")}
+        applied = {
+            r["id"]
+            for r in await conn.fetch("SELECT id FROM schema_migrations ORDER BY applied_at ASC")
+        }
 
     for f in files:
         if f.name in applied:
@@ -64,3 +67,4 @@ async def wait_for_db_and_migrate(dsn: str, migrations_dir: str) -> asyncpg.Pool
             logger.warning("DB/migrate failed (attempt %s/30): %s; retry in %.1fs", attempt + 1, exc, wait_s)
             await asyncio.sleep(wait_s)
     raise RuntimeError(f"DB/migrate failed after retries: {last_err}")
+

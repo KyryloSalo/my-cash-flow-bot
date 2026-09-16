@@ -1,0 +1,33 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="payment-confirmation-shell">
+  <header class="operational-page-heading">
+    <p class="operational-page-eyebrow">{{ section }}</p>
+    <h1>{{ title }}</h1>
+    <p class="operational-page-description">{{ warning }}</p>
+  </header>
+
+  <section class="payment-confirmation-card">
+    <div class="payment-confirmation-heading">
+      <div><strong>{{ selected_count }}</strong><span>вибрано</span></div>
+      <p>Перевірте список перед підтвердженням. Показано щонайбільше 50 записів.</p>
+    </div>
+
+    <ol class="operational-confirm-list">
+      {% for object in objects %}<li>{{ object }}</li>{% endfor %}
+    </ol>
+
+    <form method="post" class="payment-confirmation-actions">
+      {% csrf_token %}
+      {% for object_id in selected_ids %}<input type="hidden" name="{{ action_checkbox_name }}" value="{{ object_id }}">{% endfor %}
+      <input type="hidden" name="action" value="{{ action_name }}">
+      <input type="hidden" name="select_across" value="{{ select_across }}">
+      <input type="hidden" name="confirm_action" value="1">
+      <button type="submit" class="default">{{ submit_label }}</button>
+      <a class="payment-confirmation-cancel" href="{{ cancel_url }}">Скасувати</a>
+    </form>
+  </section>
+</div>
+{% endblock %}

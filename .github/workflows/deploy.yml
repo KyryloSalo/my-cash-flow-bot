@@ -1,23 +1,74 @@
-name: Deploy to VPS
-
+name: Validate release (production requires new manual approval)
 on:
   push:
-    branches: [ "main" ]
-
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-bookworm@sha256:bb3e1a57e5407e0a5280b4211980a5e537f4abd234a87014ac979849a78dd825
+        env:
+          POSTGRES_DB: mcf_ci
+          POSTGRES_USER: audit
+          POSTGRES_PASSWORD: synthetic-ci-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U audit -d mcf_ci"
+          --health-interval 5s --health-timeout 3s --health-retries 12
+      redis:
+        image: redis:7-bookworm@sha256:71da9275c5f3fcb97d0fa0c8c5b36cc995327265420f17a04bfd544f458059f7
+        ports: ['6379:6379']
+    env:
+      OPS_SYNTHETIC_TESTS: '1'
+      DATABASE_URL: postgresql://audit:synthetic-ci-only@127.0.0.1:5432/mcf_ci
+      REDIS_URL: redis://127.0.0.1:6379/0
+      DJANGO_SECRET_KEY: synthetic-ci-only-6s9d3n7c4v8b2a0f1p5z-SYNTHETIC-not-production
+      DJANGO_DEBUG: 'false'
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,admin,admin.vydno.capital,vydno.capital
+      ADMIN_NOTIFICATIONS_ENABLED: 'false'
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: |
-            set -e
-            cd /opt/my-cash-flow-bot
-            git pull --ff-only
-            docker compose up -d --build
-            docker compose ps
+          python-version: '3.12.10'
+      - name: Install hashed runtime and build dependencies
+        run: |
+          python -m pip install --require-hashes -r admin_service/build-requirements.lock
+          python -m pip install --require-hashes --no-build-isolation -r admin_service/requirements.lock -r bot/requirements.lock
+          python -m pip check
+      - name: Required tests, fresh schema, repeat bootstrap and migrations
+        run: bash ops/validate_release.sh
+      - name: Build exact release images and test their installed distributions
+        run: |
+          docker build --pull -t "mcf-bot:$GITHUB_SHA" -f bot/Dockerfile .
+          docker build --pull -t "mcf-admin:$GITHUB_SHA" -f admin_service/Dockerfile .
+          docker build --pull -t "mcf-nginx:$GITHUB_SHA" nginx
+          docker run --rm "mcf-bot:$GITHUB_SHA" python -m pip check
+          docker run --rm "mcf-admin:$GITHUB_SHA" python -m pip check
+          docker run --rm "mcf-bot:$GITHUB_SHA" python -m unittest discover -s tests -v
+          docker run --rm --network host -e DATABASE_URL -e REDIS_URL -e DJANGO_SECRET_KEY -e DJANGO_DEBUG=true -e DJANGO_ALLOWED_HOSTS -e ADMIN_NOTIFICATIONS_ENABLED "mcf-admin:$GITHUB_SHA" python manage.py test --noinput
+          mkdir -p artifacts
+          docker run --rm "mcf-bot:$GITHUB_SHA" python -m pip inspect > artifacts/bot-sbom.json
+          docker run --rm "mcf-admin:$GITHUB_SHA" python -m pip inspect > artifacts/admin-sbom.json
+      - name: Archive only after all validation gates succeed
+        run: |
+          python ops/release_artifact.py build --source . --archive artifacts/release.zip
+          docker save -o artifacts/images.tar "mcf-bot:$GITHUB_SHA" "mcf-admin:$GITHUB_SHA" "mcf-nginx:$GITHUB_SHA"
+          python ops/release_evidence.py create artifacts "$GITHUB_SHA"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: validated-release-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+# No SSH secrets or automatic production job. Download a successful artifact,
+# approve staging gates/runbook, then use ops/deploy.ps1 -ConfirmProduction.

@@ -15,13 +15,20 @@ class SttResult:
     text: str
 
 
-async def transcribe_ogg_bytes(ogg_bytes: bytes) -> SttResult:
+async def transcribe_audio_bytes(
+    audio_bytes: bytes,
+    *,
+    filename: str,
+    mime_type: str,
+) -> SttResult:
     if not OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY is not configured")
+    if not audio_bytes:
+        raise ValueError("Audio is required")
 
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
     data = {"model": OPENAI_STT_MODEL}
-    files = {"file": ("voice.ogg", ogg_bytes, "audio/ogg")}
+    files = {"file": (filename, audio_bytes, mime_type)}
 
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.post(
@@ -36,3 +43,11 @@ async def transcribe_ogg_bytes(ogg_bytes: bytes) -> SttResult:
         if not text:
             raise RuntimeError("Empty STT result")
         return SttResult(text=text)
+
+
+async def transcribe_ogg_bytes(ogg_bytes: bytes) -> SttResult:
+    return await transcribe_audio_bytes(
+        ogg_bytes,
+        filename="voice.ogg",
+        mime_type="audio/ogg",
+    )

@@ -1,0 +1,116 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<style>
+  .ops-card { border:1px solid #d8d1c4; border-radius:14px; padding:18px; background:#fffef9; margin-bottom:18px; }
+  .ops-table { width:100%; border-collapse:collapse; }
+  .ops-table th, .ops-table td { padding:8px 10px; border-bottom:1px solid #ece5d7; text-align:left; vertical-align:top; }
+</style>
+
+<div id="content-main">
+  <h1>{{ title }}</h1>
+
+  <div class="ops-card">
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <button type="submit" class="default">Оновити стан</button>
+        {% if resolved_user %}
+          <a class="button" href="{% url 'admin:reset_my_onboarding' %}?user_id={{ resolved_user.tg_user_id }}">Скинути онбординг</a>
+          <a class="button" href="{% url 'admin:users_telegramuser_change' resolved_user.pk %}">Відкрити картку користувача</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  {% if matching_users %}
+    <div class="ops-card">
+      <h2>Знайдені користувачі</h2>
+      <table class="ops-table">
+        <tr><th>Telegram ID</th><th>Нік у Telegram</th><th>Ім'я</th><th>Остання активність</th></tr>
+        {% for user in matching_users %}
+          <tr>
+            <td>{{ user.tg_user_id }}</td>
+            <td>{% if user.username %}@{{ user.username }}{% else %}-{% endif %}</td>
+            <td>{{ user.full_name }}</td>
+            <td>{{ user.last_seen_at|default:"-" }}</td>
+          </tr>
+        {% endfor %}
+      </table>
+    </div>
+  {% endif %}
+
+  {% if debug %}
+    <div class="ops-card">
+      <h2>Поточний стан</h2>
+      <table class="ops-table">
+        <tr><th>Telegram ID</th><td>{{ debug.user.tg_user_id }}</td></tr>
+        <tr><th>Нік у Telegram</th><td>{% if debug.user.username %}@{{ debug.user.username }}{% else %}-{% endif %}</td></tr>
+        <tr><th>Статус онбордингу</th><td>{{ debug.onboarding_status }}</td></tr>
+        <tr><th>Поточний крок</th><td>{{ debug.current_step }}</td></tr>
+        <tr><th>FSM стан</th><td>{{ debug.current_step }}</td></tr>
+        <tr><th>Redis / FSM сховище</th><td>{{ debug.redis_state }}</td></tr>
+        <tr><th>Тимчасовий payload</th><td><pre>{{ debug.state.onboarding_payload|default:"{}" }}</pre></td></tr>
+        <tr><th>Останній ввід користувача</th><td>{{ debug.state.last_user_input|default:"-" }}</td></tr>
+        <tr><th>Остання відповідь бота</th><td>{{ debug.state.last_bot_response|default:"-" }}</td></tr>
+        <tr><th>Остання помилка парсингу</th><td>{{ debug.state.last_parse_error|default:"-" }}</td></tr>
+      </table>
+    </div>
+
+    <div class="ops-card">
+      <h2>Останні onboarding-події</h2>
+      <table class="ops-table">
+        <tr><th>Час</th><th>Подія</th><th>Джерело</th><th>Помилка</th></tr>
+        {% for event in debug.onboarding_events %}
+          <tr><td>{{ event.created_at }}</td><td>{{ event.event_type }}</td><td>{{ event.source|default:"-" }}</td><td>{{ event.error_message|default:"-" }}</td></tr>
+        {% empty %}
+          <tr><td colspan="4">Подій поки немає.</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <div class="ops-card">
+      <h2>Останні вводи користувача</h2>
+      <table class="ops-table">
+        <tr><th>Час</th><th>Подія</th><th>Текст</th></tr>
+        {% for event in debug.input_events %}
+          <tr><td>{{ event.created_at }}</td><td>{{ event.event_type }}</td><td>{{ event.raw_input|default:"-" }}</td></tr>
+        {% empty %}
+          <tr><td colspan="3">Input-ів поки немає.</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <div class="ops-card">
+      <h2>Останні помилки парсингу</h2>
+      <table class="ops-table">
+        <tr><th>Час</th><th>Подія</th><th>Помилка</th></tr>
+        {% for event in debug.parse_errors %}
+          <tr><td>{{ event.created_at }}</td><td>{{ event.event_type }}</td><td>{{ event.error_message|default:"-" }}</td></tr>
+        {% empty %}
+          <tr><td colspan="3">Помилок парсингу поки немає.</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <div class="ops-card">
+      <h2>Останні помилки бота</h2>
+      <table class="ops-table">
+        <tr><th>Час</th><th>Подія</th><th>Помилка</th></tr>
+        {% for event in debug.bot_errors %}
+          <tr><td>{{ event.created_at }}</td><td>{{ event.event_type }}</td><td>{{ event.error_message|default:"-" }}</td></tr>
+        {% empty %}
+          <tr><td colspan="3">Помилок бота поки немає.</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <div class="ops-card">
+      <h2>Скопіювати debug-звіт</h2>
+      <textarea rows="16" style="width:100%;" readonly>{{ debug.report_text }}</textarea>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

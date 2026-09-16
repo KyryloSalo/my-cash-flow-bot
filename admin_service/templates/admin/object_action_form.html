@@ -1,0 +1,130 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .action-shell {
+    max-width: 860px;
+    display: grid;
+    gap: 18px;
+  }
+  .action-card {
+    border: 1px solid rgba(138, 150, 173, 0.22);
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(16, 24, 40, 0.96), rgba(11, 18, 32, 0.96));
+    box-shadow: 0 18px 40px rgba(5, 10, 20, 0.22);
+    padding: 22px;
+  }
+  .action-card h1 {
+    margin: 0 0 10px;
+    font-size: 30px;
+  }
+  .action-user {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+    color: #c6d1e6;
+  }
+  .action-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    padding: 6px 11px;
+    background: rgba(15, 23, 42, 0.56);
+  }
+  .action-help {
+    margin: 0;
+    color: #9fb0cb;
+  }
+  .action-form p {
+    margin-bottom: 16px;
+  }
+  .action-form label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .action-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .action-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    padding: 10px 14px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    background: rgba(15, 23, 42, 0.56);
+    color: #edf2ff;
+    text-decoration: none;
+    font-weight: 600;
+  }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Огляд</a>
+  {% if back_url %}
+    &rsaquo; <a href="{{ back_url }}">{{ back_label|default:"Назад до запису" }}</a>
+  {% elif object.tg_user_id %}
+    &rsaquo; <a href="{% url 'admin:users_telegramuser_changelist' %}">Користувачі</a>
+    &rsaquo; <a href="{% url 'admin:users_telegramuser_change' object.tg_user_id %}">{{ object }}</a>
+  {% endif %}
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main" class="action-shell">
+  <section class="action-card">
+    <h1>{{ title }}</h1>
+    {% if object.tg_user_id %}
+      <div class="action-user">
+        <span class="action-chip">Користувач: {{ object.full_name|default:object }}</span>
+        <span class="action-chip">Telegram ID: {{ object.tg_user_id }}</span>
+        {% if object.username %}
+          <span class="action-chip">@{{ object.username }}</span>
+        {% endif %}
+      </div>
+    {% elif object %}
+      <div class="action-user">
+        <span class="action-chip">{{ object_label|default:"Запис" }}: {{ object }}</span>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="action-card">
+    {% if help_text %}
+      <p class="action-help">{{ help_text }}</p>
+    {% else %}
+      <p class="action-help">Перевірте дію ще раз. Після підтвердження зміна одразу запишеться в CRM та журнал адміністратора.</p>
+    {% endif %}
+
+    <form method="post" class="action-form">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <div class="action-buttons">
+        {% if secondary_submit_name and secondary_submit_label %}
+          <button type="submit" name="{{ secondary_submit_name }}" class="button">{{ secondary_submit_label }}</button>
+        {% endif %}
+        <button type="submit" class="default">{{ submit_label|default:"Підтвердити" }}</button>
+        {% if back_url %}
+          <a href="{{ back_url }}" class="action-secondary">{{ back_label|default:"Назад" }}</a>
+        {% elif object.tg_user_id %}
+          <a href="{% url 'admin:users_telegramuser_change' object.tg_user_id %}" class="action-secondary">Назад до картки</a>
+        {% else %}
+          <a href="{% url 'admin:index' %}" class="action-secondary">Скасувати</a>
+        {% endif %}
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

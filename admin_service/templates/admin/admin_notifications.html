@@ -1,0 +1,75 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<style>
+  .ops-card { border:1px solid #d8d1c4; border-radius:14px; padding:18px; background:#fffef9; margin-bottom:18px; }
+  .ops-table { width:100%; border-collapse:collapse; }
+  .ops-table th, .ops-table td { padding:8px 10px; border-bottom:1px solid #ece5d7; text-align:left; vertical-align:top; }
+  .status-ok { color:#1b6b49; font-weight:700; }
+  .status-warning { color:#9a6b00; font-weight:700; }
+  .status-failed { color:#b42318; font-weight:700; }
+</style>
+
+<div id="content-main">
+  <h1>{{ title }}</h1>
+
+  <div class="ops-card">
+    <table class="ops-table">
+      <tr><th>Пуші ввімкнені</th><td>{% if notifications_enabled %}так{% else %}ні{% endif %}</td></tr>
+      <tr><th>ADMIN_TELEGRAM_IDS</th><td>{% if admin_telegram_ids %}{{ admin_telegram_ids|join:", " }}{% else %}-{% endif %}</td></tr>
+      <tr>
+        <th>Статус Telegram API</th>
+        <td>
+          <span class="{% if telegram_api_check.status == 'OK' %}status-ok{% elif telegram_api_check.status == 'Попередження' %}status-warning{% else %}status-failed{% endif %}">
+            {{ telegram_api_check.status }}
+          </span>
+          <div>{{ telegram_api_check.detail }}</div>
+        </td>
+      </tr>
+      <tr>
+        <th>Останній тестовий пуш</th>
+        <td>
+          {% if last_test_push %}
+            {{ last_test_push.created_at }} /
+            {% if last_test_push.status == 'queued' %}Черга{% elif last_test_push.status == 'sent' %}Надіслано{% elif last_test_push.status == 'failed' %}Помилка{% else %}{{ last_test_push.status }}{% endif %}
+          {% else %}
+            -
+          {% endif %}
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="ops-card">
+    <h2>Події для пушів адміну</h2>
+    <ul>
+      {% for label in event_labels %}
+        <li>{{ label }}</li>
+      {% endfor %}
+    </ul>
+    <form method="post">
+      {% csrf_token %}
+      <button type="submit" class="default">Надіслати тестовий пуш</button>
+    </form>
+  </div>
+
+  <div class="ops-card">
+    <h2>Останні логи</h2>
+    <table class="ops-table">
+      <tr><th>Дата</th><th>Подія</th><th>ID чату</th><th>Статус</th><th>Помилка</th></tr>
+      {% for log in recent_logs %}
+        <tr>
+          <td>{{ log.created_at }}</td>
+          <td>{{ log.event_type }}</td>
+          <td>{{ log.telegram_chat_id }}</td>
+          <td>{% if log.status == 'queued' %}Черга{% elif log.status == 'sent' %}Надіслано{% elif log.status == 'failed' %}Помилка{% else %}{{ log.status }}{% endif %}</td>
+          <td>{{ log.error_message|default:"-" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">Логів поки немає.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

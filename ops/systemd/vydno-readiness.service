@@ -1,0 +1,7 @@
+[Unit]
+Description=Vydno internal dependency readiness
+OnFailure=vydno-ops-alert@readiness.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/my-cash-flow-bot
+ExecStart=/usr/bin/docker compose exec -T admin python -m common.readiness

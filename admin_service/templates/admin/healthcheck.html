@@ -1,0 +1,43 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<style>
+  .health-card { border:1px solid #d8d1c4; border-radius:14px; padding:18px; background:#fffef9; }
+  .health-table { width:100%; border-collapse:collapse; }
+  .health-table th, .health-table td { padding:8px 10px; border-bottom:1px solid #ece5d7; text-align:left; vertical-align:top; }
+  .status-ok { color:#1b6b49; font-weight:700; }
+  .status-warning { color:#9a6b00; font-weight:700; }
+  .status-failed { color:#b42318; font-weight:700; }
+</style>
+
+<div id="content-main">
+  <h1>{{ title }}</h1>
+  <div class="health-card">
+    <p><strong>Підсумок:</strong>
+      <span class="{% if health_result.summary_status == 'OK' %}status-ok{% elif health_result.summary_status == 'Попередження' %}status-warning{% else %}status-failed{% endif %}">
+        {{ health_result.summary_status }}
+      </span>
+    </p>
+    <p><strong>Згенеровано:</strong> {{ health_result.generated_at }}</p>
+    <form method="post" style="margin-bottom:16px;">
+      {% csrf_token %}
+      <button type="submit" class="default">Запустити перевірку</button>
+    </form>
+    <table class="health-table">
+      <tr><th>Перевірка</th><th>Статус</th><th>Деталі</th></tr>
+      {% for item in health_result.checks %}
+        <tr>
+          <td>{{ item.label }}</td>
+          <td>
+            <span class="{% if item.status == 'OK' %}status-ok{% elif item.status == 'Попередження' %}status-warning{% else %}status-failed{% endif %}">
+              {{ item.status }}
+            </span>
+          </td>
+          <td>{{ item.detail }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

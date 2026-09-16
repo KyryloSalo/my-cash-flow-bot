@@ -1,0 +1,255 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<style>
+  .ops-card { border:1px solid rgba(148,163,184,.18); border-radius:18px; padding:22px; background:linear-gradient(180deg,rgba(17,24,39,.94),rgba(15,23,42,.96)); margin-bottom:18px; color:#f8fafc; box-shadow:0 18px 36px rgba(15,23,42,.18); }
+  .ops-steps { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:18px; }
+  .ops-step { border:1px solid rgba(148,163,184,.18); border-radius:14px; padding:14px; background:rgba(15,23,42,.82); color:#cbd5e1; }
+  .ops-step.current { border-color:rgba(245,158,11,.55); background:rgba(120,53,15,.26); color:#fff7ed; }
+  .ops-step a { text-decoration:none; color:inherit; display:block; }
+  .ops-table { width:100%; border-collapse:collapse; }
+  .ops-table th, .ops-table td { padding:10px 12px; border-bottom:1px solid rgba(148,163,184,.12); text-align:left; vertical-align:top; }
+  .ops-table th { color:#94a3b8; font-weight:600; }
+  .ops-preview { white-space:pre-wrap; background:rgba(15,23,42,.86); border:1px solid rgba(148,163,184,.16); border-radius:12px; padding:14px; color:#f8fafc; }
+  .ops-card p { color:#cbd5e1; }
+  .ops-card label { display:block; margin-bottom:6px; font-weight:600; color:#f8fafc; }
+  .ops-card input[type="text"],
+  .ops-card input[type="url"],
+  .ops-card textarea,
+  .ops-card select {
+    width:100%;
+    border-radius:14px;
+    border:1px solid rgba(148,163,184,.24);
+    background:rgba(15,23,42,.92);
+    color:#f8fafc;
+    padding:12px 14px;
+    font:inherit;
+  }
+  .ops-card textarea { min-height:220px; resize:vertical; }
+  .ops-card input:focus,
+  .ops-card textarea:focus,
+  .ops-card select:focus {
+    outline:none;
+    border-color:rgba(45,212,191,.85);
+    box-shadow:0 0 0 3px rgba(45,212,191,.16);
+  }
+  .ops-card .helptext { display:block; margin-top:6px; color:#94a3b8; font-size:13px; }
+  .ops-card ul.errorlist { margin:6px 0 0; color:#fda4af; }
+  .ops-table-wrap { width:100%; overflow-x:auto; border-radius:12px; }
+  @media (max-width: 760px) {
+    .ops-card { padding:16px; border-radius:14px; overflow-x:auto; }
+    .ops-steps { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .ops-step { padding:11px; }
+    .ops-table { min-width:620px; }
+    .ops-card textarea { min-height:180px; }
+  }
+  @media (max-width: 460px) {
+    .ops-steps { grid-template-columns:1fr; }
+    .ops-card .submit-row { display:grid; gap:8px; }
+    .ops-card .submit-row .button,
+    .ops-card .submit-row .default { width:100%; text-align:center; }
+  }
+</style>
+
+<div id="content-main">
+  <h1>{{ title }}</h1>
+
+  <div class="ops-card">
+    <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:space-between;">
+      <div>
+        <strong>Поточний крок:</strong> {{ current_step }}. {{ wizard_title }}
+        {% if broadcast %}
+          <div><strong>Статус:</strong> {{ status_label }}</div>
+          <div><strong>ID розсилки:</strong> {{ broadcast.pk }}</div>
+        {% else %}
+          <div><strong>Статус:</strong> Чернетка</div>
+        {% endif %}
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="button" href="{{ list_url }}">До списку розсилок</a>
+        {% if broadcast %}
+          <a class="button" href="{% url 'admin:broadcasts_adminmessagelog_changelist' %}">Логи повідомлень</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="ops-steps">
+    {% for item in steps %}
+      <div class="ops-step{% if item.is_current %} current{% endif %}">
+        {% if item.url %}
+          <a href="{{ item.url }}">
+            <strong>Крок {{ item.number }}</strong>
+            <div>{{ item.label }}</div>
+          </a>
+        {% else %}
+          <strong>Крок {{ item.number }}</strong>
+          <div>{{ item.label }}</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+
+  {% if current_step == 1 %}
+    <div class="ops-card">
+      <p>Створіть повідомлення розсилки. Після збереження система переведе вас до вибору отримувачів.</p>
+      <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <button type="submit" name="action" value="stay" class="button">Зберегти чернетку</button>
+          <button type="submit" name="action" value="next" class="default">Далі: отримувачі</button>
+        </div>
+      </form>
+    </div>
+  {% endif %}
+
+  {% if current_step == 2 %}
+    <div class="ops-card">
+      <p>Оберіть аудиторію для розсилки. Для збереження й оновлення підрахунку можна залишитися на цьому кроці.</p>
+      <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <button type="submit" name="action" value="back" class="button">Назад</button>
+          <button type="submit" name="action" value="preview" class="button">Зберегти й оновити прев'ю</button>
+          <button type="submit" name="action" value="next" class="default">Далі: перевірка</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="ops-card">
+      <h2>Прев'ю отримувачів</h2>
+      <p><strong>Поточний режим:</strong> {{ recipient_group_label }}</p>
+      <p><strong>Буде отримувачів:</strong> {{ recipient_preview.count }}</p>
+      <table class="ops-table">
+        <tr><th>Telegram ID</th><th>Нік у Telegram</th><th>Ім'я</th><th>Остання активність</th></tr>
+        {% for user in recipient_preview.users %}
+          <tr>
+            <td>{{ user.tg_user_id }}</td>
+            <td>{% if user.username %}@{{ user.username }}{% else %}-{% endif %}</td>
+            <td>{{ user.full_name }}</td>
+            <td>{{ user.last_seen_at|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">Отримувачів поки не знайдено.</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  {% endif %}
+
+  {% if current_step == 3 %}
+    <div class="ops-card">
+      <h2>Повідомлення</h2>
+      <table class="ops-table">
+        <tr><th>Назва</th><td>{{ broadcast.title }}</td></tr>
+        <tr><th>Формат</th><td>{{ broadcast.parse_mode }}</td></tr>
+        <tr><th>Кнопка</th><td>{% if broadcast.button_text and broadcast.button_url %}{{ broadcast.button_text }} → {{ broadcast.button_url }}{% else %}-{% endif %}</td></tr>
+      </table>
+      <div class="ops-preview" style="margin-top:12px;">{{ broadcast.message_text }}</div>
+    </div>
+
+    <div class="ops-card">
+      <h2>Отримувачі</h2>
+      <p><strong>Поточний режим:</strong> {{ recipient_group_label }}</p>
+      <p><strong>Буде отримувачів:</strong> {{ recipient_preview.count }}</p>
+      <table class="ops-table">
+        <tr><th>Telegram ID</th><th>Нік у Telegram</th><th>Ім'я</th><th>Остання активність</th></tr>
+        {% for user in recipient_preview.users %}
+          <tr>
+            <td>{{ user.tg_user_id }}</td>
+            <td>{% if user.username %}@{{ user.username }}{% else %}-{% endif %}</td>
+            <td>{{ user.full_name }}</td>
+            <td>{{ user.last_seen_at|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">Отримувачів поки не знайдено.</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <div class="ops-card">
+      <h2>Сухий прогін і тестове надсилання</h2>
+      <p><strong>Сухий прогін:</strong> {% if dry_run_preview %}готово{% else %}ще не виконано{% endif %}</p>
+      <p><strong>Тестове надсилання адміну:</strong> {% if test_ready %}готово{% else %}ще не підтверджено{% endif %}</p>
+      {% if dry_run_preview %}
+        <pre>{{ dry_run_preview|pprint }}</pre>
+      {% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <button type="submit" name="action" value="back" class="button">Назад</button>
+          <button type="submit" name="action" value="dry_run" class="button">Запустити сухий прогін</button>
+          <button type="submit" name="action" value="send_test" class="button">Надіслати тест мені</button>
+          <button type="submit" name="action" value="next" class="default">Далі: відправка</button>
+        </div>
+      </form>
+    </div>
+  {% endif %}
+
+  {% if current_step == 4 %}
+    <div class="ops-card">
+      <h2>Фінальна перевірка</h2>
+      <table class="ops-table">
+        <tr><th>Назва</th><td>{{ broadcast.title }}</td></tr>
+        <tr><th>Статус</th><td>{{ status_label }}</td></tr>
+        <tr><th>Отримувачі</th><td>{{ recipient_group_label }}</td></tr>
+        <tr><th>Кількість отримувачів</th><td>{{ recipient_preview.count }}</td></tr>
+        <tr><th>Сухий прогін</th><td>{% if broadcast.last_dry_run_preview %}готово{% else %}не виконано{% endif %}</td></tr>
+        <tr><th>Тестове надсилання</th><td>{% if test_ready %}готово{% else %}не підтверджено{% endif %}</td></tr>
+      </table>
+      <div class="ops-preview" style="margin-top:12px;">{{ broadcast.message_text }}</div>
+    </div>
+
+    {% if can_launch %}
+      <div class="ops-card">
+        <p>Ви збираєтеся надіслати повідомлення {{ recipient_preview.count }} користувачам. Спочатку рекомендується тестове надсилання.</p>
+        {% if recipient_preview.count >= large_broadcast_threshold %}
+          <p><strong>Для великої розсилки потрібне підтвердження `SEND`.</strong></p>
+        {% endif %}
+        <form method="post">
+          {% csrf_token %}
+          {{ form.as_p }}
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <button type="submit" name="action" value="back" class="button">Назад</button>
+            <button type="submit" name="action" value="send" class="default">Запустити розсилку</button>
+            {% if can_cancel %}
+              <a href="{{ cancel_url }}" class="button">Скасувати розсилку</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    {% else %}
+      <div class="ops-card">
+        <p>Розсилку зараз не можна запускати: або вона вже відправляється/завершена, або не знайдено валідних отримувачів.</p>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <a class="button" href="{% url 'admin:broadcasts_broadcast_wizard_step' broadcast.pk 3 %}">Повернутися до перевірки</a>
+          {% if can_cancel %}
+            <a class="button" href="{{ cancel_url }}">Скасувати розсилку</a>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="ops-card">
+      <h2>Логи доставки</h2>
+      <table class="ops-table">
+        <tr><th>Користувач</th><th>Статус</th><th>Дата</th><th>Помилка</th></tr>
+        {% for row in delivery_rows %}
+          <tr>
+            <td>{{ row.user_id }}</td>
+            <td>
+              {% if row.status == 'pending' %}Черга{% elif row.status == 'sent' %}Надіслано{% elif row.status == 'failed' %}Помилка{% elif row.status == 'blocked' %}Заблокував бота{% elif row.status == 'skipped' %}Пропущено{% else %}{{ row.status }}{% endif %}
+            </td>
+            <td>{{ row.sent_at|default:"-" }}</td>
+            <td>{{ row.error_message|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">Логів доставки поки немає.</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

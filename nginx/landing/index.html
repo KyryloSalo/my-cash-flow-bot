@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vydno.capital — особисті фінанси у Mini App та PWA</title>
+  <meta
+    name="description"
+    content="vydno.capital допомагає вести особисті фінанси в Telegram: витрати, доходи, рахунки, борги, заощадження, інвестиції, голосові записи й скріншоти."
+  >
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="page-home">
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="index.html" aria-label="vydno.capital">
+        <span class="brand-mark" aria-hidden="true">
+          <img class="brand-icon" src="brand-icon.png" alt="">
+        </span>
+        <span class="brand-wordmark" aria-hidden="true">
+          <span class="brand-word brand-word-light">vydno</span><span class="brand-word brand-word-accent">.capital</span>
+        </span>
+      </a>
+      <button class="nav-toggle-button" type="button" aria-expanded="false" aria-controls="site-nav-menu" aria-label="Відкрити меню">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <nav class="site-nav" id="site-nav-menu" aria-label="Головна навігація">
+        <a href="#overview">Огляд</a>
+        <a href="#how">Як це працює</a>
+        <a href="#features">Можливості</a>
+        <a href="#pricing">Ціна</a>
+        <a href="privacy.html">Приватність</a>
+      </nav>
+      <a class="button button-primary header-cta" href="https://t.me/vydnocapital_bot" target="_blank" rel="noopener noreferrer">
+        Почати за 1 грн
+      </a>
+    </header>
+
+    <main>
+      <section class="hero section">
+        <div class="hero-copy">
+          <p class="eyebrow">vydno.capital</p>
+          <h1>Ваші гроші нарешті складаються в зрозумілу картину.</h1>
+          <p class="hero-lead">
+            Mini App для особистих фінансів: рахунки, витрати, доходи, борги та цілі в одному просторі. Telegram — точка входу; налаштування й щоденний облік відбуваються у застосунку. За бажанням додайте вебверсію на головний екран як PWA.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="https://t.me/vydnocapital_bot" target="_blank" rel="noopener noreferrer">
+              Почати за 1 грн
+            </a>
+            <a class="button button-secondary" href="#how">
+              Подивитися як це працює
+            </a>
+          </div>
+          <ul class="hero-points">
+            <li>Зараз прив’язка картки та перша оплата 1 грн</li>
+            <li>Далі 499 грн кожні 30 днів після 30 або 90 днів</li>
+            <li>Голос, скріншоти, борги, цілі й звіти в одному місці</li>
+          </ul>
+        </div>
+
+        <div class="hero-visual" aria-hidden="true">
+          <div class="hero-stage">
+            <div class="floating-card floating-card-top">
+              <span class="mini-label">Швидкий запис</span>
+              <strong>Чернетка → перевірка → підтвердження</strong>
+              <p>Текстом, голосом або зі скріншота.</p>
+            </div>
+
+            <div class="phone-mock phone-mock-main">
+              <div class="phone-top">
+                <span class="phone-avatar">VC</span>
+                <div class="phone-meta">
+                  <span class="phone-title">@vydnocapital_bot</span>
+                  <span class="phone-subtitle">приклад чат-вводу, не скріншот Mini App</span>
+                </div>
+              </div>
+              <div class="chat-flow">
+                <div class="phone-date-chip">Сьогодні</div>
+                <div class="bubble bubble-user">
+                  Продукти 1240
+                  <span class="bubble-time">18:42</span>
+                </div>
+                <div class="bubble bubble-bot">
+                  <strong>Чернетка готова</strong>
+                  <span>Витрата 1 240 грн</span>
+                  <span>Категорія: Продукти</span>
+                  <span>Рахунок: Mono</span>
+                  <span class="bubble-time">18:42</span>
+                </div>
+                <div class="telegram-keyboard">
+                  <span>Зберегти</span>
+                  <span>Змінити</span>
+                </div>
+                <div class="telegram-media-card">
+                  <span class="telegram-media-pill">Скріншот оплати</span>
+                  <p>mono • 540 грн • супермаркет</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="floating-card floating-card-bottom">
+              <span class="mini-label">Фінансова ціль</span>
+              <strong>Подушка безпеки: 62%</strong>
+              <p>Бачите прогрес і не губите довші плани серед щоденних витрат.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="overview" class="section stat-strip">
+        <article class="stat-card">
+          <span class="stat-label">Telegram-first</span>
+          <strong>Mini App у Telegram або браузері</strong>
+          <p>Для браузера отримайте одноразове посилання в боті. Встановлення PWA необов’язкове; push залежить від браузера та вашого дозволу.</p>
+        </article>
+        <article class="stat-card">
+          <span class="stat-label">Повна картина</span>
+          <strong>Рахунки, борги, інвестиції</strong>
+          <p>Не тільки витрати, а вся структура ваших особистих грошей.</p>
+        </article>
+        <article class="stat-card">
+          <span class="stat-label">Швидкий старт</span>
+          <strong>Старт і перевірка картки - 1 грн</strong>
+          <p>Починаєте без довгого входу і перевіряєте сервіс у реальному житті.</p>
+        </article>
+      </section>
+
+      <section class="section split-overview">
+        <div class="overview-copy">
+          <p class="eyebrow">Have perfect control</p>
+          <h2>Усе, що важливо для ваших грошей, у одному огляді.</h2>
+          <p>
+            Сильна сторона good-looking personal finance продуктів у тому, що вони не
+            просто дають записати транзакцію, а збирають з неї зрозумілу фінансову картину.
+          </p>
+          <ul class="check-list">
+            <li>Рахунки та баланс без ручного зведення в нотатках</li>
+            <li>Борги, які не губляться серед щоденних витрат</li>
+            <li>Заощадження й інвестиції, які не губляться в загальній картині</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="how" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">How it works</p>
+          <h2>Три короткі кроки до регулярного фінансового ритму.</h2>
+        </div>
+
+        <div class="steps-layout">
+          <article class="step-showcase">
+            <div class="step-copy">
+              <span class="step-index">Крок 1</span>
+              <h3>Налаштуйте Mini App і додайте перший запис</h3>
+              <ul class="step-list">
+                <li>Відкрийте бота → Mini App. Оберіть мову, базову валюту, дату початку та рахунки</li>
+                <li>На екрані «Додати» введіть операцію вручну, текстом, голосом або зі скріншота</li>
+                <li>Перевірте суму, рахунок і категорію; лише потім підтвердьте запис</li>
+              </ul>
+            </div>
+            <div class="step-visual step-visual-capture" aria-hidden="true">
+              <div class="capture-card">
+                <span class="capture-badge">Голосовий ввід</span>
+                <div class="voice-row">
+                  <span class="voice-mic"></span>
+                  <div class="voice-wave">
+                    <i></i><i></i><i></i><i></i><i></i><i></i>
+                  </div>
+                  <span class="voice-time">0:08</span>
+                </div>
+                <p>"Кава 120 і таксі 280"</p>
+              </div>
+              <div class="capture-card">
+                <span class="capture-badge">Розпізнавання скріншотів</span>
+                <div class="scan-row">
+                  <div class="scan-thumb"></div>
+                  <div class="scan-copy">
+                    <strong>mono • 540 грн</strong>
+                    <span>категорія: продукти</span>
+                  </div>
+                </div>
+                <div class="capture-confirm">
+                  <span>Зберегти</span>
+                  <span>Змінити</span>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="step-showcase">
+            <div class="step-copy">
+              <span class="step-index">Крок 2</span>
+              <h3>Побачте свої фінансові звички</h3>
+              <ul class="step-list">
+                <li>Дивіться, куди реально йдуть гроші</li>
+                <li>Відділяйте повсякденні витрати від боргів і цілей</li>
+                <li>Формуйте нормальну картину без ручних Excel-таблиць</li>
+              </ul>
+            </div>
+            <div class="step-visual step-visual-bars" aria-hidden="true">
+              <div class="bar-card">
+                <span>Продукти</span>
+                <div class="bar-track"><i style="width: 62%"></i></div>
+              </div>
+              <div class="bar-card">
+                <span>Транспорт</span>
+                <div class="bar-track"><i style="width: 38%"></i></div>
+              </div>
+              <div class="bar-card">
+                <span>Кафе</span>
+                <div class="bar-track"><i style="width: 24%"></i></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="step-showcase">
+            <div class="step-copy">
+              <span class="step-index">Крок 3</span>
+              <h3>Зробіть фінанси спокійнішими</h3>
+              <ul class="step-list">
+                <li>Тримайте під контролем рахунки, борги й накопичення</li>
+                <li>Повертайтеся до однієї зрозумілої системи щодня</li>
+                <li>Рухайтеся від хаосу до дисципліни без зайвого шуму</li>
+              </ul>
+            </div>
+            <div class="step-visual step-visual-report" aria-hidden="true">
+              <div class="report-columns">
+                <div class="report-column">
+                  <span class="report-bar report-bar-income" style="--bar-height: 164px"></span>
+                  <strong>Доходи</strong>
+                </div>
+                <div class="report-column">
+                  <span class="report-bar report-bar-expense" style="--bar-height: 112px"></span>
+                  <strong>Витрати</strong>
+                </div>
+                <div class="report-column">
+                  <span class="report-bar report-bar-savings" style="--bar-height: 88px"></span>
+                  <strong>Заощадження</strong>
+                </div>
+              </div>
+              <p class="report-caption">Стовпчиковий звіт, який швидко показує баланс між доходами, витратами й відкладеними грошима.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Features people come for</p>
+          <h2>Функції, заради яких сервіс реально відкривають щодня.</h2>
+        </div>
+
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-icon">01</span>
+            <h3>Витрати та доходи</h3>
+            <p>Швидкий базовий облік без складного старту.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">02</span>
+            <h3>Рахунки</h3>
+            <p>Картки, готівка та окремі баланси в одному просторі.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">03</span>
+            <h3>Борги</h3>
+            <p>Зрозумілий облік “хто кому винен” без ручних костилів.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">04</span>
+            <h3>Заощадження</h3>
+            <p>Накопичення і фінансові цілі видно окремо від рутини.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">05</span>
+            <h3>Інвестиції</h3>
+            <p>Поточна вартість інвестиційних рахунків. Дохідність портфеля не розраховується.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">06</span>
+            <h3>Голосовий ввід</h3>
+            <p>Голос у Mini App або Telegram готує чернетку для вашої перевірки.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">07</span>
+            <h3>Розпізнавання скріншотів</h3>
+            <p>Бот витягує суть платежу зі скріншота і дає вам підтвердити.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">08</span>
+            <h3>Звіти</h3>
+            <p>Експорт XLSX або CSV з екрана «Аналітика».</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="pricing" class="section pricing-section">
+        <div class="pricing-card pricing-card-highlight">
+          <p class="eyebrow">One plan</p>
+          <h2>Один тариф. Один зрозумілий старт.</h2>
+          <p class="price-line">
+            Почніть за <strong>1 грн</strong>
+          </p>
+          <p class="pricing-subline">
+            Далі 499 грн кожні 30 днів після 30 або 90 днів
+          </p>
+          <ul class="inline-list pricing-list">
+            <li>Telegram-first сценарій</li>
+            <li>Голос і скріншоти</li>
+            <li>Рахунки, борги, цілі</li>
+            <li>Фінансовий огляд і звіти</li>
+          </ul>
+          <div class="pricing-actions">
+            <a class="button button-primary" href="https://t.me/vydnocapital_bot" target="_blank" rel="noopener noreferrer">
+              Почати за 1 грн
+            </a>
+            <a class="button button-secondary" href="offer.html">
+              Умови користування
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" class="section faq-section">
+        <div class="section-heading">
+          <p class="eyebrow">FAQ</p>
+          <h2>Короткі відповіді перед стартом.</h2>
+        </div>
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>Це окремий застосунок чи бот у Telegram?</summary>
+            <p>Telegram відкриває Mini App: Огляд, Гроші, Додати, Аналітика, Статус і Налаштування. Тут проходять початкове налаштування та щоденна робота. Вебверсію можна за бажанням додати на головний екран як PWA; чат-ввід у боті також доступний.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Що саме я зможу вести?</summary>
+            <p>Витрати, доходи, рахунки, борги, заощадження, інвестиції та звіти по своїх фінансах.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Чи можна не вводити все руками?</summary>
+            <p>Так. Бот підтримує голосове введення і розпізнавання скріншотів оплат, після чого показує чернетку перед записом.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Скільки це коштує?</summary>
+            <p>Зараз ви оплачуєте 1 грн для прив’язки картки. Основне списання 499 грн кожні 30 днів стартує через 30 або 90 днів залежно від сценарію.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Що з приватністю?</summary>
+            <p>Окремий публічний документ із принципами приватності доступний на <a href="privacy.html">сторінці приватності</a>.</p>
+          </details>
+        </div>
+      </section>
+
+      <section class="section final-cta">
+        <div class="final-cta-card final-cta-card-bright">
+          <p class="eyebrow">Start now</p>
+          <h2>Зайдіть у бота і наведіть лад у власних грошах.</h2>
+          <p>
+            Світлий фінансовий простір Mini App: перевіряйте рахунки в «Гроші», операції — в «Аналітика», доступ і оплату — в «Налаштування».
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="https://t.me/vydnocapital_bot" target="_blank" rel="noopener noreferrer">
+              Почати за 1 грн
+            </a>
+            <a class="button button-secondary" href="contacts.html">
+              Написати в підтримку
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>vydno.capital</strong>
+        <p>Особисті фінанси у Mini App та PWA. Вхід через Telegram.</p>
+      </div>
+      <div class="footer-links">
+        <a href="privacy.html">Приватність</a>
+        <a href="offer.html">Умови</a>
+        <a href="contacts.html">Контакти</a>
+        <a href="https://t.me/Askills_Support" target="_blank" rel="noopener noreferrer">Підтримка</a>
+      </div>
+    </footer>
+  </div>
+
+  <a class="sticky-cta" href="https://t.me/vydnocapital_bot" target="_blank" rel="noopener noreferrer">
+    Почати за 1 грн
+  </a>
+  <script src="landing.js"></script>
+</body>
+</html>

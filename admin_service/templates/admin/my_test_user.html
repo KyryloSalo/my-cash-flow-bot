@@ -1,0 +1,64 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<style>
+  .ops-card { border:1px solid #d8d1c4; border-radius:14px; padding:18px; background:#fffef9; margin-bottom:18px; }
+  .ops-table { width:100%; border-collapse:collapse; }
+  .ops-table th, .ops-table td { padding:8px 10px; border-bottom:1px solid #ece5d7; text-align:left; vertical-align:top; }
+</style>
+
+<div id="content-main">
+  <h1>{{ title }}</h1>
+
+  {% if not admin_test_telegram_ids %}
+    <div class="ops-card">
+      <strong>ADMIN_TEST_TELEGRAM_IDS не налаштовано.</strong>
+      <p>Додайте свій Telegram ID у `.env`, щоб тестувати онбординг без пошуку себе в таблиці.</p>
+    </div>
+  {% endif %}
+
+  <div class="ops-card">
+    <table class="ops-table">
+      <tr>
+        <th>Telegram ID</th>
+        <th>Нік у Telegram</th>
+        <th>Статус</th>
+        <th>Онбординг</th>
+        <th>Підписка</th>
+        <th>Остання активність</th>
+        <th>Тестовий</th>
+        <th>Дії</th>
+      </tr>
+      {% for user in my_test_users %}
+        <tr>
+          <td>{{ user.tg_user_id }}</td>
+          <td>{% if user.username %}@{{ user.username }}{% else %}-{% endif %}</td>
+          <td>
+            {% if user.admin_state.status == 'banned' %}заблокований{% elif user.admin_state.status == 'inactive' %}неактивний{% else %}активний{% endif %}
+          </td>
+          <td>{% if user.onboarding_completed %}завершено{% else %}не завершено{% endif %}</td>
+          <td>
+            {% if user.admin_state.subscription_status == 'trial' %}тріал{% elif user.admin_state.subscription_status == 'paid' %}платна{% elif user.admin_state.subscription_status == 'expired' %}завершена{% elif user.admin_state.subscription_status == 'cancelled' %}скасована{% else %}немає{% endif %}
+          </td>
+          <td>{{ user.last_seen_at|default:"-" }}</td>
+          <td>{% if user.admin_state.is_test_user %}так{% else %}ні{% endif %}</td>
+          <td>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              {% if not user.admin_state.is_test_user %}
+                <a class="button" href="{% url 'admin:users_telegramuser_mark_test_user' user.pk %}">Позначити як тестового</a>
+              {% endif %}
+              <a class="button" href="{% url 'admin:reset_my_onboarding' %}?user_id={{ user.tg_user_id }}">Скинути мій онбординг</a>
+              <a class="button" href="{{ manual_message_url }}?user_lookup={{ user.tg_user_id }}">Написати мені тестове повідомлення</a>
+              <a class="button" href="{% url 'admin:onboarding_debug' %}?user_id={{ user.tg_user_id }}">Відкрити debug онбордингу</a>
+              <a class="button" href="{% url 'admin:users_telegramuser_change' user.pk %}">Відкрити картку</a>
+            </div>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8">Тестових користувачів поки немає.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

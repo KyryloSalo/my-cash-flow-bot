@@ -1,0 +1,70 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .recovery-expand { max-width: 900px; display: grid; gap: 16px; }
+  .recovery-expand-card { padding: 22px; border: 1px solid rgba(138,150,173,.22); border-radius: 18px; background: rgba(15,23,42,.72); }
+  .recovery-expand-card h1, .recovery-expand-card h2 { margin-top: 0; }
+  .recovery-expand-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 12px; }
+  .recovery-expand-stat { padding: 15px; border-radius: 12px; background: rgba(30,41,59,.72); }
+  .recovery-expand-stat strong { display: block; font-size: 28px; }
+  .recovery-expand-warning { padding: 14px; border: 1px solid rgba(251,191,36,.35); border-radius: 12px; color: #fde68a; background: rgba(120,53,15,.25); }
+  .recovery-expand-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+  .recovery-expand-secondary { padding: 10px 14px; border: 1px solid rgba(148,163,184,.3); border-radius: 10px; text-decoration: none; }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Огляд</a>
+  &rsaquo; <a href="{{ back_url }}">{{ campaign.name }}</a>
+  &rsaquo; Розширення аудиторії
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main" class="recovery-expand">
+  <section class="recovery-expand-card">
+    <h1>{{ title }}</h1>
+    <p>Нове правило: у recovery потрапляють усі реальні зареєстровані користувачі без успішної оплати та прив’язаної картки — незалежно від завершення онбордингу або джерела реєстрації.</p>
+    <div class="recovery-expand-warning">Поки ви не підтвердите форму нижче, активна кампанія не зміниться й нові повідомлення не будуть заплановані.</div>
+  </section>
+
+  <section class="recovery-expand-card">
+    <h2>Що зміниться після підтвердження</h2>
+    <div class="recovery-expand-grid">
+      <div class="recovery-expand-stat"><strong>{{ preview.total_registered_users }}</strong>зареєстровані загалом</div>
+      <div class="recovery-expand-stat"><strong>{{ preview.eligible }}</strong>буде додано зараз</div>
+    </div>
+    {% if excluded_rows %}
+      <h3>Не додаємо</h3>
+      <ul>
+        {% for row in excluded_rows %}<li>{{ row.label }}: {{ row.count }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+    <p>Стару базу буде рівномірно розподілено всередині локального вікна {{ campaign.send_window_start|time:"H:i" }}–{{ campaign.send_window_end|time:"H:i" }}. Нові реєстрації отримають перше повідомлення через 6 годин із перенесенням на дозволений час.</p>
+  </section>
+
+  <section class="recovery-expand-card">
+    <h2>Яке перше повідомлення отримають нові групи</h2>
+    <h3>Завершили онбординг</h3>
+    <p>Привіт! Я засновник Vydno. Бачу, що 90 днів повного доступу за 1 грн не активувалися. Не хочу переконувати навмання — хочу зрозуміти, де ми вас втратили. Що зупинило?</p>
+    <h3>Не завершили онбординг</h3>
+    <p>Привіт! Я засновник Vydno. Бачу, що ви зареєструвалися, але не завершили налаштування й не активували 90 днів доступу за 1 грн. Не хочу переконувати навмання — хочу зрозуміти, що зупинило?</p>
+    <p>Другий і фінальний кроки також окремо сформульовані для незавершеного налаштування. Кнопки причин, запит особистого контакту, opt-out та активація 90 днів лишаються без змін.</p>
+  </section>
+
+  <section class="recovery-expand-card">
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <div class="recovery-expand-actions">
+        <button type="submit" class="default">Розширити аудиторію</button>
+        <a href="{{ back_url }}" class="recovery-expand-secondary">Повернутися без змін</a>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

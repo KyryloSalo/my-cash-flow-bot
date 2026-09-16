@@ -1,0 +1,124 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .action-shell {
+    max-width: 860px;
+    display: grid;
+    gap: 18px;
+  }
+  .action-card {
+    border: 1px solid rgba(138, 150, 173, 0.22);
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(16, 24, 40, 0.96), rgba(11, 18, 32, 0.96));
+    box-shadow: 0 18px 40px rgba(5, 10, 20, 0.22);
+    padding: 22px;
+  }
+  .action-card h1 {
+    margin: 0 0 10px;
+    font-size: 30px;
+  }
+  .action-meta {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+    color: #c6d1e6;
+  }
+  .action-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    padding: 6px 11px;
+    background: rgba(15, 23, 42, 0.56);
+  }
+  .action-help {
+    margin: 0 0 16px;
+    color: #9fb0cb;
+  }
+  .action-details {
+    margin: 0 0 18px;
+    padding-left: 18px;
+    color: #dbe5f5;
+  }
+  .action-details li + li {
+    margin-top: 6px;
+  }
+  .action-form p {
+    margin-bottom: 16px;
+  }
+  .action-form label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .action-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .action-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    padding: 10px 14px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    background: rgba(15, 23, 42, 0.56);
+    color: #edf2ff;
+    text-decoration: none;
+    font-weight: 600;
+  }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Огляд</a>
+  &rsaquo; <a href="{% url 'admin:subscriptions_billingprofile_changelist' %}">Billing profiles</a>
+  &rsaquo; <a href="{% url 'admin:subscriptions_billingprofile_change' profile.pk %}">{{ profile }}</a>
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main" class="action-shell">
+  <section class="action-card">
+    <h1>{{ title }}</h1>
+    <div class="action-meta">
+      <span class="action-chip">Користувач: {{ profile.user.full_name|default:profile.user }}</span>
+      <span class="action-chip">Telegram ID: {{ profile.user.pk }}</span>
+      {% if profile.user.username %}
+        <span class="action-chip">@{{ profile.user.username }}</span>
+      {% endif %}
+      <span class="action-chip">Карта: {{ profile.masked_pan|default:"-" }}</span>
+      <span class="action-chip">Сума: {{ renewal_amount }} UAH</span>
+    </div>
+  </section>
+
+  <section class="action-card">
+    <p class="action-help">{{ help_text }}</p>
+    <ul class="action-details">
+      <li>Статус billing profile: <strong>{{ profile.status }}</strong></li>
+      <li>Останній статус списання: <strong>{{ profile.last_charge_status|default:"-" }}</strong></li>
+      <li>Автооновлення: <strong>{% if profile.auto_renew_enabled %}увімкнено{% else %}вимкнено{% endif %}</strong></li>
+      <li>Поточна підписка: <strong>{% if subscription %}{{ subscription.status }}{% else %}-{% endif %}</strong></li>
+      <li>Наступне списання: <strong>{% if subscription and subscription.next_charge_at %}{{ subscription.next_charge_at }}{% else %}-{% endif %}</strong></li>
+    </ul>
+
+    <form method="post" class="action-form">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <div class="action-buttons">
+        <button type="submit" class="default">{{ submit_label|default:"Підтвердити" }}</button>
+        <a href="{{ back_url }}" class="action-secondary">Назад до billing profile</a>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

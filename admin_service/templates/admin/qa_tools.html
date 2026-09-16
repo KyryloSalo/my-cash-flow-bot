@@ -1,0 +1,135 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<style>
+  .qa-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:20px; }
+  .qa-card { border:1px solid #d8d1c4; border-radius:14px; padding:18px; background:#fffef9; }
+  .qa-card h2 { margin-top:0; }
+  .qa-table { width:100%; border-collapse:collapse; }
+  .qa-table th, .qa-table td { padding:8px 10px; border-bottom:1px solid #ece5d7; text-align:left; }
+  .status-ok { color:#1b6b49; font-weight:700; }
+  .status-warning { color:#9a6b00; font-weight:700; }
+  .status-failed { color:#b42318; font-weight:700; }
+</style>
+
+<div id="content-main">
+  <h1>{{ title }}</h1>
+
+  <div class="qa-card" style="margin-bottom:20px;">
+    <h2>Мої тестові Telegram-користувачі</h2>
+    {% if not admin_test_telegram_ids %}
+      <p><strong>ADMIN_TEST_TELEGRAM_IDS не налаштовано.</strong></p>
+    {% endif %}
+    <table class="qa-table">
+      <tr>
+        <th>Telegram ID</th>
+        <th>Нік у Telegram</th>
+        <th>Ім'я</th>
+        <th>Онбординг</th>
+        <th>Підписка</th>
+        <th>Остання активність</th>
+        <th>Остання дія</th>
+        <th>Тестовий</th>
+      </tr>
+      {% for user in my_test_users %}
+        <tr>
+          <td>{{ user.tg_user_id }}</td>
+          <td>{% if user.username %}@{{ user.username }}{% else %}-{% endif %}</td>
+          <td>{{ user.full_name }}</td>
+          <td>{% if user.onboarding_completed %}завершено{% else %}очікує{% endif %}</td>
+          <td>
+            {% if user.admin_state.subscription_status == 'trial' %}тріал{% elif user.admin_state.subscription_status == 'paid' %}платна{% elif user.admin_state.subscription_status == 'expired' %}завершена{% elif user.admin_state.subscription_status == 'cancelled' %}скасована{% else %}немає{% endif %}
+          </td>
+          <td>{{ user.last_seen_at|default:"-" }}</td>
+          <td>{{ user.admin_state.last_action_at|default:"-" }}</td>
+          <td>{% if user.admin_state.is_test_user %}так{% else %}ні{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8">Налаштованих QA-користувачів поки немає.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="qa-grid">
+    <div class="qa-card">
+      <h2>Скинути онбординг</h2>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reset_my_onboarding">
+        {{ reset_form.as_p }}
+        <button type="submit" class="default">Скинути мій онбординг</button>
+      </form>
+    </div>
+
+    <div class="qa-card">
+      <h2>Надіслати тестовий пуш адміну</h2>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="send_test_admin_notification">
+        <button type="submit" class="default">Надіслати тестовий пуш адміну</button>
+      </form>
+    </div>
+
+    <div class="qa-card">
+      <h2>Надіслати собі тестове повідомлення</h2>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="send_test_message">
+        {{ message_form.as_p }}
+        <button type="submit" class="default">Надіслати тестове повідомлення</button>
+      </form>
+    </div>
+
+    <div class="qa-card">
+      <h2>Сухий прогін розсилки</h2>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="broadcast_dry_run">
+        {{ dry_run_form.as_p }}
+        <button type="submit" class="default">Запустити сухий прогін</button>
+      </form>
+    </div>
+
+    <div class="qa-card">
+      <h2>Тестова розсилка тільки тестовим користувачам</h2>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="send_test_broadcast">
+        {{ broadcast_form.as_p }}
+        <button type="submit" class="default">Надіслати тестову розсилку</button>
+      </form>
+    </div>
+
+    <div class="qa-card">
+      <h2>Стан адмін-модулів</h2>
+      <form method="post" style="margin-bottom:12px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="run_healthcheck">
+        <button type="submit" class="default">Запустити перевірку</button>
+      </form>
+      <table class="qa-table">
+        <tr><th>Перевірка</th><th>Статус</th><th>Деталі</th></tr>
+        {% for item in health_result.checks %}
+          <tr>
+            <td>{{ item.label }}</td>
+            <td>
+              <span class="{% if item.status == 'OK' %}status-ok{% elif item.status == 'Попередження' %}status-warning{% else %}status-failed{% endif %}">
+                {{ item.status }}
+              </span>
+            </td>
+            <td>{{ item.detail }}</td>
+          </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+
+  {% if action_result %}
+    <div class="qa-card" style="margin-top:20px;">
+      <h2>Результат дії</h2>
+      <pre>{{ action_result.payload|pprint }}</pre>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

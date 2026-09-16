@@ -1,0 +1,148 @@
+server {
+    # Private service routes must never cross the public proxy boundary.
+    location = /internal { return 404; }
+    location ^~ /internal/ { return 404; }
+    listen 80;
+    location = /proxy-health { access_log off; return 200 "ok\n"; }
+    server_name ${DOMAIN} ${WWW_DOMAIN} ${ADMIN_DOMAIN} ${LEGACY_ADMIN_DOMAIN};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    # Private service routes must never cross the public proxy boundary.
+    location = /internal { return 404; }
+    location ^~ /internal/ { return 404; }
+    listen 443 ssl http2;
+    server_name ${WWW_DOMAIN};
+
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://${DOMAIN}$request_uri;
+    }
+}
+
+server {
+    # Private service routes must never cross the public proxy boundary.
+    location = /internal { return 404; }
+    location ^~ /internal/ { return 404; }
+    listen 443 ssl http2;
+    server_name ${DOMAIN};
+    resolver 127.0.0.11 ipv6=off valid=5s;
+    resolver_timeout 2s;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 130s;
+    proxy_send_timeout 130s;
+
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+
+    root /var/www/landing;
+    index index.html;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location /billing/ {
+        set $cashflow_admin_upstream admin:8080;
+        proxy_pass http://$cashflow_admin_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_redirect off;
+    }
+
+    location /app/ {
+        client_max_body_size 20m;
+        set $cashflow_admin_upstream admin:8080;
+        proxy_pass http://$cashflow_admin_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_redirect off;
+    }
+
+    location /static/ {
+        alias /var/www/admin-static/;
+        expires 1h;
+        add_header Cache-Control "public";
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+server {
+    # Private service routes must never cross the public proxy boundary.
+    location = /internal { return 404; }
+    location ^~ /internal/ { return 404; }
+    listen 443 ssl http2;
+    server_name ${ADMIN_DOMAIN};
+    resolver 127.0.0.11 ipv6=off valid=5s;
+    resolver_timeout 2s;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 130s;
+    proxy_send_timeout 130s;
+
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+
+    client_max_body_size 20m;
+
+    location /static/ {
+        alias /var/www/admin-static/;
+        expires 1h;
+        add_header Cache-Control "public";
+    }
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        include /etc/nginx/conf.d/basic_auth.inc;
+        set $cashflow_admin_upstream admin:8080;
+        proxy_pass http://$cashflow_admin_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_redirect off;
+    }
+}
+
+server {
+    # Private service routes must never cross the public proxy boundary.
+    location = /internal { return 404; }
+    location ^~ /internal/ { return 404; }
+    listen 443 ssl http2;
+    server_name ${LEGACY_ADMIN_DOMAIN};
+    resolver 127.0.0.11 ipv6=off valid=30s;
+
+    ssl_certificate /etc/letsencrypt/live/${LEGACY_ADMIN_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${LEGACY_ADMIN_DOMAIN}/privkey.pem;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://${ADMIN_DOMAIN}$request_uri;
+    }
+}

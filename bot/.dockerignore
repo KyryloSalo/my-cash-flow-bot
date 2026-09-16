@@ -1,0 +1,23 @@
+# Deny local configuration, credentials and generated state at context boundary.
+.env
+.env.*
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*credential*
+**/*secret*
+**/.codex-deploy-keys
+**/.git
+**/.venv*
+**/venv
+**/__pycache__
+**/*.pyc
+**/*.sqlite*
+**/*.dump
+**/*.zip
+**/.pytest_cache
+**/.mypy_cache
+**/staticfiles
+**/local_artifacts
+www

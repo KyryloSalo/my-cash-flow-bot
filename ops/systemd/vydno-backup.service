@@ -1,0 +1,8 @@
+[Unit]
+Description=Encrypted off-host Vydno DB backup
+OnFailure=vydno-ops-alert@backup.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/my-cash-flow-bot
+EnvironmentFile=/etc/vydno/backup.conf
+ExecStart=/usr/bin/bash /opt/my-cash-flow-bot/ops/backup_database.sh /var/lib/vydno-backups

@@ -1,0 +1,18 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'admin/css/operational_admin.css' %}">
+<script src="{% static 'admin/js/admin_uk_ui.js' %}" defer></script>
+{% endblock %}
+
+{% block content_title %}
+{% if title %}
+<header class="operational-page-heading">
+  {% if operational_section %}<p class="operational-page-eyebrow">{{ operational_section }}</p>{% endif %}
+  <h1>{{ title }}</h1>
+  {% if operational_description %}<p class="operational-page-description">{{ operational_description }}</p>{% endif %}
+</header>
+{% endif %}
+{% endblock %}

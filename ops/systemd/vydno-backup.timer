@@ -1,0 +1,7 @@
+[Unit]
+Description=Hourly Vydno backup
+[Timer]
+OnCalendar=hourly
+Persistent=true
+[Install]
+WantedBy=timers.target

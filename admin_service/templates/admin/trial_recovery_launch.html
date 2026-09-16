@@ -1,0 +1,81 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .recovery-shell { max-width: 980px; display: grid; gap: 18px; }
+  .recovery-card { padding: 22px; border: 1px solid rgba(138,150,173,.22); border-radius: 18px; background: rgba(15,23,42,.72); }
+  .recovery-card h1, .recovery-card h2 { margin-top: 0; }
+  .recovery-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 12px; }
+  .recovery-stat { padding: 14px; border-radius: 12px; background: rgba(30,41,59,.72); }
+  .recovery-stat strong { display: block; font-size: 26px; }
+  .recovery-message { white-space: pre-wrap; padding: 14px; border-left: 3px solid #60a5fa; background: rgba(30,41,59,.55); }
+  .recovery-warning { color: #fbbf24; font-weight: 600; }
+  .recovery-buttons { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+  .recovery-secondary { padding: 10px 14px; border: 1px solid rgba(148,163,184,.3); border-radius: 10px; text-decoration: none; }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Огляд</a>
+  &rsaquo; <a href="{{ back_url }}">{{ campaign.name }}</a>
+  &rsaquo; Запуск
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main" class="recovery-shell">
+  <section class="recovery-card">
+    <h1>{{ title }}</h1>
+    <p class="recovery-warning">Поки ви не підтвердите форму нижче, кампанія лишається чернеткою й нічого не надсилає.</p>
+    <p>Доставка: <strong>{{ campaign.send_window_start|time:"H:i" }}–{{ campaign.send_window_end|time:"H:i" }}</strong> за часовим поясом користувача; fallback — <strong>{{ campaign.fallback_timezone }}</strong>.</p>
+    <p>Якщо запуск відбудеться вночі, перше повідомлення буде заплановано не раніше {{ campaign.send_window_start|time:"H:i" }}. Стара база рівномірно розподіляється в межах одного дозволеного локального дня.</p>
+  </section>
+
+  <section class="recovery-card">
+    <h2>Аудиторія зараз</h2>
+    <div class="recovery-grid">
+      <div class="recovery-stat"><strong>{{ preview.eligible }}</strong>отримувачів</div>
+      <div class="recovery-stat"><strong>{{ preview.total_registered_users }}</strong>зареєстровані загалом</div>
+    </div>
+    {% if excluded_rows %}
+      <h3>Виключені</h3>
+      <ul>
+        {% for row in excluded_rows %}<li>{{ row.label }}: {{ row.count }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+
+  <section class="recovery-card">
+    <h2>Тексти й розклад</h2>
+    <h3>1. Через 6 годин для користувачів із завершеним онбордингом</h3>
+    <div class="recovery-message">Привіт! Я засновник Vydno. Бачу, що 90 днів повного доступу за 1 грн не активувалися. Не хочу переконувати навмання — хочу зрозуміти, де ми вас втратили. Що зупинило?</div>
+    <h3>1а. Через 6 годин для незавершеного онбордингу</h3>
+    <div class="recovery-message">Привіт! Я засновник Vydno. Бачу, що ви зареєструвалися, але не завершили налаштування й не активували 90 днів доступу за 1 грн. Не хочу переконувати навмання — хочу зрозуміти, що зупинило?</div>
+    <p><strong>Кнопки:</strong> Не хочу прив’язувати картку · Боюся автосписання · Не бачу користі · 499 грн потім дорого · Сталася помилка · Просто не на часі · Інше</p>
+    <h3>2. Через 48 годин, якщо немає відповіді та онбординг завершено</h3>
+    <div class="recovery-message">Я ще раз коротко — без продажу. Я роблю Vydno і хочу виправити те, що заважає почати. Один тап нижче вже дуже допоможе. Якщо зручніше — можна відповісти одним повідомленням.</div>
+    <h3>2а. Через 48 годин для незавершеного онбордингу</h3>
+    <div class="recovery-message">Я ще раз коротко — без продажу. Я роблю Vydno і хочу виправити те, що завадило завершити налаштування. Один тап нижче вже дуже допоможе. Якщо зручніше — можна відповісти одним повідомленням.</div>
+    <p><strong>Кнопки:</strong> ті самі причини + Написати своїми словами</p>
+    <h3>3. Через 7 днів від першого повідомлення, якщо онбординг завершено</h3>
+    <div class="recovery-message">Це останнє повідомлення про пробний доступ — далі не турбуватиму. Якщо хочете, я особисто напишу тут і вислухаю, що не сподобалося. А якщо справа була лише в моменті — 90 днів за 1 грн усе ще можна активувати.</div>
+    <h3>3а. Через 7 днів для незавершеного онбордингу</h3>
+    <div class="recovery-message">Це останнє повідомлення про початок роботи — далі не турбуватиму. Якщо хочете, я особисто напишу тут і вислухаю, що завадило. А якщо ви просто відклали — можна повернутися до налаштування й активувати 90 днів за 1 грн.</div>
+    <p><strong>Кнопки:</strong> Так, напишіть мені · Активувати 90 днів · Не писати про trial</p>
+  </section>
+
+  <section class="recovery-card">
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <div class="recovery-buttons">
+        <button type="submit" class="default">Запустити кампанію</button>
+        <a href="{{ back_url }}" class="recovery-secondary">Повернутися без запуску</a>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

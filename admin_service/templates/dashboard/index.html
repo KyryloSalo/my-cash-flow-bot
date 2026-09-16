@@ -1,0 +1,506 @@
+{% extends "admin/base_site.html" %}
+{% load l10n %}
+
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<style>
+  :root {
+    --dash-bg: #0b1220;
+    --dash-surface: #111a2b;
+    --dash-surface-strong: #162237;
+    --dash-border: rgba(148, 163, 184, 0.17);
+    --dash-muted: #8fa3bf;
+    --dash-text: #f8fafc;
+    --dash-green: #5ee6ad;
+    --dash-blue: #60a5fa;
+    --dash-red: #fb7185;
+    --dash-amber: #fbbf24;
+  }
+  .dashboard-shell { display: grid; gap: 18px; color: var(--dash-text); }
+  .dashboard-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .dashboard-eyebrow {
+    margin: 0 0 5px;
+    color: var(--dash-green);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  .dashboard-topbar h1 { margin: 0; color: var(--dash-text); font-size: clamp(24px, 3vw, 34px); }
+  .dashboard-topbar-copy { margin: 6px 0 0; color: var(--dash-muted); }
+  .dashboard-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+  .dashboard-action,
+  .dashboard-filter-button {
+    display: inline-flex;
+    min-height: 38px;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    border: 1px solid var(--dash-border);
+    border-radius: 10px;
+    background: var(--dash-surface);
+    color: var(--dash-text);
+    font-size: 13px;
+    font-weight: 750;
+    text-decoration: none;
+  }
+  .dashboard-action--primary,
+  .dashboard-filter-button {
+    border-color: transparent;
+    background: var(--dash-green);
+    color: #042f2e;
+  }
+  .dashboard-filter {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--dash-border);
+    border-radius: 16px;
+    background: var(--dash-surface);
+  }
+  .dashboard-filter-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .dashboard-presets { display: flex; flex-wrap: wrap; gap: 7px; }
+  .dashboard-preset {
+    padding: 7px 11px;
+    border: 1px solid var(--dash-border);
+    border-radius: 999px;
+    color: #cbd5e1;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .dashboard-preset:hover,
+  .dashboard-preset--active { border-color: rgba(94, 230, 173, .65); background: rgba(94, 230, 173, .12); color: var(--dash-green); }
+  .dashboard-custom-period { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; }
+  .dashboard-field { display: grid; gap: 4px; }
+  .dashboard-field label { color: var(--dash-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+  .dashboard-field input {
+    min-height: 38px;
+    padding: 7px 10px;
+    border: 1px solid var(--dash-border);
+    border-radius: 9px;
+    background: #0b1424;
+    color: var(--dash-text);
+  }
+  .dashboard-scope { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: #cbd5e1; font-size: 13px; }
+  .dashboard-scope strong { color: var(--dash-text); }
+  .dashboard-scope-toggle { color: var(--dash-green); font-weight: 750; text-decoration: none; }
+  .dashboard-compare { color: var(--dash-muted); }
+  .dashboard-error { margin: 0; color: #fecdd3; font-size: 13px; }
+  .dashboard-section { display: grid; gap: 12px; }
+  .dashboard-section-header { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+  .dashboard-section-header h2,
+  .dashboard-panel h2 { margin: 0; color: var(--dash-text); font-size: 18px; }
+  .dashboard-section-header p,
+  .dashboard-panel-heading p { margin: 4px 0 0; color: var(--dash-muted); font-size: 13px; }
+  .dashboard-attention-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .dashboard-attention {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--dash-border);
+    border-radius: 13px;
+    background: var(--dash-surface);
+    color: var(--dash-text);
+    text-decoration: none;
+  }
+  .dashboard-attention span { color: #cbd5e1; font-size: 13px; }
+  .dashboard-attention strong { font-size: 20px; }
+  .dashboard-attention--danger { border-color: rgba(251, 113, 133, .32); }
+  .dashboard-attention--danger strong { color: var(--dash-red); }
+  .dashboard-attention--ok strong { color: var(--dash-green); }
+  .dashboard-attention--unknown strong { color: var(--dash-amber); }
+  .dashboard-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
+  .dashboard-kpi {
+    display: grid;
+    min-height: 142px;
+    align-content: space-between;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--dash-border);
+    border-radius: 16px;
+    background: linear-gradient(180deg, var(--dash-surface-strong), var(--dash-surface));
+    color: var(--dash-text);
+    text-decoration: none;
+    transition: transform .15s ease, border-color .15s ease;
+  }
+  .dashboard-kpi:hover { transform: translateY(-2px); border-color: rgba(94, 230, 173, .45); }
+  .dashboard-kpi-label { color: var(--dash-muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+  .dashboard-kpi-value { display: block; margin-top: 8px; color: var(--dash-text); font-size: clamp(25px, 2.4vw, 34px); line-height: 1.05; }
+  .dashboard-kpi-footer { display: grid; gap: 5px; }
+  .dashboard-kpi-detail { color: var(--dash-muted); font-size: 12px; }
+  .dashboard-delta { width: fit-content; padding: 3px 7px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+  .dashboard-delta--positive { background: rgba(52, 211, 153, .12); color: #6ee7b7; }
+  .dashboard-delta--negative { background: rgba(251, 113, 133, .12); color: #fda4af; }
+  .dashboard-delta--neutral { background: rgba(148, 163, 184, .12); color: #cbd5e1; }
+  .dashboard-layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(310px, .75fr); gap: 12px; }
+  .dashboard-panel {
+    min-width: 0;
+    padding: 17px;
+    border: 1px solid var(--dash-border);
+    border-radius: 16px;
+    background: var(--dash-surface);
+  }
+  .dashboard-panel-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+  .dashboard-legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; color: var(--dash-muted); font-size: 12px; }
+  .dashboard-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dashboard-legend i { width: 9px; height: 9px; border-radius: 3px; }
+  .dashboard-legend-free { background: #64748b; }
+  .dashboard-legend-trial { background: var(--dash-blue); }
+  .dashboard-legend-paid { background: var(--dash-green); }
+  .dashboard-chart-wrap { margin-top: 18px; overflow-x: auto; padding-bottom: 4px; }
+  .dashboard-chart { display: flex; min-width: 680px; height: 245px; align-items: stretch; gap: 5px; }
+  .dashboard-chart-point { display: grid; min-width: 16px; flex: 1; grid-template-rows: 1fr 36px; gap: 8px; }
+  .dashboard-chart-bars {
+    display: flex;
+    align-items: end;
+    justify-content: center;
+    gap: 2px;
+    border-bottom: 1px solid rgba(148, 163, 184, .2);
+    background: repeating-linear-gradient(to top, transparent 0, transparent 49px, rgba(148, 163, 184, .07) 50px);
+  }
+  .dashboard-chart-bar { width: min(8px, 29%); min-height: 0; border-radius: 4px 4px 1px 1px; }
+  .dashboard-chart-bar--nonzero { min-height: 3px; }
+  .dashboard-chart-bar--free { background: #64748b; }
+  .dashboard-chart-bar--trial { background: var(--dash-blue); }
+  .dashboard-chart-bar--paid { background: var(--dash-green); }
+  .dashboard-chart-label { overflow: hidden; color: #71839d; font-size: 9px; line-height: 1.1; text-align: center; }
+  .dashboard-funnel { display: grid; gap: 15px; margin-top: 18px; }
+  .dashboard-funnel-row { display: grid; gap: 7px; }
+  .dashboard-funnel-meta { display: flex; justify-content: space-between; gap: 8px; color: #cbd5e1; font-size: 13px; }
+  .dashboard-funnel-meta strong { color: var(--dash-text); }
+  .dashboard-funnel-track { height: 9px; overflow: hidden; border-radius: 999px; background: #202c40; }
+  .dashboard-funnel-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #34d399, #60a5fa); }
+  .dashboard-subscriptions { display: grid; grid-template-columns: 160px 1fr; align-items: center; gap: 20px; margin-top: 18px; }
+  .dashboard-donut {
+    display: grid;
+    width: 150px;
+    height: 150px;
+    place-items: center;
+    border-radius: 50%;
+  }
+  .dashboard-donut-center { display: grid; width: 94px; height: 94px; place-items: center; border-radius: 50%; background: var(--dash-surface); text-align: center; }
+  .dashboard-donut-center strong { display: block; font-size: 28px; }
+  .dashboard-donut-center span { color: var(--dash-muted); font-size: 11px; }
+  .dashboard-distribution { display: grid; gap: 10px; }
+  .dashboard-distribution-row { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px; color: #cbd5e1; font-size: 13px; }
+  .dashboard-distribution-row i { width: 9px; height: 9px; border-radius: 50%; }
+  .dashboard-distribution-row strong { color: var(--dash-text); }
+  .dashboard-health { display: grid; gap: 9px; margin-top: 17px; }
+  .dashboard-health-row { display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; padding: 11px 12px; border-radius: 11px; background: #0e1829; }
+  .dashboard-health-row span { color: #cbd5e1; font-size: 13px; }
+  .dashboard-health-row strong { font-size: 12px; }
+  .dashboard-health-row small { grid-column: 1 / -1; color: var(--dash-muted); }
+  .status-ok { color: var(--dash-green); }
+  .status-warning { color: var(--dash-amber); }
+  .status-failed { color: var(--dash-red); }
+  .dashboard-table-wrap { margin-top: 14px; overflow-x: auto; border: 1px solid var(--dash-border); border-radius: 13px; }
+  .dashboard-table { width: 100%; min-width: 720px; border-collapse: collapse; }
+  .dashboard-table th,
+  .dashboard-table td { padding: 11px 13px; border-bottom: 1px solid rgba(148, 163, 184, .11); text-align: left; vertical-align: middle; }
+  .dashboard-table th { color: var(--dash-muted); font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+  .dashboard-table td { color: #dbe5f2; font-size: 13px; }
+  .dashboard-table tr:last-child td { border-bottom: 0; }
+  .dashboard-user-link { color: var(--dash-text); font-weight: 750; text-decoration: none; }
+  .dashboard-user-meta { display: block; margin-top: 2px; color: var(--dash-muted); font-size: 11px; }
+  .dashboard-chip { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: rgba(148, 163, 184, .11); color: #cbd5e1; font-size: 11px; font-weight: 750; }
+  .dashboard-chip--paid { background: rgba(52, 211, 153, .12); color: #6ee7b7; }
+  .dashboard-chip--trial { background: rgba(96, 165, 250, .12); color: #93c5fd; }
+  .dashboard-chip--inactive { background: rgba(245, 158, 11, .12); color: #fcd34d; }
+  .dashboard-chip--success { background: rgba(52, 211, 153, .12); color: #6ee7b7; }
+  .dashboard-link { color: var(--dash-green); font-size: 13px; font-weight: 750; text-decoration: none; }
+  .dashboard-empty { padding: 26px; color: var(--dash-muted); text-align: center; }
+  @media (max-width: 1180px) {
+    .dashboard-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .dashboard-attention-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 900px) {
+    .dashboard-topbar { display: grid; }
+    .dashboard-actions { justify-content: flex-start; }
+    .dashboard-layout { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 680px) {
+    .dashboard-shell { gap: 14px; }
+    .dashboard-filter-row { align-items: flex-start; }
+    .dashboard-custom-period { width: 100%; }
+    .dashboard-field { flex: 1; }
+    .dashboard-field input { width: 100%; }
+    .dashboard-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dashboard-attention-grid { grid-template-columns: 1fr; }
+    .dashboard-subscriptions { grid-template-columns: 1fr; justify-items: center; }
+    .dashboard-distribution { width: 100%; }
+  }
+  @media (max-width: 430px) {
+    .dashboard-kpis { grid-template-columns: 1fr; }
+    .dashboard-action { flex: 1; }
+  }
+</style>
+
+<div id="content-main" class="dashboard-shell">
+  <header class="dashboard-topbar">
+    <div>
+      <p class="dashboard-eyebrow">Аналітика продукту</p>
+      <h1>Панель керування</h1>
+      <p class="dashboard-topbar-copy">{{ period.label }} · порівнюємо з {{ period.previous_label }}</p>
+    </div>
+    <div class="dashboard-actions">
+      {% for action in quick_actions %}
+        <a class="dashboard-action dashboard-action--{{ action.tone }}" href="{{ action.url }}">{{ action.label }}</a>
+      {% endfor %}
+    </div>
+  </header>
+
+  <section class="dashboard-filter" aria-label="Фільтр періоду">
+    <div class="dashboard-filter-row">
+      <nav class="dashboard-presets" aria-label="Швидкий вибір періоду">
+        {% for preset in period.preset_links %}
+          <a class="dashboard-preset{% if preset.active %} dashboard-preset--active{% endif %}" href="{{ preset.url }}">{{ preset.label }}</a>
+        {% endfor %}
+      </nav>
+      <form class="dashboard-custom-period" method="get" action="{{ custom_period_url }}">
+        <input type="hidden" name="period" value="custom">
+        {% if include_test_users %}<input type="hidden" name="include_test_users" value="1">{% endif %}
+        <div class="dashboard-field">
+          <label for="dashboard-start-date">Від</label>
+          <input id="dashboard-start-date" type="date" name="start_date" value="{{ period.start_date|date:'Y-m-d' }}" required>
+        </div>
+        <div class="dashboard-field">
+          <label for="dashboard-end-date">До</label>
+          <input id="dashboard-end-date" type="date" name="end_date" value="{{ period.end_date|date:'Y-m-d' }}" required>
+        </div>
+        <button class="dashboard-filter-button" type="submit">Застосувати</button>
+      </form>
+    </div>
+    <div class="dashboard-filter-row">
+      <div class="dashboard-scope">
+        <strong>{{ data_scope_label }}</strong>
+        {% if include_test_users %}
+          <a class="dashboard-scope-toggle" href="{{ toggle_exclude_test_url }}">Виключити тестових</a>
+        {% else %}
+          <a class="dashboard-scope-toggle" href="{{ toggle_include_test_url }}">Показати тестових</a>
+        {% endif %}
+      </div>
+      <span class="dashboard-compare">Δ — лише для порівнюваних даних; частки сегментів — поточний зріз</span>
+    </div>
+    {% if period.error %}<p class="dashboard-error">{{ period.error }}</p>{% endif %}
+    <p class="dashboard-compare">Зібрано: {{ data_quality.retrieved_at|date:"d.m.Y H:i T" }}. Це час запиту, не гарантія актуальності джерел.</p>
+    {% if data_quality.degraded %}
+      <p class="dashboard-error" role="alert">Частина даних недоступна або неповна. Невідомі значення не є нулями; порівняння й діаграми для них вимкнено. {{ data_quality.reason }}</p>
+    {% endif %}
+  </section>
+
+  <section class="dashboard-section">
+    <div class="dashboard-section-header">
+      <div>
+        <h2>Контроль ризиків</h2>
+        <p>Нуль — лише успішно прочитаний лічильник. «Недоступно» не означає відсутність проблем.</p>
+      </div>
+    </div>
+    <div class="dashboard-attention-grid">
+      {% for item in attention_items %}
+        <a class="dashboard-attention dashboard-attention--{{ item.tone }}" href="{{ item.url }}">
+          <span>{{ item.label }}</span>
+          <strong title="{{ item.reason }}">{{ item.value|default_if_none:"Недоступно" }}</strong>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="dashboard-section-header">
+      <div>
+        <h2>Ключові метрики</h2>
+        <p>Реєстрації та оплати — за датами подій. Поточні стани підписані окремо; відсутня історія не замінюється нулями.</p>
+      </div>
+    </div>
+    <div class="dashboard-kpis">
+      {% for card in kpi_cards %}
+        <a class="dashboard-kpi" href="{{ card.url }}">
+          <div>
+            <span class="dashboard-kpi-label">{{ card.label }}</span>
+            <strong class="dashboard-kpi-value">{{ card.value|default_if_none:"Недоступно" }}</strong>
+          </div>
+          <div class="dashboard-kpi-footer">
+            <span class="dashboard-delta dashboard-delta--{{ card.delta_tone }}">{{ card.delta }}</span>
+            <span class="dashboard-kpi-detail">{{ card.detail }}</span>
+            {% if card.reason %}<span class="dashboard-kpi-detail">{{ card.reason }}</span>{% endif %}
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="dashboard-layout">
+    <article class="dashboard-panel">
+      <div class="dashboard-panel-heading">
+        <div>
+          <h2>Динаміка статусів користувачів</h2>
+          <p>Когорти за датою реєстрації та їхнім поточним статусом.</p>
+        </div>
+        <div class="dashboard-legend" aria-label="Легенда графіка">
+          <span><i class="dashboard-legend-free"></i> Без підтвердженої чинної підписки</span>
+          <span><i class="dashboard-legend-trial"></i> Trial (оплата окремо)</span>
+          <span><i class="dashboard-legend-paid"></i> З оплатою renewal/retry</span>
+          <span><i style="background:#c4b5fd"></i> Наданий / непідтверджений доступ</span>
+        </div>
+      </div>
+      <div class="dashboard-chart-wrap">
+        {% if series_unavailable %}<p class="dashboard-error">Розподіл когорти недоступний: не всі джерела прочитано.</p>{% endif %}
+        <div class="dashboard-chart" role="img" aria-label="Поточна особиста підписка за когортами реєстрації, не історична монетизація">
+          {% for point in user_segment_series %}
+            <div class="dashboard-chart-point" title="{{ point.title }}">
+              <div class="dashboard-chart-bars">
+                <i class="dashboard-chart-bar dashboard-chart-bar--free{% if point.free %} dashboard-chart-bar--nonzero{% endif %}" style="height: {{ point.free_percent|unlocalize }}%"></i>
+                <i class="dashboard-chart-bar dashboard-chart-bar--trial{% if point.trial %} dashboard-chart-bar--nonzero{% endif %}" style="height: {{ point.trial_percent|unlocalize }}%"></i>
+                <i class="dashboard-chart-bar dashboard-chart-bar--paid{% if point.paid %} dashboard-chart-bar--nonzero{% endif %}" style="height: {{ point.paid_percent|unlocalize }}%"></i>
+                <i class="dashboard-chart-bar{% if point.granted %} dashboard-chart-bar--nonzero{% endif %}" style="background:#c4b5fd; height: {{ point.granted_percent|default:0|unlocalize }}%"></i>
+              </div>
+              <span class="dashboard-chart-label">{{ point.label }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+
+    <article class="dashboard-panel">
+      <div class="dashboard-panel-heading">
+        <div>
+          <h2>Факти когорти до кінця періоду</h2>
+          <p>Реєстрації у вибраному періоді; оплати до його кінця, включно з пізніше поверненими. Це не D7/D30 conversion: історії завершення онбордингу немає.</p>
+        </div>
+      </div>
+      <div class="dashboard-funnel">
+        {% for stage in funnel_stages %}
+          <div class="dashboard-funnel-row">
+            <div class="dashboard-funnel-meta">
+              <span>{{ stage.label }}</span>
+              <strong>{{ stage.value|default_if_none:"Недоступно" }} · {{ stage.percent_display }}</strong>
+            </div>
+            {% if stage.width != None %}<div class="dashboard-funnel-track"><div class="dashboard-funnel-fill" style="width: {{ stage.width|unlocalize }}%"></div></div>{% endif %}
+            {% if stage.reason %}<small class="dashboard-kpi-detail">{{ stage.reason }}</small>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+
+  <section class="dashboard-layout">
+    <article class="dashboard-panel">
+      <div class="dashboard-panel-heading">
+        <div>
+          <h2>Користувачі за статусом</h2>
+          <p>Поточні особисті підписки, не сімейний доступ і не MRR. Trial не доводить оплату 1 грн. Ручні й довічні grants відокремлені; paid потребує чинного строку та пов’язаної неповерненої оплати renewal/retry.</p>
+        </div>
+        <a class="dashboard-link" href="{% url 'admin:subscriptions_subscription_changelist' %}">Відкрити підписки →</a>
+      </div>
+      <div class="dashboard-subscriptions">
+        <div class="dashboard-donut" style="background: {{ subscription_donut }}">
+          <div class="dashboard-donut-center"><div><strong>{{ subscription_total|default_if_none:"—" }}</strong><span>користувачів</span></div></div>
+        </div>
+        <div class="dashboard-distribution">
+          {% if segments_available == False %}<p class="dashboard-error">Сегменти недоступні; неповні дані не зараховуються до безкоштовних.</p>{% endif %}
+          {% for item in subscription_distribution %}
+            <div class="dashboard-distribution-row">
+              <i style="background: {{ item.color }}"></i>
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }} · {{ item.percent_display }}</strong>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+
+    <article class="dashboard-panel">
+      <div class="dashboard-panel-heading">
+        <div>
+          <h2>Стан системи</h2>
+          <p>Поточна доступність ключових сервісів.</p>
+        </div>
+        <a class="dashboard-link" href="{% url 'admin:system_health' %}">Деталі →</a>
+      </div>
+      <div class="dashboard-health">
+        {% for item in health_items %}
+          <div class="dashboard-health-row">
+            <span>{{ item.label }}</span>
+            <strong class="{% if item.status == 'OK' %}status-ok{% elif item.status == 'Попередження' %}status-warning{% else %}status-failed{% endif %}">{{ item.status }}</strong>
+            {% if item.detail %}<small>{{ item.detail }}</small>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+
+  <section class="dashboard-panel">
+    <div class="dashboard-panel-heading">
+      <div>
+        <h2>Останні користувачі</h2>
+        <p>Поточний зріз усієї вибраної бази, не лише періоду. Онбординг і статус запису підписки — поточні, не історичні KPI.</p>
+      </div>
+      <a class="dashboard-link" href="{% url 'admin:users_telegramuser_changelist' %}">Усі користувачі →</a>
+    </div>
+    <div class="dashboard-table-wrap">
+      <table class="dashboard-table">
+        <thead><tr><th>Користувач</th><th>Реєстрація</th><th>Онбординг</th><th>Підписка</th><th>Остання активність</th></tr></thead>
+        <tbody>
+          {% for user in recent_users %}
+            <tr>
+              <td>
+                <a class="dashboard-user-link" href="{{ user.url }}">{{ user.name }}</a>
+                <span class="dashboard-user-meta">{% if user.username %}{{ user.username }} · {% endif %}ID {{ user.telegram_id }}</span>
+              </td>
+              <td>{{ user.created_at|date:"d.m.Y H:i" }}</td>
+              <td>{% if user.onboarding_completed %}<span class="dashboard-chip dashboard-chip--success">Завершено</span>{% else %}<span class="dashboard-chip">Не завершено</span>{% endif %}</td>
+              <td><span class="dashboard-chip dashboard-chip--{{ user.subscription_tone }}">{{ user.subscription_label }}</span></td>
+              <td>{% if user.last_seen_at %}{{ user.last_seen_at|date:"d.m.Y H:i" }}{% else %}—{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td class="dashboard-empty" colspan="5">{% if recent_users_unavailable %}Список користувачів недоступний.{% else %}У цьому сегменті користувачів ще немає.{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-panel">
+    <div class="dashboard-panel-heading">
+      <div>
+        <h2>Останні оплати за датою надходження</h2>
+        <p>До 10 оплат у вибраному періоді, включно з пізніше поверненими. Ручні підтвердження не включено.</p>
+      </div>
+      <a class="dashboard-link" href="{% url 'admin:subscriptions_payment_changelist' %}">Усі платежі →</a>
+    </div>
+    <div class="dashboard-table-wrap">
+      <table class="dashboard-table">
+        <thead><tr><th>Дата</th><th>Користувач</th><th>Тип</th><th>Сума</th><th>Статус</th></tr></thead>
+        <tbody>
+          {% for payment in latest_payments %}
+            <tr>
+              <td>{{ payment.effective_paid_at|date:"d.m.Y H:i" }}</td>
+              <td><span class="dashboard-user-link">{{ payment.user.full_name }}</span><span class="dashboard-user-meta">ID {{ payment.user_id }}</span></td>
+              <td>{{ payment.dashboard_kind_label }}</td>
+              <td><strong>{{ payment.amount }} {{ payment.currency }}</strong></td>
+              <td><span class="dashboard-chip dashboard-chip--success">{{ payment.dashboard_status_label }}</span></td>
+            </tr>
+          {% empty %}
+            <tr><td class="dashboard-empty" colspan="5">{% if latest_payments_unavailable %}Список оплат недоступний.{% else %}У вибраному періоді немає оплат із відомим paid_at.{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

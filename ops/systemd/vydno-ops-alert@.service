@@ -1,0 +1,5 @@
+[Unit]
+Description=Independent Vydno ops alert (%i)
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/vydno-ops-alert %i

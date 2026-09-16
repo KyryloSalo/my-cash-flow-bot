@@ -1,0 +1,51 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="payment-confirmation-shell">
+  <header class="operational-page-heading">
+    <p class="operational-page-eyebrow">Монетизація · Платежі</p>
+    <h1>{{ title }}</h1>
+    <p class="operational-page-description">{{ warning }}</p>
+  </header>
+
+  <section class="payment-confirmation-card">
+    <div class="payment-confirmation-heading">
+      <div>
+        <strong>{{ selected_count }}</strong>
+        <span>вибрано</span>
+      </div>
+      <p>Перевірте користувачів, суми та поточні статуси перед підтвердженням.</p>
+    </div>
+
+    <div class="payment-confirmation-table-wrap">
+      <table class="payment-confirmation-table">
+        <thead>
+          <tr><th>Користувач</th><th>Сума</th><th>Тип</th><th>Поточний статус</th><th>Створено</th></tr>
+        </thead>
+        <tbody>
+          {% for payment in payments %}
+            <tr>
+              <td>{{ payment.user }}</td>
+              <td><strong>{{ payment.amount }} {{ payment.currency }}</strong></td>
+              <td>{{ payment.get_kind_display }}</td>
+              <td>{{ payment.get_status_display }}</td>
+              <td>{{ payment.created_at|date:"d.m.Y H:i" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <form method="post" class="payment-confirmation-actions">
+      {% csrf_token %}
+      {% for object_id in selected_ids %}<input type="hidden" name="{{ action_checkbox_name }}" value="{{ object_id }}">{% endfor %}
+      <input type="hidden" name="action" value="{{ action_name }}">
+      <input type="hidden" name="select_across" value="{{ select_across }}">
+      <input type="hidden" name="confirm_action" value="1">
+      <button type="submit" class="default">{{ submit_label }}</button>
+      <a class="payment-confirmation-cancel" href="{% url 'admin:subscriptions_payment_changelist' %}">Скасувати</a>
+    </form>
+  </section>
+</div>
+{% endblock %}

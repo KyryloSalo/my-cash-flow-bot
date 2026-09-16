@@ -1,0 +1,452 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .crm-page {
+    display: grid;
+    gap: 18px;
+  }
+  .crm-hero,
+  .crm-card {
+    border: 1px solid rgba(138, 150, 173, 0.22);
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(16, 24, 40, 0.96), rgba(11, 18, 32, 0.96));
+    box-shadow: 0 18px 40px rgba(5, 10, 20, 0.22);
+  }
+  .crm-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 26px;
+    align-items: flex-start;
+  }
+  .crm-eyebrow {
+    margin: 0 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 12px;
+    color: #8fb4ff;
+  }
+  .crm-hero h1 {
+    margin: 0;
+    font-size: 34px;
+    line-height: 1.1;
+  }
+  .crm-subline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+    color: #c6d1e6;
+  }
+  .crm-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(151, 163, 184, 0.22);
+    padding: 6px 11px;
+    font-size: 13px;
+    background: rgba(15, 23, 42, 0.65);
+  }
+  .crm-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .crm-summary-card {
+    padding: 16px 18px;
+  }
+  .crm-summary-card .label {
+    font-size: 12px;
+    color: #9fb0cb;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .crm-summary-card .value {
+    margin-top: 8px;
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .crm-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.95fr);
+    gap: 18px;
+  }
+  .crm-stack {
+    display: grid;
+    gap: 18px;
+  }
+  .crm-card {
+    padding: 20px;
+  }
+  .crm-card h2 {
+    margin: 0 0 14px;
+    font-size: 22px;
+  }
+  .crm-actions {
+    display: grid;
+    gap: 14px;
+  }
+  .crm-action-group {
+    display: grid;
+    gap: 10px;
+  }
+  .crm-action-group h3 {
+    margin: 0;
+    font-size: 15px;
+    color: #d7e1f2;
+  }
+  .crm-action-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .crm-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    padding: 10px 14px;
+    text-decoration: none;
+    font-weight: 600;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    color: #edf2ff;
+    background: rgba(15, 23, 42, 0.66);
+  }
+  .crm-action--primary {
+    background: linear-gradient(135deg, #2477ff, #4b9bff);
+    border-color: rgba(108, 159, 255, 0.6);
+  }
+  .crm-action--secondary {
+    background: rgba(35, 53, 87, 0.8);
+  }
+  .crm-action--danger {
+    background: rgba(120, 31, 46, 0.78);
+    border-color: rgba(248, 113, 113, 0.32);
+  }
+  .crm-action--ghost {
+    background: transparent;
+  }
+  .crm-kv {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .crm-kv th,
+  .crm-kv td,
+  .crm-table th,
+  .crm-table td {
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+    text-align: left;
+    vertical-align: top;
+  }
+  .crm-kv th {
+    width: 40%;
+    color: #9fb0cb;
+    font-weight: 500;
+    padding-right: 20px;
+  }
+  .crm-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .crm-table th {
+    color: #9fb0cb;
+    font-weight: 500;
+    font-size: 13px;
+  }
+  .crm-note {
+    margin: 0;
+    color: #9fb0cb;
+  }
+  .crm-empty {
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.55);
+    color: #9fb0cb;
+  }
+  .crm-footer-link {
+    margin-top: 14px;
+  }
+  .crm-details {
+    border-top: 1px solid rgba(148, 163, 184, 0.16);
+    padding-top: 16px;
+  }
+  .crm-details summary {
+    cursor: pointer;
+    color: #dfe7f6;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .crm-pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-radius: 14px;
+    padding: 14px;
+    background: rgba(15, 23, 42, 0.62);
+    color: #dbe6ff;
+    overflow-x: auto;
+  }
+  @media (max-width: 1180px) {
+    .crm-summary {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .crm-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 720px) {
+    .crm-hero {
+      padding: 18px;
+      flex-direction: column;
+    }
+    .crm-summary {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Огляд</a>
+  &rsaquo; <a href="{% url 'admin:users_telegramuser_changelist' %}">Користувачі</a>
+  &rsaquo; {{ crm.user.full_name }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main" class="crm-page">
+  <section class="crm-hero">
+    <div>
+      <p class="crm-eyebrow">Картка користувача</p>
+      <h1>{{ crm.user.full_name }}</h1>
+      <div class="crm-subline">
+        <span class="crm-chip">Telegram ID: {{ crm.user.tg_user_id }}</span>
+        <span class="crm-chip">{% if crm.user.username %}@{{ crm.user.username }}{% else %}Без username{% endif %}</span>
+        <span class="crm-chip">{{ crm.summary_cards.0.value }}</span>
+        <span class="crm-chip">{{ crm.summary_cards.1.value }}</span>
+      </div>
+    </div>
+    <a class="crm-action crm-action--primary" href="{{ crm.links.send_message }}">Написати користувачу</a>
+  </section>
+
+  <section class="crm-summary">
+    {% for card in crm.summary_cards %}
+      <article class="crm-card crm-summary-card">
+        <div class="label">{{ card.label }}</div>
+        <div class="value">{{ card.value }}</div>
+      </article>
+    {% endfor %}
+  </section>
+
+  <section class="crm-grid">
+    <div class="crm-stack">
+      <article class="crm-card">
+        <h2>Швидкі дії</h2>
+        <div class="crm-actions">
+          {% for group in crm.action_groups %}
+            {% if group.items %}
+              <div class="crm-action-group">
+                <h3>{{ group.title }}</h3>
+                <div class="crm-action-row">
+                  {% for item in group.items %}
+                    <a class="crm-action crm-action--{{ item.variant|default:'secondary' }}" href="{{ item.url }}">{{ item.label }}</a>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="crm-card">
+        <h2>Онбординг</h2>
+        <table class="crm-kv">
+          {% for label, value in crm.onboarding_rows %}
+            <tr>
+              <th>{{ label }}</th>
+              <td>{{ value }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+        <div class="crm-details">
+          <details>
+            <summary>Останні onboarding-події</summary>
+            {% if crm.onboarding_events %}
+              <table class="crm-table">
+                <thead>
+                  <tr>
+                    <th>Дата</th>
+                    <th>Подія</th>
+                    <th>Джерело</th>
+                    <th>Помилка</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for event in crm.onboarding_events %}
+                    <tr>
+                      <td>{{ event.created_at|date:"d.m.Y H:i" }}</td>
+                      <td>{{ event.crm_event_label }}</td>
+                      <td>{{ event.crm_source_label }}</td>
+                      <td>{{ event.error_message|default:"-" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              <div class="crm-empty">Onboarding-подій поки немає.</div>
+            {% endif %}
+          </details>
+        </div>
+      </article>
+
+      <article class="crm-card">
+        <h2>Комунікації</h2>
+        <table class="crm-kv">
+          {% for label, value in crm.communication_rows %}
+            <tr>
+              <th>{{ label }}</th>
+              <td>{{ value }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+        <div class="crm-footer-link">
+          <a class="crm-action crm-action--secondary" href="{{ crm.links.send_message }}">Надіслати нове повідомлення</a>
+        </div>
+        <div class="crm-details">
+          <details open>
+            <summary>Останні ручні повідомлення</summary>
+            {% if crm.message_logs %}
+              <table class="crm-table">
+                <thead>
+                  <tr>
+                    <th>Дата</th>
+                    <th>Хто відправив</th>
+                    <th>Статус</th>
+                    <th>Текст</th>
+                    <th>Помилка</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for log in crm.message_logs %}
+                    <tr>
+                      <td>{{ log.created_at|date:"d.m.Y H:i" }}</td>
+                      <td>{{ log.admin_user }}</td>
+                      <td>{{ log.crm_status_label }}</td>
+                      <td>{{ log.message_text|truncatechars:140 }}</td>
+                      <td>{{ log.error_message|default:"-" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              <div class="crm-empty">Ручних повідомлень поки не було.</div>
+            {% endif %}
+          </details>
+        </div>
+      </article>
+
+      <article class="crm-card">
+        <h2>Події</h2>
+        {% if crm.recent_events %}
+          <table class="crm-table">
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Подія</th>
+                <th>Джерело</th>
+                <th>Помилка</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for event in crm.recent_events %}
+                <tr>
+                  <td>{{ event.created_at|date:"d.m.Y H:i" }}</td>
+                  <td>{{ event.crm_event_label }}</td>
+                  <td>{{ event.crm_source_label }}</td>
+                  <td>
+                    {{ event.error_message|default:"-"|truncatechars:120 }}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <div class="crm-empty">Подій поки немає.</div>
+        {% endif %}
+      </article>
+    </div>
+
+    <div class="crm-stack">
+      <article class="crm-card">
+        <h2>Профіль</h2>
+        <table class="crm-kv">
+          {% for label, value in crm.profile_rows %}
+            <tr>
+              <th>{{ label }}</th>
+              <td>{{ value }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+      </article>
+
+      <article class="crm-card">
+        <h2>Підписка</h2>
+        <p class="crm-note">Всі ручні зміни підписки проходять через окреме підтвердження і логуються.</p>
+        {% if crm.subscriptions %}
+          <table class="crm-table">
+            <thead>
+              <tr>
+                <th>Тариф</th>
+                <th>Статус</th>
+                <th>Провайдер</th>
+                <th>До</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in crm.subscriptions %}
+                <tr>
+                  <td>{{ row.crm_plan_label }}</td>
+                  <td>{{ row.crm_status_label }}</td>
+                  <td>{{ row.provider|default:"-" }}</td>
+                  <td>{% if row.expires_at %}{{ row.expires_at|date:"d.m.Y H:i" }}{% else %}-{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <div class="crm-empty">Історії підписок поки немає.</div>
+        {% endif %}
+        <div class="crm-footer-link">
+          <a class="crm-action crm-action--ghost" href="{{ crm.links.subscriptions }}">Вся історія підписок</a>
+        </div>
+      </article>
+
+      <article class="crm-card">
+        <h2>Нотатки адміна</h2>
+        {% if crm.notes %}
+          <div class="crm-stack">
+            {% for note in crm.notes %}
+              <div class="crm-empty">
+                <strong>{{ note.admin_user }}</strong> · {{ note.created_at|date:"d.m.Y H:i" }}<br>
+                {{ note.note_text|linebreaksbr }}
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="crm-empty">Нотаток поки немає.</div>
+        {% endif %}
+        <div class="crm-footer-link">
+          <a class="crm-action crm-action--secondary" href="{% url 'admin:users_telegramuser_add_note' crm.user.pk %}">Додати нотатку</a>
+        </div>
+      </article>
+
+    </div>
+  </section>
+</div>
+{% endblock %}

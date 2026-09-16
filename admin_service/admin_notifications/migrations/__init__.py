@@ -1,0 +1,1 @@
+"""Admin notifications migrations."""

@@ -1,20 +1,308 @@
+# Schema job integration must be verified on a fresh PostgreSQL DB before release.
 services:
   db:
-    image: postgres:16
+    image: postgres:16-bookworm@sha256:bb3e1a57e5407e0a5280b4211980a5e537f4abd234a87014ac979849a78dd825
     restart: unless-stopped
     environment:
       POSTGRES_DB: mcf
       POSTGRES_USER: mcf
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - pgdata:/var/lib/postgresql/data
-
-  bot:
-    build: ./bot
-    env_file: .env
-    depends_on:
-      - db
+    - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  redis:
+    image: redis:7-bookworm@sha256:71da9275c5f3fcb97d0fa0c8c5b36cc995327265420f17a04bfd544f458059f7
     restart: unless-stopped
-
+    volumes:
+    - redisdata:/data
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 10s
+      timeout: 3s
+      retries: 6
+  bot:
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
+    env_file: ${HOST_ENV_FILE:-.env}
+    environment:
+      FAMILY_ACCESS_ENABLED: ${FAMILY_ACCESS_ENABLED:-true}
+      SUPPORT_CONTACT_URL: ${SUPPORT_CONTACT_URL:-https://t.me/Askills_Support}
+    depends_on:
+      db:
+        condition: service_healthy
+      schema:
+        condition: service_completed_successfully
+      admin:
+        condition: service_healthy
+    restart: unless-stopped
+    image: mcf-bot:${RELEASE_ID:-local}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - runtime_health.py
+      interval: 30s
+      timeout: 8s
+      retries: 4
+      start_period: 60s
+  api:
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
+    env_file: ${HOST_ENV_FILE:-.env}
+    environment:
+      FAMILY_ACCESS_ENABLED: ${FAMILY_ACCESS_ENABLED:-true}
+      SUPPORT_CONTACT_URL: ${SUPPORT_CONTACT_URL:-https://t.me/Askills_Support}
+    depends_on:
+      db:
+        condition: service_healthy
+      schema:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    command:
+    - python
+    - -u
+    - api_main.py
+    image: mcf-bot:${RELEASE_ID:-local}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',
+        timeout=5)
+      interval: 20s
+      timeout: 8s
+      retries: 4
+      start_period: 30s
+  admin:
+    build:
+      context: .
+      dockerfile: admin_service/Dockerfile
+    env_file: ${HOST_ENV_FILE:-.env}
+    environment:
+      DOMAIN: vydno.capital
+      ADMIN_DOMAIN: admin.vydno.capital
+      LEGACY_ADMIN_DOMAIN: cashflowbot.mygpttest.space
+      DJANGO_ALLOWED_HOSTS: 127.0.0.1,localhost,admin,vydno.capital,admin.vydno.capital,cashflowbot.mygpttest.space
+      DJANGO_SECRET_KEY_FILE: /run/secrets/django_secret_key
+      TELEGRAM_OIDC_CLIENT_ID_FILE: /run/secrets/telegram_oidc_client_id
+      TELEGRAM_OIDC_CLIENT_SECRET_FILE: /run/secrets/telegram_oidc_client_secret
+      TELEGRAM_OIDC_REDIRECT_URI: https://vydno.capital/app/auth/telegram/callback
+      MONO_WEBHOOK_VERIFY_SIGNATURES: 'true'
+      ADMIN_TRUSTED_PROXY_IPS: 172.29.247.2
+    depends_on:
+      db:
+        condition: service_healthy
+      schema:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    command:
+    - sh
+    - -ec
+    - python manage.py collectstatic --noinput && exec gunicorn -c gunicorn.conf.py
+      config.wsgi:application
+    volumes:
+    - admin_static:/app/staticfiles
+    - ${DJANGO_SECRET_HOST_PATH:-/opt/my-cash-flow-bot/runtime-secrets/django_secret_key}:/run/secrets/django_secret_key:ro
+    - ${TELEGRAM_OIDC_CLIENT_ID_HOST_PATH:-/opt/my-cash-flow-bot/runtime-secrets/telegram_oidc_client_id}:/run/secrets/telegram_oidc_client_id:ro
+    - ${TELEGRAM_OIDC_CLIENT_SECRET_HOST_PATH:-/opt/my-cash-flow-bot/runtime-secrets/telegram_oidc_client_secret}:/run/secrets/telegram_oidc_client_secret:ro
+    restart: unless-stopped
+    image: mcf-admin:${RELEASE_ID:-local}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    networks:
+      default: null
+      edge:
+        ipv4_address: 172.29.247.3
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/internal/health/ready',
+        timeout=12)
+      interval: 20s
+      timeout: 15s
+      retries: 5
+      start_period: 90s
+  worker:
+    build:
+      context: .
+      dockerfile: admin_service/Dockerfile
+    env_file: ${HOST_ENV_FILE:-.env}
+    environment:
+      DOMAIN: vydno.capital
+      ADMIN_DOMAIN: admin.vydno.capital
+      LEGACY_ADMIN_DOMAIN: cashflowbot.mygpttest.space
+      DJANGO_ALLOWED_HOSTS: 127.0.0.1,localhost,admin,vydno.capital,admin.vydno.capital,cashflowbot.mygpttest.space
+      DJANGO_SECRET_KEY_FILE: /run/secrets/django_secret_key
+    depends_on:
+      db:
+        condition: service_healthy
+      schema:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    command:
+    - celery
+    - -A
+    - config
+    - worker
+    - -l
+    - info
+    restart: unless-stopped
+    image: mcf-admin:${RELEASE_ID:-local}
+    volumes:
+    - ${DJANGO_SECRET_HOST_PATH:-/opt/my-cash-flow-bot/runtime-secrets/django_secret_key}:/run/secrets/django_secret_key:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -m
+      - common.readiness
+      - worker
+      interval: 20s
+      timeout: 10s
+      retries: 4
+      start_period: 30s
+  beat:
+    build:
+      context: .
+      dockerfile: admin_service/Dockerfile
+    env_file: ${HOST_ENV_FILE:-.env}
+    environment:
+      DOMAIN: vydno.capital
+      ADMIN_DOMAIN: admin.vydno.capital
+      LEGACY_ADMIN_DOMAIN: cashflowbot.mygpttest.space
+      DJANGO_ALLOWED_HOSTS: 127.0.0.1,localhost,admin,vydno.capital,admin.vydno.capital,cashflowbot.mygpttest.space
+      DJANGO_SECRET_KEY_FILE: /run/secrets/django_secret_key
+    depends_on:
+      db:
+        condition: service_healthy
+      schema:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    command:
+    - celery
+    - -A
+    - config
+    - beat
+    - -l
+    - info
+    - --schedule=/var/run/celery/celerybeat-schedule
+    restart: unless-stopped
+    image: mcf-admin:${RELEASE_ID:-local}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -m
+      - common.readiness
+      - beat
+      interval: 20s
+      timeout: 10s
+      retries: 4
+      start_period: 30s
+    volumes:
+    - beat_state:/var/run/celery
+    - ${DJANGO_SECRET_HOST_PATH:-/opt/my-cash-flow-bot/runtime-secrets/django_secret_key}:/run/secrets/django_secret_key:ro
+  nginx:
+    build: ./nginx
+    depends_on:
+      admin:
+        condition: service_healthy
+    environment:
+      DOMAIN: vydno.capital
+      WWW_DOMAIN: www.vydno.capital
+      ADMIN_DOMAIN: admin.vydno.capital
+      LEGACY_ADMIN_DOMAIN: cashflowbot.mygpttest.space
+      NGINX_BASIC_AUTH_ENABLED: ${NGINX_BASIC_AUTH_ENABLED:-false}
+      NGINX_BASIC_AUTH_USER: ${NGINX_BASIC_AUTH_USER}
+      NGINX_BASIC_AUTH_PASSWORD: ${NGINX_BASIC_AUTH_PASSWORD}
+      NGINX_ENVSUBST_FILTER: ^(DOMAIN|WWW_DOMAIN|ADMIN_DOMAIN|LEGACY_ADMIN_DOMAIN)$
+    ports:
+    - 80:80
+    - 443:443
+    volumes:
+    - ./nginx/cashflowbot.conf.template:/etc/nginx/templates/default.conf.template:ro
+    - admin_static:/var/www/admin-static:ro
+    - ./nginx/landing:/var/www/landing:ro
+    - /etc/letsencrypt:/etc/letsencrypt:ro
+    - ./nginx/www:/var/www/certbot:ro
+    restart: unless-stopped
+    image: mcf-nginx:${RELEASE_ID:-local}
+    networks:
+      edge:
+        ipv4_address: 172.29.247.2
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - nginx -t -q && curl --fail --silent http://127.0.0.1/proxy-health >/dev/null
+      interval: 20s
+      timeout: 5s
+      retries: 3
+  schema:
+    build:
+      context: .
+      dockerfile: admin_service/Dockerfile
+    image: mcf-admin:${RELEASE_ID:-local}
+    env_file: ${HOST_ENV_FILE:-.env}
+    environment:
+      DJANGO_SECRET_KEY_FILE: /run/secrets/django_secret_key
+    depends_on:
+      db:
+        condition: service_healthy
+    command:
+    - sh
+    - -ec
+    - python manage.py migrate --noinput && python manage.py migrate --check
+    restart: 'no'
+    volumes:
+    - ${DJANGO_SECRET_HOST_PATH:-/opt/my-cash-flow-bot/runtime-secrets/django_secret_key}:/run/secrets/django_secret_key:ro
 volumes:
-  pgdata:
+  pgdata: null
+  redisdata: null
+  admin_static: null
+  beat_state: null
+networks:
+  default: {}
+  edge:
+    ipam:
+      config:
+      - subnet: 172.29.247.0/28

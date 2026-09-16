@@ -1,0 +1,692 @@
+{% load static %}
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#0f172a">
+  <title>Vydno · Admin Hub</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1220;
+      --panel: #111c30;
+      --panel-2: #17243a;
+      --line: rgba(148, 163, 184, .18);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #79f2bd;
+      --accent-ink: #052e2b;
+      --danger: #fb7185;
+      --warning: #fbbf24;
+      --ok: #34d399;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top left, rgba(45, 212, 191, .08), transparent 34%), var(--bg);
+      color: var(--text);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, textarea, select { font: inherit; }
+    .shell { width: min(1120px, calc(100% - 48px)); margin: 0 auto; padding: 34px 0 56px; }
+    .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 26px; }
+    .eyebrow { margin: 0 0 8px; color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(28px, 4vw, 44px); line-height: 1; }
+    .subtitle { margin: 10px 0 0; color: var(--muted); line-height: 1.5; }
+    .mode-pill { flex: 0 0 auto; padding: 9px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: rgba(15, 23, 42, .78); font-size: 13px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 26px; }
+    .button { min-height: 44px; padding: 11px 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); cursor: pointer; text-decoration: none; font-weight: 700; }
+    .button.primary { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
+    .button.danger { border-color: rgba(251, 113, 133, .42); color: #fecdd3; background: rgba(127, 29, 29, .22); }
+    .section { margin-top: 28px; }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+    .section-head h2 { margin: 0; font-size: 19px; }
+    .section-head p { margin: 0; color: var(--muted); font-size: 13px; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+    .card { min-width: 0; border: 1px solid var(--line); border-radius: 16px; background: linear-gradient(180deg, rgba(23, 36, 58, .96), rgba(17, 28, 48, .96)); padding: 17px; box-shadow: 0 16px 32px rgba(2, 6, 23, .18); }
+    button.card { width: 100%; color: inherit; text-align: left; cursor: pointer; }
+    .card-label { color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .card-value { display: block; margin-top: 8px; font-size: 29px; line-height: 1; }
+    .card-hint { display: block; margin-top: 8px; color: var(--muted); font-size: 13px; }
+    .attention-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .attention-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; }
+    .attention-card .card-hint { grid-column: 1 / -1; }
+    .card[data-available="false"] .card-value { font-size: 20px; color: var(--muted); }
+    .attention-card[data-tone="unknown"] strong { font-size: 18px; color: var(--muted); }
+    .attention-card strong { font-size: 24px; }
+    .attention-card[data-tone="danger"] strong { color: var(--danger); }
+    .attention-card[data-tone="warning"] strong { color: var(--warning); }
+    .attention-card[data-tone="ok"] strong { color: var(--ok); }
+    .search { display: grid; grid-template-columns: minmax(240px, 1fr) auto; gap: 10px; }
+    .search input { width: 100%; min-height: 46px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 12px; background: #0f172a; color: var(--text); outline: none; }
+    .search input:focus { border-color: rgba(121, 242, 189, .72); box-shadow: 0 0 0 3px rgba(121, 242, 189, .10); }
+    .users { display: grid; gap: 10px; margin-top: 14px; }
+    .user-card { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(110px, .55fr)) auto; align-items: center; gap: 14px; }
+    button.user-card { width: 100%; color: inherit; text-align: left; cursor: pointer; }
+    .user-name { min-width: 0; }
+    .user-name strong, .user-name span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-name span, .user-meta small { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .user-meta strong { display: block; font-size: 14px; }
+    .state { display: grid; place-items: center; min-width: 86px; min-height: 34px; padding: 7px 10px; border-radius: 999px; background: rgba(148, 163, 184, .10); color: #cbd5e1; font-size: 12px; font-weight: 800; }
+    .empty, .error { padding: 22px; border: 1px dashed var(--line); border-radius: 14px; color: var(--muted); text-align: center; }
+    .error { color: #fecdd3; border-color: rgba(251, 113, 133, .35); }
+    .loading { opacity: .64; pointer-events: none; }
+    .modal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(2, 6, 23, .72); backdrop-filter: blur(8px); }
+    .modal[hidden] { display: none; }
+    .modal-card { width: min(560px, 100%); max-height: min(760px, calc(100vh - 40px)); overflow: auto; border: 1px solid var(--line); border-radius: 20px; background: #111c30; padding: 20px; box-shadow: 0 30px 80px rgba(2, 6, 23, .55); }
+    .modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .modal-head h2 { margin: 4px 0 0; font-size: 24px; }
+    .icon-button { min-width: 42px; min-height: 42px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); color: var(--text); cursor: pointer; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0; }
+    .detail-item { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(15, 23, 42, .72); }
+    .detail-item small { display: block; margin-bottom: 5px; color: var(--muted); }
+    .detail-item strong { display: block; overflow-wrap: anywhere; }
+    .reason-label { display: block; margin-top: 14px; color: var(--muted); font-size: 13px; }
+    .reason-label textarea { width: 100%; min-height: 76px; margin-top: 7px; padding: 11px 12px; resize: vertical; border: 1px solid var(--line); border-radius: 12px; background: #0f172a; color: var(--text); }
+    .modal-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .action-status { min-height: 20px; margin: 12px 0 0; color: var(--muted); font-size: 13px; }
+    .action-status.error-text { color: #fecdd3; }
+    .action-section { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(15, 23, 42, .46); }
+    .action-section h3 { margin: 0 0 10px; font-size: 15px; }
+    .action-section p { margin: -3px 0 10px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .action-grid .wide { grid-column: 1 / -1; }
+    .field { display: grid; gap: 6px; margin-bottom: 10px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .field input, .field textarea, .field select { width: 100%; min-height: 42px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 10px; background: #0b1220; color: var(--text); }
+    .field textarea { min-height: 76px; resize: vertical; }
+    .button.small { min-height: 40px; padding: 9px 11px; font-size: 13px; }
+    .button.warning { border-color: rgba(251, 191, 36, .38); color: #fde68a; background: rgba(120, 53, 15, .22); }
+    .button[hidden], .action-section[hidden] { display: none; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
+    .chip { padding: 5px 8px; border-radius: 999px; background: rgba(121, 242, 189, .1); color: #a7f3d0; font-size: 12px; }
+    .notes { display: grid; gap: 7px; margin: 8px 0 10px; }
+    .note { padding: 9px 10px; border-left: 2px solid rgba(121, 242, 189, .45); background: rgba(2, 6, 23, .25); color: #dbeafe; font-size: 12px; line-height: 1.45; }
+    .danger-zone { border-color: rgba(251, 113, 133, .32); background: rgba(127, 29, 29, .10); }
+    @media (max-width: 860px) {
+      .shell { width: min(100% - 32px, 760px); padding-top: 24px; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .attention-grid { grid-template-columns: 1fr; }
+      .user-card { grid-template-columns: minmax(0, 1fr) auto; }
+      .user-meta { display: none; }
+    }
+    @media (max-width: 520px) {
+      .shell { width: min(100% - 24px, 480px); padding-top: max(18px, env(safe-area-inset-top)); padding-bottom: max(32px, env(safe-area-inset-bottom)); }
+      .topbar { display: block; }
+      .mode-pill { display: inline-block; margin-top: 14px; }
+      .toolbar { display: grid; grid-template-columns: 1fr 1fr; }
+      .toolbar .button:first-child { grid-column: 1 / -1; }
+      .grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .card { padding: 14px; border-radius: 14px; }
+      .card-value { font-size: 24px; }
+      .search { grid-template-columns: 1fr; }
+      .search .button { width: 100%; }
+      .section-head { align-items: start; flex-direction: column; gap: 5px; }
+      .detail-grid { grid-template-columns: 1fr; }
+      .modal { padding: 10px; align-items: end; }
+      .modal-card { max-height: calc(100vh - 20px); border-radius: 20px 20px 12px 12px; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+      .modal-actions .button { width: 100%; }
+      .action-grid { grid-template-columns: 1fr; }
+      .action-grid .wide { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main
+    class="shell"
+    id="operatorRoot"
+    data-operator-url="{{ operator_api_url }}"
+    data-user-url-template="{{ operator_user_url_template }}"
+    data-user-status-url-template="{{ operator_user_status_url_template }}"
+    data-user-action-url-template="{{ operator_user_action_url_template }}"
+    data-auth-url="{{ auth_url }}"
+    data-profile-url="{{ profile_url }}"
+  >
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Vydno · Admin Hub</p>
+        <h1>Операційний огляд</h1>
+        <p class="subtitle" id="welcomeText">Завантажуємо робочий стан…</p>
+      </div>
+      <span class="mode-pill">Керування користувачами</span>
+    </header>
+
+    <nav class="toolbar" aria-label="Швидкі дії">
+      <button class="button primary" id="jumpToUsers" type="button">Керування людьми</button>
+      <button class="button" id="refreshOperator" type="button">Оновити</button>
+      <button class="button" type="button" data-link="full_admin">Веб-адмінка ↗</button>
+    </nav>
+
+    <div id="errorBox" class="error" hidden></div>
+
+    <section class="section">
+      <div class="section-head"><h2>Ключові показники</h2><p>Поточний зріз · джерело під кожним показником</p></div>
+      <p id="metricsScope" class="subtitle"></p>
+      <div id="metricsDegraded" class="error" role="status" hidden>Частина показників недоступна. Невідомі значення — не нуль; не трактуйте їх як відсутність проблем.</div>
+      <div class="grid" id="metricsGrid"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>Потребує уваги</h2><p>Сигнали для швидкої перевірки</p></div>
+      <div class="attention-grid" id="attentionGrid"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>Користувачі</h2><p>Пошук за ID, @username або ім’ям</p></div>
+      <form class="search" id="userSearch">
+        <input id="userQuery" name="q" autocomplete="off" placeholder="Наприклад: 123456789 або @username">
+        <button class="button primary" type="submit">Знайти</button>
+      </form>
+      <div class="users" id="usersList"></div>
+    </section>
+
+    <div class="modal" id="userModal" hidden>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Користувач</p>
+            <h2 id="userModalTitle">Завантаження…</h2>
+            <p class="subtitle" id="userModalIdentity"></p>
+          </div>
+          <button class="icon-button" id="closeUserModal" type="button" aria-label="Закрити">✕</button>
+        </div>
+        <div class="detail-grid" id="userDetailGrid"></div>
+
+        <section class="action-section">
+          <h3>Підписка</h3>
+          <p id="subscriptionSummary">Немає активної підписки.</p>
+          <label class="field">Кількість днів
+            <input id="subscriptionDays" inputmode="numeric" type="number" min="1" max="3650" value="30">
+          </label>
+          <div class="action-grid">
+            <button class="button small" type="button" data-operator-action="subscription_trial">Видати trial</button>
+            <button class="button small primary" type="button" data-operator-action="subscription_extend">Продовжити доступ</button>
+            <button class="button small warning" type="button" data-operator-action="subscription_expire">Завершити зараз</button>
+            <button class="button small" type="button" data-operator-action="subscription_cancel">Скасувати</button>
+          </div>
+        </section>
+
+        <section class="action-section" id="billingActions">
+          <h3>Оплата й картка</h3>
+          <p id="billingSummary">Картка не прив’язана.</p>
+          <div class="action-grid">
+            <button class="button small warning" id="forceChargeBtn" type="button" data-operator-action="force_charge">Списати 499 грн зараз</button>
+            <button class="button small danger" id="refundBtn" type="button" data-operator-action="refund_latest">Повернути останнє списання</button>
+          </div>
+        </section>
+
+        <section class="action-section">
+          <h3>Зв’язок</h3>
+          <label class="field">Повідомлення в Telegram
+            <textarea id="operatorMessage" maxlength="4000" placeholder="Напишіть повідомлення користувачу"></textarea>
+          </label>
+          <button class="button small primary" type="button" data-operator-action="send_message">Надіслати повідомлення</button>
+        </section>
+
+        <section class="action-section">
+          <h3>CRM-дані</h3>
+          <div class="chips" id="userTags"></div>
+          <label class="field">Тег
+            <input id="operatorTag" maxlength="128" placeholder="Наприклад: VIP">
+          </label>
+          <div class="action-grid">
+            <button class="button small" type="button" data-operator-action="add_tag">Додати тег</button>
+            <button class="button small" type="button" data-operator-action="remove_tag">Зняти тег</button>
+          </div>
+          <label class="field">Постійний коментар
+            <textarea id="operatorComment" maxlength="4000"></textarea>
+          </label>
+          <button class="button small" type="button" data-operator-action="update_comment">Зберегти коментар</button>
+          <div class="notes" id="userNotes"></div>
+          <label class="field">Нова нотатка
+            <textarea id="operatorNote" maxlength="4000"></textarea>
+          </label>
+          <button class="button small" type="button" data-operator-action="add_note">Додати нотатку</button>
+        </section>
+
+        <section class="action-section">
+          <h3>Сервісні дії</h3>
+          <label class="field">Нотатка про тестового користувача
+            <textarea id="operatorTestNotes" maxlength="4000"></textarea>
+          </label>
+          <div class="action-grid">
+            <button class="button small" id="toggleTestUser" type="button" data-operator-action="mark_test">Позначити тестовим</button>
+            <label class="field">Режим reset
+              <select id="operatorResetMode">
+                <option value="safe">Лише онбординг</option>
+                <option value="cleanup">Онбординг + тестові дані</option>
+                <option value="full">Повне скидання тестового користувача</option>
+              </select>
+            </label>
+            <button class="button small warning" type="button" data-operator-action="reset_onboarding">Виконати reset</button>
+          </div>
+        </section>
+
+        <section class="action-section danger-zone" id="dangerActions" hidden>
+          <h3>Danger zone</h3>
+          <p>Доступно лише для тестових користувачів. Потрібна контрольна фраза.</p>
+          <div class="action-grid">
+            <button class="button small danger" type="button" data-operator-action="erase_data">Стерти фінансові дані</button>
+            <button class="button small danger" type="button" data-operator-action="hard_delete">Видалити користувача назавжди</button>
+          </div>
+        </section>
+
+        <label class="reason-label">Причина дії
+          <textarea id="userActionReason" maxlength="1000" placeholder="Обов’язкова для reset, стирання та видалення"></textarea>
+        </label>
+        <div class="modal-actions">
+          <button class="button danger" id="toggleUserStatus" type="button">Заблокувати</button>
+          <button class="button" id="closeUserModalBottom" type="button">Закрити</button>
+        </div>
+        <p class="action-status" id="userActionStatus"></p>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+      var root = document.getElementById("operatorRoot");
+      var telegram = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+      var links = {};
+      var selectedUser = null;
+      var lastQuery = "";
+
+      if (telegram) {
+        telegram.ready();
+        telegram.expand();
+        if (telegram.setHeaderColor) telegram.setHeaderColor("#0b1220");
+        if (telegram.setBackgroundColor) telegram.setBackgroundColor("#0b1220");
+      }
+
+      function jsonRequest(url, options) {
+        return fetch(url, Object.assign({ credentials: "same-origin", headers: { "Content-Type": "application/json" } }, options || {}))
+          .then(function (response) {
+            return response.json().catch(function () { return {}; }).then(function (payload) {
+              if (!response.ok) throw payload;
+              return payload;
+            });
+          });
+      }
+
+      function authenticate() {
+        if (!telegram || !telegram.initData) {
+          return Promise.reject({ error: { message: "Відкрий цю сторінку через кнопку Mini App у Telegram." } });
+        }
+        return jsonRequest(root.dataset.authUrl, {
+          method: "POST",
+          body: JSON.stringify({ init_data: telegram.initData })
+        });
+      }
+
+      function authenticatedRequest(url, options) {
+        return jsonRequest(url, options).catch(function (payload) {
+          var error = payload && payload.error ? payload.error : {};
+          if (error.code !== "session_required") throw payload;
+          return authenticate().then(function () { return jsonRequest(url, options); });
+        });
+      }
+
+      function operatorRequest(query) {
+        var url = root.dataset.operatorUrl;
+        var params = new URLSearchParams();
+        if (query) params.set("q", query);
+        if (new URLSearchParams(window.location.search).get("preview") === "1") params.set("preview", "1");
+        if (params.toString()) url += "?" + params.toString();
+        return authenticatedRequest(url);
+      }
+
+      function openUrl(url) {
+        if (!url) return;
+        if (telegram && telegram.openLink) telegram.openLink(url);
+        else window.location.href = url;
+      }
+
+      function text(tag, value, className) {
+        var element = document.createElement(tag);
+        element.textContent = value == null ? "" : String(value);
+        if (className) element.className = className;
+        return element;
+      }
+
+      function staticCard(className) {
+        var card = document.createElement("article");
+        card.className = className;
+        return card;
+      }
+
+      function renderMetrics(items) {
+        var grid = document.getElementById("metricsGrid");
+        grid.replaceChildren();
+        (items || []).forEach(function (item) {
+          var card = staticCard("card");
+          var unavailable = item.value == null || item.available === false;
+          card.dataset.available = String(!unavailable);
+          card.append(text("span", item.label, "card-label"));
+          card.append(text("strong", unavailable ? "Недоступно" : item.value, "card-value"));
+          card.append(text("span", item.hint, "card-hint"));
+          if (unavailable && item.reason) card.append(text("span", item.reason, "card-hint"));
+          grid.append(card);
+        });
+      }
+
+      function renderAttention(items) {
+        var grid = document.getElementById("attentionGrid");
+        grid.replaceChildren();
+        (items || []).forEach(function (item) {
+          var card = staticCard("card attention-card");
+          var unavailable = item.value == null || item.available === false;
+          card.dataset.tone = unavailable ? "unknown" : item.tone || "ok";
+          card.append(text("span", item.label, "card-label"));
+          card.append(text("strong", unavailable ? "Недоступно" : item.value));
+          card.append(text("span", item.hint, "card-hint"));
+          grid.append(card);
+        });
+      }
+
+      function renderUsers(items, query) {
+        var list = document.getElementById("usersList");
+        list.replaceChildren();
+        if (!items || !items.length) {
+          list.append(text("div", query ? "Нічого не знайдено." : "Користувачів поки немає.", "empty"));
+          return;
+        }
+        items.forEach(function (user) {
+          var card = document.createElement("button");
+          card.type = "button";
+          card.className = "card user-card";
+          card.addEventListener("click", function () { openUser(user.tg_user_id); });
+          var name = document.createElement("div");
+          name.className = "user-name";
+          name.append(text("strong", user.name));
+          name.append(text("span", user.username || String(user.tg_user_id)));
+          card.append(name);
+          [
+            ["Онбординг", user.onboarding_completed ? "Завершено" : "Не завершено"],
+            ["Підписка", user.subscription_status],
+            ["Контакт", user.can_receive_messages ? "Доступний" : "Недоступний"]
+          ].forEach(function (pair) {
+            var meta = document.createElement("div");
+            meta.className = "user-meta";
+            meta.append(text("strong", pair[1]));
+            meta.append(text("small", pair[0]));
+            card.append(meta);
+          });
+          card.append(text("span", user.status, "state"));
+          list.append(card);
+        });
+      }
+
+      function render(payload) {
+        links = payload.links || {};
+        lastQuery = payload.query || "";
+        document.getElementById("welcomeText").textContent = "Вітаю, " + ((payload.operator && payload.operator.name) || "адміністраторе") + ". Пошук і керування користувачами працюють прямо тут.";
+        renderMetrics(payload.metrics);
+        document.getElementById("metricsScope").textContent = (payload.scope_label || "Область даних не вказана") + " · запит " + (payload.retrieved_at || "час невідомий");
+        document.getElementById("metricsDegraded").hidden = !payload.degraded;
+        renderAttention(payload.attention);
+        renderUsers(payload.users, payload.query);
+      }
+
+      function showError(payload) {
+        var error = payload && payload.error ? payload.error : {};
+        var box = document.getElementById("errorBox");
+        box.textContent = error.message || "Не вдалося завантажити admin hub.";
+        box.hidden = false;
+      }
+
+      function load(query) {
+        root.classList.add("loading");
+        document.getElementById("errorBox").hidden = true;
+        return operatorRequest(query).then(render).catch(showError).finally(function () { root.classList.remove("loading"); });
+      }
+
+      function withPreview(url) {
+        if (new URLSearchParams(window.location.search).get("preview") !== "1") return url;
+        return url + (url.indexOf("?") === -1 ? "?" : "&") + "preview=1";
+      }
+
+      function userUrl(template, userId) {
+        return withPreview(template.replace("{user_id}", encodeURIComponent(String(userId))));
+      }
+
+      function detailItem(label, value) {
+        var item = document.createElement("div");
+        item.className = "detail-item";
+        item.append(text("small", label));
+        item.append(text("strong", value || "—"));
+        return item;
+      }
+
+      function renderUserDetail(user) {
+        selectedUser = user;
+        document.getElementById("userModalTitle").textContent = user.name || String(user.tg_user_id);
+        document.getElementById("userModalIdentity").textContent = (user.username ? user.username + " · " : "") + "ID " + String(user.tg_user_id);
+        var grid = document.getElementById("userDetailGrid");
+        grid.replaceChildren(
+          detailItem("Статус", user.status),
+          detailItem("Підписка", user.subscription_status),
+          detailItem("Підписка до", user.subscription && user.subscription.expires_at ? new Date(user.subscription.expires_at).toLocaleString("uk-UA") : "—"),
+          detailItem("Доступ", user.access_scope),
+          detailItem("Онбординг", user.onboarding_completed ? "Завершено" : "Не завершено"),
+          detailItem("Мова / валюта", (user.lang || "—") + " / " + (user.base_currency || "—")),
+          detailItem("Остання активність", user.last_seen_at ? new Date(user.last_seen_at).toLocaleString("uk-UA") : "—"),
+          detailItem("Зв’язок", user.can_receive_messages ? "Доступний" : "Недоступний"),
+          detailItem("Коментар адміністратора", user.admin_comment || "—")
+        );
+        var subscription = user.subscription || {};
+        document.getElementById("subscriptionSummary").textContent = subscription.status
+          ? "Статус: " + subscription.status + (subscription.expires_at ? " · до " + new Date(subscription.expires_at).toLocaleDateString("uk-UA") : "")
+          : "Підписки ще немає.";
+        var billing = user.billing || {};
+        document.getElementById("billingSummary").textContent = billing.has_card
+          ? "Картка " + (billing.masked_pan || "прив’язана") + " · автопродовження " + (billing.auto_renew_enabled ? "увімкнене" : "вимкнене") + (billing.last_failure_reason ? " · " + billing.last_failure_reason : "")
+          : "Картка не прив’язана.";
+        document.getElementById("forceChargeBtn").hidden = !billing.can_force_charge;
+        document.getElementById("refundBtn").hidden = !billing.can_refund;
+        document.getElementById("operatorComment").value = user.admin_comment || "";
+        document.getElementById("operatorTestNotes").value = user.test_user_notes || "";
+        document.getElementById("operatorMessage").value = "";
+        document.getElementById("operatorNote").value = "";
+        document.getElementById("operatorTag").value = "";
+        var tags = document.getElementById("userTags");
+        tags.replaceChildren();
+        (user.tags || []).forEach(function (tag) { tags.append(text("span", tag.name, "chip")); });
+        if (!(user.tags || []).length) tags.append(text("span", "Тегів немає", "card-hint"));
+        var notes = document.getElementById("userNotes");
+        notes.replaceChildren();
+        (user.notes || []).forEach(function (note) {
+          notes.append(text("div", note.text + (note.created_at ? " · " + new Date(note.created_at).toLocaleDateString("uk-UA") : ""), "note"));
+        });
+        var testToggle = document.getElementById("toggleTestUser");
+        testToggle.dataset.operatorAction = user.is_test_user ? "unmark_test" : "mark_test";
+        testToggle.textContent = user.is_test_user ? "Зняти тестову позначку" : "Позначити тестовим";
+        document.getElementById("dangerActions").hidden = !user.is_test_user || user.is_operator;
+        var resetMode = document.getElementById("operatorResetMode");
+        resetMode.value = "safe";
+        Array.prototype.forEach.call(resetMode.options, function (option) {
+          option.disabled = option.value !== "safe" && !user.is_test_user;
+        });
+        var toggle = document.getElementById("toggleUserStatus");
+        toggle.hidden = Boolean(user.is_operator);
+        toggle.textContent = user.is_blocked ? "Розблокувати" : "Заблокувати";
+        toggle.className = user.is_blocked ? "button primary" : "button danger";
+        document.getElementById("userActionReason").value = "";
+        document.getElementById("userActionStatus").textContent = "";
+      }
+
+      function openUser(userId) {
+        var modal = document.getElementById("userModal");
+        modal.hidden = false;
+        document.getElementById("userModalTitle").textContent = "Завантаження…";
+        document.getElementById("userDetailGrid").replaceChildren();
+        authenticatedRequest(userUrl(root.dataset.userUrlTemplate, userId))
+          .then(function (payload) { renderUserDetail(payload.user); })
+          .catch(function (payload) {
+            var error = payload && payload.error ? payload.error : {};
+            document.getElementById("userModalTitle").textContent = "Не вдалося відкрити користувача";
+            document.getElementById("userActionStatus").textContent = error.message || "Спробуй ще раз.";
+          });
+      }
+
+      function closeUserModal() {
+        document.getElementById("userModal").hidden = true;
+        selectedUser = null;
+      }
+
+      function askConfirm(message) {
+        return new Promise(function (resolve) {
+          if (telegram && telegram.showConfirm) telegram.showConfirm(message, resolve);
+          else resolve(window.confirm(message));
+        });
+      }
+
+      function actionPayload(action) {
+        var payload = {
+          action: action,
+          confirmed: true,
+          reason: document.getElementById("userActionReason").value.trim()
+        };
+        if (action === "subscription_trial" || action === "subscription_extend") {
+          payload.days = document.getElementById("subscriptionDays").value;
+        } else if (action === "send_message") {
+          payload.message_text = document.getElementById("operatorMessage").value.trim();
+          payload.parse_mode = "none";
+        } else if (action === "add_note") {
+          payload.note_text = document.getElementById("operatorNote").value.trim();
+        } else if (action === "update_comment") {
+          payload.admin_comment = document.getElementById("operatorComment").value.trim();
+        } else if (action === "mark_test") {
+          payload.test_user_notes = document.getElementById("operatorTestNotes").value.trim();
+        } else if (action === "add_tag" || action === "remove_tag") {
+          payload.tag_name = document.getElementById("operatorTag").value.trim();
+        } else if (action === "reset_onboarding") {
+          payload.mode = document.getElementById("operatorResetMode").value;
+          payload.clear_fsm_state = true;
+          payload.send_telegram_notice = true;
+          payload.send_admin_notification = true;
+          if (payload.mode === "full") {
+            payload.confirmation_text = window.prompt('Введіть точну фразу "RESET USER"') || "";
+            if (payload.confirmation_text !== "RESET USER") return null;
+          }
+        } else if (action === "erase_data") {
+          payload.confirmation_text = window.prompt('Введіть точну фразу "ERASE USER DATA"') || "";
+          if (payload.confirmation_text !== "ERASE USER DATA") return null;
+        } else if (action === "hard_delete") {
+          var expected = "DELETE USER " + String(selectedUser.tg_user_id);
+          payload.confirmation_text = window.prompt('Введіть точну фразу "' + expected + '"') || "";
+          if (payload.confirmation_text !== expected) return null;
+        }
+        return payload;
+      }
+
+      function actionQuestion(action) {
+        var questions = {
+          subscription_trial: "Видати користувачу пробний доступ?",
+          subscription_extend: "Продовжити платний доступ на вказану кількість днів?",
+          subscription_expire: "Завершити підписку просто зараз?",
+          subscription_cancel: "Скасувати підписку користувача?",
+          force_charge: "Негайно списати повну місячну оплату зі збереженої картки?",
+          refund_latest: "Повернути останнє успішне списання та вимкнути автопродовження?",
+          send_message: "Надіслати це повідомлення користувачу в Telegram?",
+          add_note: "Зберегти нову внутрішню нотатку?",
+          update_comment: "Оновити постійний коментар користувача?",
+          mark_test: "Позначити користувача як тестового?",
+          unmark_test: "Зняти позначку тестового користувача?",
+          add_tag: "Додати цей тег користувачу?",
+          remove_tag: "Зняти цей тег з користувача?",
+          reset_onboarding: "Скинути онбординг і надіслати користувачу підказку /start?",
+          erase_data: "Стерти фінансові дані тестового користувача, але зберегти картку та доступ?",
+          hard_delete: "Безповоротно видалити тестового користувача та всі його дані?"
+        };
+        return questions[action] || "Виконати цю дію?";
+      }
+
+      function performUserAction(action) {
+        if (!selectedUser) return;
+        var payload = actionPayload(action);
+        if (!payload) return;
+        askConfirm(actionQuestion(action)).then(function (confirmed) {
+          if (!confirmed) return;
+          var status = document.getElementById("userActionStatus");
+          status.textContent = "Виконуємо…";
+          status.className = "action-status";
+          return authenticatedRequest(userUrl(root.dataset.userActionUrlTemplate, selectedUser.tg_user_id), {
+            method: "POST",
+            body: JSON.stringify(payload)
+          }).then(function (response) {
+            if (response.deleted) {
+              closeUserModal();
+              load(lastQuery);
+              return;
+            }
+            if (response.user) renderUserDetail(response.user);
+            status.textContent = response.message || "Готово.";
+            status.className = "action-status";
+            load(lastQuery);
+          }).catch(function (response) {
+            var error = response && response.error ? response.error : {};
+            status.textContent = error.message || "Не вдалося виконати дію.";
+            status.className = "action-status error-text";
+          });
+        });
+      }
+
+      function changeSelectedUserStatus() {
+        if (!selectedUser || selectedUser.is_operator) return;
+        var action = selectedUser.is_blocked ? "unban" : "ban";
+        var verb = action === "ban" ? "заблокувати" : "розблокувати";
+        askConfirm("Точно " + verb + " користувача " + (selectedUser.name || selectedUser.tg_user_id) + "?").then(function (confirmed) {
+          if (!confirmed) return;
+          var status = document.getElementById("userActionStatus");
+          status.textContent = "Зберігаємо…";
+          status.className = "action-status";
+          return authenticatedRequest(userUrl(root.dataset.userStatusUrlTemplate, selectedUser.tg_user_id), {
+            method: "POST",
+            body: JSON.stringify({
+              action: action,
+              confirmed: true,
+              reason: document.getElementById("userActionReason").value.trim()
+            })
+          }).then(function (payload) {
+            renderUserDetail(payload.user);
+            status.textContent = action === "ban" ? "Користувача заблоковано." : "Користувача розблоковано.";
+            load(lastQuery);
+          }).catch(function (payload) {
+            var error = payload && payload.error ? payload.error : {};
+            status.textContent = error.message || "Не вдалося змінити статус.";
+            status.className = "action-status error-text";
+          });
+        });
+      }
+
+      document.querySelectorAll("[data-link]").forEach(function (button) {
+        button.addEventListener("click", function () { openUrl(links[button.dataset.link]); });
+      });
+      document.getElementById("userSearch").addEventListener("submit", function (event) {
+        event.preventDefault();
+        load(document.getElementById("userQuery").value.trim());
+      });
+      document.getElementById("jumpToUsers").addEventListener("click", function () {
+        document.getElementById("userQuery").focus();
+        document.getElementById("userSearch").scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      document.getElementById("refreshOperator").addEventListener("click", function () { load(lastQuery); });
+      document.getElementById("closeUserModal").addEventListener("click", closeUserModal);
+      document.getElementById("closeUserModalBottom").addEventListener("click", closeUserModal);
+      document.getElementById("toggleUserStatus").addEventListener("click", changeSelectedUserStatus);
+      document.querySelectorAll("[data-operator-action]").forEach(function (button) {
+        button.addEventListener("click", function () { performUserAction(button.dataset.operatorAction); });
+      });
+      document.getElementById("userModal").addEventListener("click", function (event) {
+        if (event.target === event.currentTarget) closeUserModal();
+      });
+
+      load("");
+    })();
+  </script>
+</body>
+</html>

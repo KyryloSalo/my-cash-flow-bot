@@ -1,0 +1,517 @@
+{% extends "admin/change_list.html" %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+  .bulk-tag-shell {
+    display: grid;
+    gap: 14px;
+    margin: 0 0 16px;
+    padding: 16px 18px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 18px;
+    background: rgba(15, 23, 42, 0.82);
+  }
+  .bulk-tag-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .bulk-tag-head strong {
+    color: #f8fafc;
+    font-size: 15px;
+  }
+  .bulk-tag-hint {
+    color: #94a3b8;
+    font-size: 13px;
+  }
+  .bulk-tag-workspace {
+    display: grid;
+    grid-template-columns: minmax(280px, 440px) auto;
+    gap: 14px;
+    align-items: start;
+  }
+  .tag-picker {
+    position: relative;
+  }
+  .tag-picker-control {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.94);
+    color: #f8fafc;
+    padding: 10px 12px;
+    min-height: 48px;
+    cursor: pointer;
+  }
+  .tag-picker-control:focus-visible {
+    outline: none;
+    border-color: rgba(96, 165, 250, 0.8);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+  }
+  .tag-picker-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-height: 24px;
+  }
+  .tag-picker-placeholder {
+    color: #94a3b8;
+  }
+  .tag-picker-caret {
+    color: #94a3b8;
+    font-size: 12px;
+    flex: 0 0 auto;
+  }
+  .tag-picker-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 16px;
+    background: rgba(15, 23, 42, 0.98);
+    box-shadow: 0 18px 40px rgba(2, 6, 23, 0.42);
+  }
+  .tag-picker-dropdown[hidden] {
+    display: none;
+  }
+  .tag-picker-search {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: rgba(15, 23, 42, 0.92);
+    color: #f8fafc;
+    padding: 10px 12px;
+  }
+  .tag-picker-search:focus {
+    outline: none;
+    border-color: rgba(96, 165, 250, 0.8);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+  }
+  .tag-picker-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-height: 220px;
+    overflow: auto;
+  }
+  .tag-option,
+  .tag-create-option,
+  .tag-picker-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 14px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .tag-option,
+  .tag-create-option {
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .tag-option:hover,
+  .tag-create-option:hover {
+    transform: translateY(-1px);
+    border-color: rgba(148, 163, 184, 0.28);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+  }
+  .tag-option.is-selected {
+    border-color: rgba(96, 165, 250, 0.75);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
+  }
+  .tag-create-option {
+    justify-content: center;
+    border-style: dashed;
+    color: #f8fafc;
+    background: rgba(30, 41, 59, 0.92);
+  }
+  .tag-picker-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .tag-picker-actions button,
+  .tag-picker-actions a.button {
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+  .tag-picker-chip {
+    border: 1px solid var(--chip-border, rgba(148, 163, 184, 0.28));
+    background: var(--chip-bg, rgba(30, 41, 59, 0.9));
+    color: var(--chip-text, #f8fafc);
+  }
+  .tag-picker-chip--new::before {
+    content: "+";
+    font-weight: 700;
+  }
+  .tag-picker-empty {
+    color: #94a3b8;
+    font-size: 13px;
+    padding: 4px 2px;
+  }
+  .mcf-tag-badge {
+    display: inline-flex;
+    align-items: center;
+    margin: 2px 6px 2px 0;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--tag-border, rgba(148, 163, 184, 0.24));
+    background: var(--tag-bg, rgba(30, 41, 59, 0.9));
+    color: var(--tag-text, #f8fafc);
+    font-size: 13px;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+  .mcf-tag-badge-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+  }
+  @media (max-width: 980px) {
+    .bulk-tag-workspace {
+      grid-template-columns: 1fr;
+    }
+    #changelist .results {
+      max-width: calc(100vw - 32px);
+      overflow-x: auto;
+      border-radius: 14px;
+    }
+    #changelist #result_list {
+      min-width: 880px;
+    }
+    .tag-picker-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    .tag-picker-actions button,
+    .tag-picker-actions a.button {
+      width: 100%;
+      text-align: center;
+    }
+  }
+  @media (max-width: 520px) {
+    .tag-picker-actions { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block result_list %}
+  <div class="bulk-tag-shell">
+    <div class="bulk-tag-head">
+      <strong>Масові теги</strong>
+      <span class="bulk-tag-hint">Оберіть користувачів галочками, потім знайдіть або створіть тег.</span>
+    </div>
+
+    <div class="bulk-tag-workspace">
+      <div class="tag-picker" id="tag-picker">
+        <button type="button" class="tag-picker-control" id="tag-picker-control" aria-expanded="false">
+          <span class="tag-picker-value" id="tag-picker-value">
+            <span class="tag-picker-placeholder">Пошук або створення тега</span>
+          </span>
+          <span class="tag-picker-caret">▼</span>
+        </button>
+
+        <div class="tag-picker-dropdown" id="tag-picker-dropdown" hidden>
+          <input
+            id="tag-picker-search"
+            class="tag-picker-search"
+            type="text"
+            placeholder="Пошук або створення тега"
+            autocomplete="off"
+          />
+          <div class="tag-picker-list" id="tag-picker-list">
+            {% for tag in bulk_tags %}
+              <button
+                type="button"
+                class="tag-option"
+                data-tag-id="{{ tag.pk }}"
+                data-tag-name="{{ tag.name }}"
+              >
+                {{ tag.name }}
+              </button>
+            {% endfor %}
+          </div>
+          <button type="button" class="tag-create-option" id="tag-picker-create" hidden></button>
+          <div class="tag-picker-empty" id="tag-picker-empty" hidden>Нічого не знайдено.</div>
+        </div>
+      </div>
+
+      <div class="tag-picker-actions">
+        <button type="button" class="button default" onclick="submitBulkTagAction('assign')">Присвоїти тег</button>
+        <button type="button" class="button" onclick="submitBulkTagAction('remove')">Зняти тег</button>
+        <button type="button" class="button" id="tag-create-button" onclick="submitBulkTagAction('create_only')">Створити тег</button>
+        <a class="button" href="{{ bulk_tags_url }}">Керувати тегами</a>
+      </div>
+    </div>
+  </div>
+
+  {{ block.super }}
+
+  <script>
+    (function () {
+      const picker = document.getElementById('tag-picker');
+      const control = document.getElementById('tag-picker-control');
+      const value = document.getElementById('tag-picker-value');
+      const dropdown = document.getElementById('tag-picker-dropdown');
+      const search = document.getElementById('tag-picker-search');
+      const list = document.getElementById('tag-picker-list');
+      const createOption = document.getElementById('tag-picker-create');
+      const emptyState = document.getElementById('tag-picker-empty');
+      const createButton = document.getElementById('tag-create-button');
+      const options = Array.from(list.querySelectorAll('.tag-option'));
+
+      const palette = [
+        ['#eef6ff', '#bfdbfe', '#1d4ed8'],
+        ['#f0fdf4', '#bbf7d0', '#166534'],
+        ['#fff7ed', '#fed7aa', '#c2410c'],
+        ['#fefce8', '#fde68a', '#854d0e'],
+        ['#fdf2f8', '#fbcfe8', '#be185d'],
+        ['#eef2ff', '#c7d2fe', '#4338ca'],
+      ];
+
+      const state = {
+        mode: null,
+        tagId: '',
+        tagName: '',
+      };
+
+      function paletteFor(name) {
+        const sum = Array.from(name || '').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        return palette[sum % palette.length];
+      }
+
+      function chipMarkup(name, isNew) {
+        const [bg, border, text] = paletteFor(name);
+        const chip = document.createElement('span');
+        chip.className = 'tag-picker-chip' + (isNew ? ' tag-picker-chip--new' : '');
+        chip.style.setProperty('--chip-bg', bg);
+        chip.style.setProperty('--chip-border', border);
+        chip.style.setProperty('--chip-text', text);
+        chip.textContent = name;
+        return chip;
+      }
+
+      function setExpanded(expanded) {
+        control.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        dropdown.hidden = !expanded;
+        if (expanded) {
+          search.focus();
+          search.select();
+        }
+      }
+
+      function renderValue() {
+        value.innerHTML = '';
+        if (!state.tagName) {
+          const placeholder = document.createElement('span');
+          placeholder.className = 'tag-picker-placeholder';
+          placeholder.textContent = 'Пошук або створення тега';
+          value.appendChild(placeholder);
+          createButton.hidden = true;
+          return;
+        }
+        value.appendChild(chipMarkup(state.tagName, state.mode === 'new'));
+        createButton.hidden = state.mode !== 'new';
+      }
+
+      function syncOptionSelection() {
+        options.forEach((option) => {
+          const isSelected = state.mode === 'existing' && option.dataset.tagId === state.tagId;
+          option.classList.toggle('is-selected', isSelected);
+        });
+      }
+
+      function selectExisting(id, name) {
+        state.mode = 'existing';
+        state.tagId = id;
+        state.tagName = name;
+        search.value = name;
+        renderValue();
+        syncOptionSelection();
+        setExpanded(false);
+      }
+
+      function selectNew(name) {
+        state.mode = 'new';
+        state.tagId = '';
+        state.tagName = name;
+        renderValue();
+        syncOptionSelection();
+        setExpanded(false);
+      }
+
+      function filterOptions() {
+        const query = search.value.trim().toLowerCase();
+        let visibleCount = 0;
+        let exactMatch = null;
+
+        options.forEach((option) => {
+          const name = option.dataset.tagName.toLowerCase();
+          const visible = !query || name.includes(query);
+          option.hidden = !visible;
+          if (visible) {
+            visibleCount += 1;
+          }
+          if (query && name === query) {
+            exactMatch = option;
+          }
+        });
+
+        if (query && !exactMatch) {
+          createOption.hidden = false;
+          createOption.textContent = `Створити тег "${search.value.trim()}"`;
+        } else {
+          createOption.hidden = true;
+        }
+
+        emptyState.hidden = visibleCount > 0 || !createOption.hidden;
+      }
+
+      control.addEventListener('click', () => {
+        const willOpen = dropdown.hidden;
+        setExpanded(willOpen);
+        if (willOpen) {
+          filterOptions();
+        }
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!picker.contains(event.target)) {
+          setExpanded(false);
+        }
+      });
+
+      search.addEventListener('input', filterOptions);
+
+      search.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          const query = search.value.trim();
+          if (!query) {
+            return;
+          }
+          const exact = options.find((option) => option.dataset.tagName.toLowerCase() === query.toLowerCase());
+          if (exact) {
+            selectExisting(exact.dataset.tagId, exact.dataset.tagName);
+            return;
+          }
+          selectNew(query);
+        }
+        if (event.key === 'Escape') {
+          setExpanded(false);
+        }
+      });
+
+      options.forEach((option) => {
+        option.addEventListener('click', () => {
+          selectExisting(option.dataset.tagId, option.dataset.tagName);
+        });
+      });
+
+      createOption.addEventListener('click', () => {
+        const query = search.value.trim();
+        if (query) {
+          selectNew(query);
+        }
+      });
+
+      window.submitBulkTagAction = function submitBulkTagAction(operation) {
+        const selected = Array.from(document.querySelectorAll('input[name="_selected_action"]:checked')).map((input) => input.value);
+
+        if ((operation === 'assign' || operation === 'remove') && !selected.length) {
+          window.alert('Оберіть хоча б одного користувача.');
+          return;
+        }
+
+        if (!state.tagName) {
+          window.alert('Оберіть або створіть тег.');
+          return;
+        }
+
+        let finalOperation = operation;
+        let tagId = state.tagId;
+        let newTagName = '';
+
+        if (operation === 'remove' && state.mode !== 'existing') {
+          window.alert('Для зняття оберіть існуючий тег.');
+          return;
+        }
+
+        if (operation === 'assign' && state.mode === 'new') {
+          finalOperation = 'create_assign';
+          newTagName = state.tagName;
+        } else if (operation === 'create_only') {
+          if (state.mode === 'existing') {
+            window.alert('Такий тег уже існує. Можна одразу присвоїти його користувачам.');
+            return;
+          }
+          finalOperation = 'create_only';
+          newTagName = state.tagName;
+        } else if (state.mode === 'existing') {
+          tagId = state.tagId;
+        } else {
+          newTagName = state.tagName;
+        }
+
+        const form = document.createElement('form');
+        form.method = 'post';
+        form.action = window.location.href;
+
+        const csrf = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        if (csrf) {
+          const csrfInput = document.createElement('input');
+          csrfInput.type = 'hidden';
+          csrfInput.name = 'csrfmiddlewaretoken';
+          csrfInput.value = csrf.value;
+          form.appendChild(csrfInput);
+        }
+
+        const fields = {
+          bulk_tag_submit: '1',
+          bulk_tag_operation: finalOperation,
+          bulk_tag: tagId || '',
+          bulk_tag_new_name: newTagName || '',
+        };
+
+        Object.entries(fields).forEach(([name, fieldValue]) => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = name;
+          input.value = fieldValue;
+          form.appendChild(input);
+        });
+
+        selected.forEach((selectedValue) => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = '_selected_action';
+          input.value = selectedValue;
+          form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+      };
+
+      renderValue();
+      filterOptions();
+    })();
+  </script>
+{% endblock %}

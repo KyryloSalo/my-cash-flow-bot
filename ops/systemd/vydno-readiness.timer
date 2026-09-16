@@ -1,0 +1,7 @@
+[Unit]
+Description=Check Vydno readiness every 30 seconds
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=30s
+[Install]
+WantedBy=timers.target

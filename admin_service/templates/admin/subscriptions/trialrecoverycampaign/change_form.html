@@ -1,0 +1,316 @@
+{% extends "admin/change_form.html" %}
+{% load l10n %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .recovery-dashboard {
+    --recovery-bg: #0a1220;
+    --recovery-panel: #101b2d;
+    --recovery-panel-soft: #0d1727;
+    --recovery-border: rgba(148, 163, 184, .18);
+    --recovery-text: #f3f7fb;
+    --recovery-muted: #8fa2ba;
+    --recovery-green: #5ee6ad;
+    --recovery-blue: #7db7ff;
+    --recovery-yellow: #f8cc72;
+    --recovery-red: #fb8b9a;
+    display: grid;
+    gap: 16px;
+    margin-bottom: 24px;
+    color: var(--recovery-text);
+  }
+  .recovery-hero,
+  .recovery-panel,
+  .recovery-metric,
+  .recovery-today-card {
+    border: 1px solid var(--recovery-border);
+    background: linear-gradient(145deg, rgba(16, 27, 45, .98), rgba(10, 18, 32, .96));
+    box-shadow: 0 16px 42px rgba(2, 6, 23, .14);
+  }
+  .recovery-hero { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 22px; border-radius: 18px; }
+  .recovery-eyebrow { margin: 0 0 5px; color: var(--recovery-green); font-size: 11px; font-weight: 850; letter-spacing: .09em; text-transform: uppercase; }
+  .recovery-hero h1 { margin: 0; color: var(--recovery-text); font-size: clamp(24px, 3vw, 34px); }
+  .recovery-hero-copy { margin: 7px 0 0; color: var(--recovery-muted); font-size: 13px; }
+  .recovery-hero-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 9px; }
+  .recovery-status,
+  .recovery-chip { display: inline-flex; align-items: center; border-radius: 999px; font-size: 12px; font-weight: 800; }
+  .recovery-status { padding: 7px 11px; }
+  .recovery-status--success, .recovery-chip--success { background: rgba(52, 211, 153, .13); color: #77e9b9; }
+  .recovery-status--warning, .recovery-chip--warning { background: rgba(245, 158, 11, .14); color: #f8cc72; }
+  .recovery-status--danger, .recovery-chip--danger { background: rgba(251, 113, 133, .14); color: #fda4af; }
+  .recovery-status--neutral, .recovery-chip--neutral { background: rgba(148, 163, 184, .13); color: #cbd5e1; }
+  .recovery-action { padding: 10px 14px; border-radius: 10px; color: #07131f !important; background: var(--recovery-green); font-size: 13px; font-weight: 850; text-decoration: none !important; }
+  .recovery-action--danger { color: #fff !important; background: #dc5268; }
+  .recovery-secondary-link { padding: 9px 12px; border: 1px solid var(--recovery-border); border-radius: 10px; color: #cbd5e1 !important; font-size: 13px; font-weight: 750; text-decoration: none !important; }
+  .recovery-section { display: grid; gap: 11px; }
+  .recovery-section-header { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+  .recovery-section-header h2, .recovery-panel h2 { margin: 0; color: var(--recovery-text); font-size: 18px; }
+  .recovery-section-header p, .recovery-panel-copy { margin: 4px 0 0; color: var(--recovery-muted); font-size: 13px; }
+  .recovery-today-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .recovery-today-card { display: grid; gap: 6px; padding: 17px; border-radius: 14px; }
+  .recovery-card-label { color: var(--recovery-muted); font-size: 11px; font-weight: 850; letter-spacing: .07em; text-transform: uppercase; }
+  .recovery-card-value { color: var(--recovery-text); font-size: 30px; line-height: 1; }
+  .recovery-card-detail { color: #b7c4d5; font-size: 12px; }
+  .recovery-card-value--success { color: var(--recovery-green); }
+  .recovery-card-value--danger { color: var(--recovery-red); }
+  .recovery-progress { grid-column: 1 / -1; padding: 14px 16px; border: 1px solid var(--recovery-border); border-radius: 13px; background: var(--recovery-panel-soft); }
+  .recovery-progress-meta { display: flex; justify-content: space-between; gap: 12px; color: #cbd5e1; font-size: 12px; }
+  .recovery-progress-track { height: 9px; margin-top: 9px; overflow: hidden; border-radius: 999px; background: #202c40; }
+  .recovery-progress-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--recovery-green), var(--recovery-blue)); }
+  .recovery-metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .recovery-metric { display: grid; gap: 7px; min-height: 116px; padding: 17px; border-radius: 14px; }
+  .recovery-metric strong { color: var(--recovery-text); font-size: 28px; }
+  .recovery-metric small { color: var(--recovery-muted); font-size: 12px; line-height: 1.4; }
+  .recovery-metric--primary { border-color: rgba(94, 230, 173, .45); background: linear-gradient(145deg, rgba(26, 69, 59, .72), rgba(10, 25, 29, .96)); }
+  .recovery-metric--primary strong { color: var(--recovery-green); }
+  .recovery-definition { padding: 14px 16px; border: 1px solid rgba(94, 230, 173, .3); border-radius: 13px; background: rgba(94, 230, 173, .08); color: #c9f6e4; font-size: 13px; line-height: 1.5; }
+  .recovery-definition strong { color: var(--recovery-green); }
+  .recovery-two-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .recovery-panel { padding: 19px; border-radius: 16px; }
+  .recovery-list { display: grid; gap: 8px; margin: 15px 0 0; padding: 0; list-style: none; }
+  .recovery-list-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(3, 10, 22, .34); color: #cbd5e1; font-size: 13px; }
+  .recovery-list-row strong { color: var(--recovery-text); }
+  .recovery-inline-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 15px; }
+  .recovery-inline-stat { padding: 12px; border-radius: 11px; background: rgba(3, 10, 22, .34); }
+  .recovery-inline-stat strong { display: block; color: var(--recovery-text); font-size: 23px; }
+  .recovery-inline-stat span { color: var(--recovery-muted); font-size: 11px; }
+  .recovery-next { margin-top: 14px; padding: 13px; border-radius: 11px; background: rgba(125, 183, 255, .1); color: #c9ddfb; font-size: 13px; }
+  .recovery-next strong { color: var(--recovery-blue); }
+  .recovery-empty { margin: 14px 0 0; padding: 19px; border: 1px dashed var(--recovery-border); border-radius: 11px; color: var(--recovery-muted); text-align: center; }
+  .recovery-table-wrap { margin-top: 14px; overflow-x: auto; border: 1px solid var(--recovery-border); border-radius: 12px; }
+  .recovery-table { width: 100%; min-width: 660px; border-collapse: collapse; }
+  .recovery-table th, .recovery-table td { padding: 11px 12px; border-bottom: 1px solid rgba(148, 163, 184, .11); text-align: left; vertical-align: top; }
+  .recovery-table th { color: var(--recovery-muted); font-size: 10px; font-weight: 850; letter-spacing: .07em; text-transform: uppercase; }
+  .recovery-table td { color: #dbe5f2; font-size: 12px; }
+  .recovery-table tr:last-child td { border-bottom: 0; }
+  .recovery-table a { color: var(--recovery-blue) !important; font-weight: 800; text-decoration: none !important; }
+  .recovery-chip { padding: 4px 8px; }
+  .recovery-row-detail { display: block; margin-top: 4px; color: var(--recovery-muted); }
+  .recovery-settings-title { margin: 4px 0 0; padding-top: 8px; color: var(--recovery-text); font-size: 18px; }
+  @media (max-width: 1100px) {
+    .recovery-today-grid, .recovery-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 760px) {
+    .recovery-hero { display: grid; }
+    .recovery-hero-actions { justify-content: flex-start; }
+    .recovery-today-grid, .recovery-metric-grid, .recovery-two-columns { grid-template-columns: 1fr; }
+    .recovery-inline-stats { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if recovery_dashboard %}
+<div class="recovery-dashboard">
+  <header class="recovery-hero">
+    <div>
+      <p class="recovery-eyebrow">Recovery 90 днів за 1 грн</p>
+      <h1>{{ original.name }}</h1>
+      <p class="recovery-hero-copy">Запущено: {{ recovery_dashboard.launch_at }} · вікно {{ recovery_dashboard.window }} за локальним часом користувача</p>
+    </div>
+    <div class="recovery-hero-actions">
+      <span class="recovery-status recovery-status--{{ recovery_dashboard.status_tone }}">{{ recovery_dashboard.status }}</span>
+      <a class="recovery-secondary-link" href="{{ recovery_dashboard.recipients_url }}">Отримувачі</a>
+      <a class="recovery-secondary-link" href="{{ recovery_dashboard.deliveries_url }}">Доставки</a>
+      {% if recovery_dashboard.expand_action %}
+        <a class="recovery-action" href="{{ recovery_dashboard.expand_action.url }}">{{ recovery_dashboard.expand_action.label }}</a>
+      {% endif %}
+      {% if recovery_dashboard.action %}
+        <a class="recovery-action{% if recovery_dashboard.action.tone == 'danger' %} recovery-action--danger{% endif %}" href="{{ recovery_dashboard.action.url }}">{{ recovery_dashboard.action.label }}</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <section class="recovery-section">
+    <div class="recovery-section-header">
+      <div>
+        <h2>Сьогодні, {{ recovery_dashboard.today_label }}</h2>
+        <p>«Сьогодні» рахується за локальною датою кожного користувача. Оновлено {{ recovery_dashboard.checked_at }} ({{ recovery_dashboard.fallback_timezone }}).</p>
+      </div>
+    </div>
+    <div class="recovery-today-grid">
+      <article class="recovery-today-card">
+        <span class="recovery-card-label">Отримали повідомлення</span>
+        <strong class="recovery-card-value recovery-card-value--success">{{ recovery_dashboard.today.reached }}</strong>
+        <span class="recovery-card-detail">{{ recovery_dashboard.today.messages }} recovery-повідомлень доставлено</span>
+      </article>
+      <article class="recovery-today-card">
+        <span class="recovery-card-label">Ще буде надіслано</span>
+        <strong class="recovery-card-value">{{ recovery_dashboard.today.remaining }}</strong>
+        <span class="recovery-card-detail">{{ recovery_dashboard.today.remaining_first }} перших · {{ recovery_dashboard.today.remaining_followups }} повторних</span>
+      </article>
+      <article class="recovery-today-card">
+        <span class="recovery-card-label">Не доставлено</span>
+        <strong class="recovery-card-value{% if recovery_dashboard.today.failed %} recovery-card-value--danger{% endif %}">{{ recovery_dashboard.today.failed }}</strong>
+        <span class="recovery-card-detail">Невдалі спроби саме сьогодні</span>
+      </article>
+      <article class="recovery-today-card">
+        <span class="recovery-card-label">Відновлено сьогодні</span>
+        <strong class="recovery-card-value recovery-card-value--success">{{ recovery_dashboard.today.recovered }}</strong>
+        <span class="recovery-card-detail">Активували trial після отриманого пуша</span>
+      </article>
+      <div class="recovery-progress">
+        <div class="recovery-progress-meta">
+          <span>Виконано сьогодні: <strong>{{ recovery_dashboard.today.processed }} із {{ recovery_dashboard.today.plan }}</strong></span>
+          <strong>{{ recovery_dashboard.today.progress }}</strong>
+        </div>
+        <div class="recovery-progress-track"><div class="recovery-progress-fill" style="width: {{ recovery_dashboard.today.progress_css|unlocalize }}%"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="recovery-section">
+    <div class="recovery-section-header">
+      <div>
+        <h2>Результат кампанії</h2>
+        <p>Загальні показники від моменту запуску.</p>
+      </div>
+    </div>
+    <div class="recovery-metric-grid">
+      <article class="recovery-metric">
+        <span class="recovery-card-label">У воронці</span>
+        <strong>{{ recovery_dashboard.totals.recipients }}</strong>
+        <small>{{ recovery_dashboard.audience.eligible_at_launch }} на старті · {{ recovery_dashboard.audience.live_after_launch }} додано після запуску</small>
+      </article>
+      <article class="recovery-metric">
+        <span class="recovery-card-label">Отримали хоча б один пуш</span>
+        <strong>{{ recovery_dashboard.totals.reached }}</strong>
+        <small>{{ recovery_dashboard.totals.messages }} повідомлень надіслано загалом</small>
+      </article>
+      <article class="recovery-metric">
+        <span class="recovery-card-label">Відповіли</span>
+        <strong>{{ recovery_dashboard.totals.responses }}</strong>
+        <small>{{ recovery_dashboard.totals.response_rate }} від охоплених користувачів</small>
+      </article>
+      <article class="recovery-metric">
+        <span class="recovery-card-label">Попросили особистий контакт</span>
+        <strong>{{ recovery_dashboard.totals.contacts }}</strong>
+        <small>Створені звернення до засновника</small>
+      </article>
+      <article class="recovery-metric">
+        <span class="recovery-card-label">Відмовились від recovery</span>
+        <strong>{{ recovery_dashboard.totals.opted_out }}</strong>
+        <small>Більше не отримують повідомлення про trial</small>
+      </article>
+      <article class="recovery-metric recovery-metric--primary">
+        <span class="recovery-card-label">Відновлені користувачі</span>
+        <strong>{{ recovery_dashboard.totals.recovered }}</strong>
+        <small>{{ recovery_dashboard.totals.recovery_rate }} від охоплених · trial активовано після recovery</small>
+      </article>
+    </div>
+    <div class="recovery-definition">
+      <strong>Що означає «відновлений користувач»:</strong> людина спочатку отримала хоча б одне recovery-повідомлення, а вже після цього успішно активувала trial за 1 грн. Активації до першого пуша не приписуються розсилці — таких зараз {{ recovery_dashboard.totals.converted_before_message }}.
+    </div>
+  </section>
+
+  <section class="recovery-two-columns">
+    <article class="recovery-panel">
+      <h2>Розклад</h2>
+      <p class="recovery-panel-copy">Scheduler перевіряє чергу кожні 5 хвилин і не надсилає поза {{ recovery_dashboard.window }}.</p>
+      <div class="recovery-inline-stats">
+        <div class="recovery-inline-stat"><strong>{{ recovery_dashboard.schedule.first_waiting }}</strong><span>чекають першого пуша</span></div>
+        <div class="recovery-inline-stat"><strong>{{ recovery_dashboard.schedule.second_waiting }}</strong><span>чекають другого пуша</span></div>
+        <div class="recovery-inline-stat"><strong>{{ recovery_dashboard.schedule.final_waiting }}</strong><span>чекають фінального пуша</span></div>
+      </div>
+      <div class="recovery-next"><strong>Наступна доставка:</strong> {{ recovery_dashboard.schedule.next_at }}{% if recovery_dashboard.schedule.next_timezone %} · {{ recovery_dashboard.schedule.next_timezone }}{% endif %}. Прострочених зараз: {{ recovery_dashboard.schedule.due_now }}.</div>
+    </article>
+
+    <article class="recovery-panel">
+      <h2>Аудиторія кампанії</h2>
+      <p class="recovery-panel-copy">{{ recovery_dashboard.audience.mode_label }}. Тут видно базу, фактичне охоплення та причини виключення.</p>
+      <div class="recovery-inline-stats">
+        <div class="recovery-inline-stat"><strong>{{ recovery_dashboard.audience.source_total }}</strong><span>{{ recovery_dashboard.audience.source_label }}</span></div>
+        <div class="recovery-inline-stat"><strong>{{ recovery_dashboard.audience.eligible_at_launch }}</strong><span>{{ recovery_dashboard.audience.eligible_label }}</span></div>
+        <div class="recovery-inline-stat"><strong>{{ recovery_dashboard.audience.current_recipients }}</strong><span>у воронці зараз</span></div>
+      </div>
+      <div class="recovery-next"><strong>За онбордингом:</strong> {{ recovery_dashboard.audience.onboarding_complete }} завершили · {{ recovery_dashboard.audience.onboarding_incomplete }} не завершили. Нових після запуску: {{ recovery_dashboard.audience.live_after_launch }}.</div>
+      {% if recovery_dashboard.audience.excluded %}
+        <ul class="recovery-list">
+          {% for row in recovery_dashboard.audience.excluded %}<li class="recovery-list-row"><span>{{ row.label }}</span><strong>{{ row.count }}</strong></li>{% endfor %}
+        </ul>
+      {% endif %}
+    </article>
+  </section>
+
+  <section class="recovery-two-columns">
+    <article class="recovery-panel">
+      <h2>Що зупинило людей</h2>
+      <p class="recovery-panel-copy">Причини серед тих, хто вже відповів.</p>
+      {% if recovery_dashboard.reason_rows %}
+        <ul class="recovery-list">
+          {% for row in recovery_dashboard.reason_rows %}<li class="recovery-list-row"><span>{{ row.label }} · {{ row.percent }}</span><strong>{{ row.count }}</strong></li>{% endfor %}
+        </ul>
+      {% else %}
+        <p class="recovery-empty">Відповідей поки немає. Тут з’явиться розподіл причин.</p>
+      {% endif %}
+    </article>
+
+    <article class="recovery-panel">
+      <h2>Поточні статуси</h2>
+      <p class="recovery-panel-copy">Де саме зараз знаходяться отримувачі.</p>
+      {% if recovery_dashboard.status_rows %}
+        <ul class="recovery-list">
+          {% for row in recovery_dashboard.status_rows %}<li class="recovery-list-row"><span>{{ row.label }}</span><strong>{{ row.count }}</strong></li>{% endfor %}
+        </ul>
+      {% else %}
+        <p class="recovery-empty">У кампанії ще немає отримувачів.</p>
+      {% endif %}
+      {% if recovery_dashboard.totals.failed %}
+        <div class="recovery-next"><strong>Недоставлені:</strong> {{ recovery_dashboard.totals.blocked }} заблокували бота · {{ recovery_dashboard.totals.technical_failed }} технічних помилок.</div>
+      {% endif %}
+    </article>
+  </section>
+
+  <section class="recovery-two-columns">
+    <article class="recovery-panel">
+      <h2>Останні відповіді та активації</h2>
+      {% if recovery_dashboard.recent_signals %}
+        <div class="recovery-table-wrap">
+          <table class="recovery-table">
+            <thead><tr><th>Користувач</th><th>Подія</th><th>Час</th></tr></thead>
+            <tbody>
+              {% for row in recovery_dashboard.recent_signals %}
+                <tr>
+                  <td><a href="{{ row.user_url }}">{{ row.user }}</a>{% if row.detail %}<span class="recovery-row-detail">{{ row.detail }}</span>{% endif %}</td>
+                  <td>{{ row.event }}</td>
+                  <td>{{ row.time }}<span class="recovery-row-detail">{{ row.timezone }}</span></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="recovery-empty">Ще немає відповідей, запитів на контакт або активацій.</p>
+      {% endif %}
+    </article>
+
+    <article class="recovery-panel">
+      <h2>Останні доставки</h2>
+      {% if recovery_dashboard.recent_deliveries %}
+        <div class="recovery-table-wrap">
+          <table class="recovery-table">
+            <thead><tr><th>Користувач</th><th>Крок</th><th>Статус</th><th>Час</th></tr></thead>
+            <tbody>
+              {% for row in recovery_dashboard.recent_deliveries %}
+                <tr>
+                  <td><a href="{{ row.user_url }}">{{ row.user }}</a>{% if row.detail %}<span class="recovery-row-detail">{{ row.detail }}</span>{% endif %}</td>
+                  <td>{{ row.step }}</td>
+                  <td><span class="recovery-chip recovery-chip--{{ row.tone }}">{{ row.status }}</span></td>
+                  <td>{{ row.time }}<span class="recovery-row-detail">{{ row.timezone }}</span></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="recovery-empty">Повідомлення ще не надсилалися.</p>
+      {% endif %}
+    </article>
+  </section>
+
+  <h2 class="recovery-settings-title">Налаштування та службові дані</h2>
+</div>
+{% endif %}
+{{ block.super }}
+{% endblock %}
