@@ -22,6 +22,7 @@ from django.views.decorators.http import require_GET, require_POST, require_http
 
 from miniapp.auth import (
     BROWSER_AUTH_MODE,
+    SESSION_AUTH_MODE_KEY,
     MiniAppAuthError,
     MiniAppSessionError,
     browser_session_age_seconds,
@@ -128,6 +129,7 @@ from miniapp.push import (
     update_preferences,
 )
 from miniapp.telegram_oidc import (
+    DEFAULT_RETURN_PATH,
     TELEGRAM_OIDC_AUTH_MODE,
     TelegramOidcError,
     begin_authorization,
@@ -581,6 +583,13 @@ def telegram_oidc_callback(request: HttpRequest) -> HttpResponse:
             source="telegram_oidc",
         )
     except TelegramOidcError as exc:
+        if request.session.get(SESSION_AUTH_MODE_KEY) == TELEGRAM_OIDC_AUTH_MODE:
+            try:
+                get_session_user(request)
+            except MiniAppSessionError:
+                pass
+            else:
+                return redirect(DEFAULT_RETURN_PATH)
         return _telegram_oidc_error_response(exc)
     except RegistrationClosed:
         return _telegram_oidc_error_response(

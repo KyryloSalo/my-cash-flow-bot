@@ -688,6 +688,47 @@ class TelegramRegistrationBootstrapTests(UnitTestCase):
         SECURE_SSL_REDIRECT=False,
     )
     @patch("miniapp.views.verify_id_token")
+    @patch("miniapp.views.exchange_authorization_code")
+    def test_repeated_callback_returns_to_app_when_oidc_session_is_already_valid(self, exchange, verify) -> None:
+        from miniapp.telegram_oidc import AuthenticatedTelegramIdentity
+
+        verify.return_value = AuthenticatedTelegramIdentity(
+            provider="telegram_oidc",
+            subject="stable-subject-9008",
+            tg_user_id=9008,
+            first_name="Android",
+            last_name="Retry",
+            username="android_retry",
+            claims={"id": 9008, "sub": "stable-subject-9008", "exp": int(time.time()) + 3600},
+        )
+        exchange.return_value = "synthetic.jwt.android-retry"
+        client = Client()
+        start = client.get("/app/auth/telegram/start")
+        state = parse_qs(urlparse(start.headers["Location"]).query)["state"][0]
+
+        first_callback = client.get(
+            "/app/auth/telegram/callback",
+            {"state": state, "code": "single-use-android-code"},
+        )
+        repeated_callback = client.get(
+            "/app/auth/telegram/callback",
+            {"state": state, "code": "duplicate-mobile-return"},
+        )
+
+        self.assertEqual(first_callback.status_code, 302)
+        self.assertEqual(repeated_callback.status_code, 302)
+        self.assertEqual(repeated_callback.headers["Location"], "/app/")
+        self.assertEqual(exchange.call_count, 1)
+
+    @override_settings(
+        TELEGRAM_OIDC_CLIENT_ID="123456789",
+        TELEGRAM_OIDC_CLIENT_SECRET="synthetic-oidc-secret-not-for-deployment",
+        TELEGRAM_OIDC_REDIRECT_URI="https://vydno.capital/app/auth/telegram/callback",
+        SESSION_ENGINE="django.contrib.sessions.backends.signed_cookies",
+        ALLOWED_HOSTS=["testserver"],
+        SECURE_SSL_REDIRECT=False,
+    )
+    @patch("miniapp.views.verify_id_token")
     @patch("miniapp.views.exchange_authorization_code", return_value="synthetic.jwt.registration-closed")
     def test_callback_returns_recovery_page_when_registration_is_closed(self, exchange, verify) -> None:
         from bot_settings.models import BotSetting
