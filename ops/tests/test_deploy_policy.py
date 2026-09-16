@@ -1,5 +1,5 @@
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 CODE=Path(__file__).resolve().parents[2]
 
@@ -44,6 +44,15 @@ class DeployPolicyTests(unittest.TestCase):
         )
         self.assertNotIn('cp -a "$SRC/."', text)
         self.assertNotIn('getMe', text)
+
+    def test_rollback_restarts_the_previous_release_images(self):
+        text = (CODE / 'deploy_v0_on_vps.sh').read_text(encoding='utf-8')
+
+        self.assertIn('PREVIOUS_RELEASE_ID=$(basename -- "$PREVIOUS_CURRENT")', text)
+        self.assertIn(
+            'RELEASE_ID="$PREVIOUS_RELEASE_ID" compose_at "$OLD_PROJECT" up -d --no-build',
+            text,
+        )
 
     def test_django_secret_rotation_uses_a_host_owned_file(self):
         compose = (CODE / 'compose.yml').read_text(encoding='utf-8')

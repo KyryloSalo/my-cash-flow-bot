@@ -60,7 +60,12 @@ def _billing_lag():
     cutoff=timezone.now()-timedelta(minutes=20)
     return not (
         Payment.objects.filter(provider='monobank',status='pending',created_at__lt=cutoff).exists()
-        or Subscription.objects.filter(provider='monobank',auto_renew=True,next_charge_at__lt=cutoff).exists()
+        or Subscription.objects.filter(
+            provider='monobank', auto_renew=True, next_charge_at__lt=cutoff,
+            user__billing_profile__provider='monobank',
+            user__billing_profile__auto_renew_enabled=True,
+            user__billing_profile__card_token__gt='',
+        ).exists()
     )
 
 

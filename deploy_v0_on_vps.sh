@@ -18,12 +18,14 @@ CURRENT_RELEASE="$ROOT/current-release"
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 OLD_PROJECT="$ROOT"
 PREVIOUS_CURRENT=''
+PREVIOUS_RELEASE_ID=''
 if [[ -L "$CURRENT" && -f "$CURRENT_RELEASE" ]]; then
     candidate_current=$(readlink -f "$CURRENT")
     IFS= read -r recorded_release < "$CURRENT_RELEASE" || true
     if [[ -f "$candidate_current/compose.yml" && "$(basename -- "$candidate_current")" == "$recorded_release" ]]; then
         OLD_PROJECT=$candidate_current
         PREVIOUS_CURRENT=$candidate_current
+        PREVIOUS_RELEASE_ID=$(basename -- "$PREVIOUS_CURRENT")
     fi
 fi
 PROJECT_NAME=${COMPOSE_PROJECT_NAME:-my-cash-flow-bot}
@@ -120,7 +122,11 @@ rollback_stop() {
             rm -f "$CURRENT"
         fi
     fi
-    compose_at "$OLD_PROJECT" up -d --no-build || true
+    if [[ -n "$PREVIOUS_RELEASE_ID" ]]; then
+        RELEASE_ID="$PREVIOUS_RELEASE_ID" compose_at "$OLD_PROJECT" up -d --no-build || true
+    else
+        compose_at "$OLD_PROJECT" up -d --no-build || true
+    fi
 }
 trap rollback_stop ERR
 ACTIVE_PROJECT=$OLD_PROJECT
