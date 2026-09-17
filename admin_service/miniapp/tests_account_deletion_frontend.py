@@ -7,6 +7,14 @@ from django.test import SimpleTestCase
 
 
 class AccountDeletionFrontendContractTests(SimpleTestCase):
+    def _landing_source_path(self, filename: str) -> Path:
+        landing_root = Path(__file__).resolve().parents[2] / "nginx" / "landing"
+        if not landing_root.is_dir():
+            self.skipTest(
+                "nginx landing sources are validated before build and are not packaged in the admin image"
+            )
+        return landing_root / filename
+
     def test_settings_exposes_accessible_destructive_confirmation_dialog(self) -> None:
         source = get_template("miniapp/index.html").template.source
 
@@ -94,12 +102,7 @@ class AccountDeletionFrontendContractTests(SimpleTestCase):
         self.assertIn("signalAppReady();", boot_function)
 
     def test_public_account_deletion_page_explains_and_links_in_app_flow(self) -> None:
-        page_path = (
-            Path(__file__).resolve().parents[2]
-            / "nginx"
-            / "landing"
-            / "delete-account.html"
-        )
+        page_path = self._landing_source_path("delete-account.html")
         self.assertTrue(page_path.exists(), "public account-deletion page is missing")
         page = page_path.read_text(encoding="utf-8")
         self.assertIn(
@@ -116,12 +119,7 @@ class AccountDeletionFrontendContractTests(SimpleTestCase):
         self.assertIn("https://t.me/Askills_Support", page)
 
     def test_privacy_policy_links_to_self_service_deletion_page(self) -> None:
-        privacy_path = (
-            Path(__file__).resolve().parents[2]
-            / "nginx"
-            / "landing"
-            / "privacy.html"
-        )
+        privacy_path = self._landing_source_path("privacy.html")
         privacy = privacy_path.read_text(encoding="utf-8")
 
         self.assertIn('href="delete-account.html"', privacy)
