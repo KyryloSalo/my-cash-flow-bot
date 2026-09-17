@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime, time, timedelta
 from unittest.mock import patch
@@ -24,7 +25,7 @@ from subscriptions.trial_recovery import (
     record_trial_offer_event,
     safe_zone,
 )
-from users.models import TelegramUser, UserAdminState
+from users.models import TelegramUser, UserAdminState, UserAuthSession
 
 
 class TrialRecoveryWindowTests(SimpleTestCase):
@@ -256,10 +257,19 @@ class TrialRecoveryFlowTests(TestCase):
         user = self.make_user(91005)
         client = Client()
         session = client.session
+        session_record_token = "synthetic-trial-recovery-session-token"
         session["miniapp_tg_user_id"] = user.tg_user_id
         session["miniapp_auth_at"] = int(timezone.now().timestamp())
         session["miniapp_auth_mode"] = "telegram"
+        session["miniapp_auth_session_token"] = session_record_token
         session.save()
+        UserAuthSession.objects.create(
+            telegram_user_id=user.tg_user_id,
+            token_hash=hashlib.sha256(session_record_token.encode("utf-8")).hexdigest(),
+            auth_mode="telegram",
+            expires_at=timezone.now() + timedelta(days=1),
+            last_seen_at=timezone.now(),
+        )
         url = reverse("miniapp:trial-recovery-event")
 
         draft_response = client.post(

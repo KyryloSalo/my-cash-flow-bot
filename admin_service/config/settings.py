@@ -241,6 +241,11 @@ CELERY_BEAT_SCHEDULE = {
         "task": "miniapp.dispatch_pending_pushes",
         "schedule": crontab(minute="*/10"),
     },
+    "miniapp-purge-expired-auth-token-uses": {
+        "task": "miniapp.purge_expired_auth_token_uses",
+        "schedule": crontab(hour=3, minute=40),
+        "options": {"expires": 60 * 60},
+    },
     "miniapp-billing-lifecycle-pushes": {
         "task": "miniapp.emit_billing_lifecycle_pushes",
         "schedule": crontab(minute=15),

@@ -31,6 +31,7 @@ TELEGRAM_AUTH_MODE = "telegram"
 BROWSER_LOGIN_TOKEN_VERSION = 1
 DEFAULT_BROWSER_LOGIN_TOKEN_TTL_SECONDS = 15 * 60
 DEFAULT_BROWSER_SESSION_AGE_SECONDS = 180 * 24 * 60 * 60
+DEFAULT_SENSITIVE_ACTION_AUTH_MAX_AGE_SECONDS = 5 * 60
 
 
 class MiniAppAuthError(Exception):
@@ -238,6 +239,7 @@ def login_session(
     session_age_seconds: int | None = None,
     auth_mode: str = TELEGRAM_AUTH_MODE,
     identity: UserAuthIdentity | None = None,
+    authenticated_at: int | None = None,
 ) -> None:
     previous_session_token = str(request.session.get(SESSION_RECORD_TOKEN_KEY) or "")
     if previous_session_token:
@@ -262,25 +264,28 @@ def login_session(
     except Exception as exc:
         logger.warning("Acquisition telemetry unavailable during login (%s)", type(exc).__name__)
     request.session[SESSION_USER_ID_KEY] = int(user.tg_user_id)
-    request.session[SESSION_AUTH_AT_KEY] = int(time.time())
+    request.session[SESSION_AUTH_AT_KEY] = int(time.time() if authenticated_at is None else authenticated_at)
     request.session[SESSION_AUTH_MODE_KEY] = auth_mode
     request.session.set_expiry(int(session_age_seconds) if session_age_seconds is not None else None)
-    if auth_mode == "telegram_oidc":
-        now = timezone.now()
-        age = int(session_age_seconds or browser_session_age_seconds())
-        session_token = secrets.token_urlsafe(32)
-        request.session[SESSION_RECORD_TOKEN_KEY] = session_token
-        UserAuthSession.objects.create(
-            telegram_user_id=int(user.tg_user_id),
-            identity=identity,
-            token_hash=hashlib.sha256(session_token.encode("utf-8")).hexdigest(),
-            auth_mode=auth_mode,
-            user_agent_hash=hashlib.sha256(
-                str(request.META.get("HTTP_USER_AGENT") or "").encode("utf-8")
-            ).hexdigest(),
-            expires_at=now + timedelta(seconds=age),
-            last_seen_at=now,
-        )
+    now = timezone.now()
+    age = int(
+        session_age_seconds
+        or getattr(settings, "SESSION_COOKIE_AGE", 14 * 24 * 60 * 60)
+        or 14 * 24 * 60 * 60
+    )
+    session_token = secrets.token_urlsafe(32)
+    request.session[SESSION_RECORD_TOKEN_KEY] = session_token
+    UserAuthSession.objects.create(
+        telegram_user_id=int(user.tg_user_id),
+        identity=identity,
+        token_hash=hashlib.sha256(session_token.encode("utf-8")).hexdigest(),
+        auth_mode=auth_mode,
+        user_agent_hash=hashlib.sha256(
+            str(request.META.get("HTTP_USER_AGENT") or "").encode("utf-8")
+        ).hexdigest(),
+        expires_at=now + timedelta(seconds=age),
+        last_seen_at=now,
+    )
 
 
 def logout_session(request: HttpRequest, *, all_devices: bool = False) -> None:
@@ -315,13 +320,28 @@ def get_session_tg_user_id(request: HttpRequest) -> int:
     return tg_user_id
 
 
+def sensitive_action_auth_is_fresh(
+    request: HttpRequest,
+    *,
+    max_age_seconds: int = DEFAULT_SENSITIVE_ACTION_AUTH_MAX_AGE_SECONDS,
+    now: int | None = None,
+) -> bool:
+    try:
+        authenticated_at = int(request.session.get(SESSION_AUTH_AT_KEY) or 0)
+    except (TypeError, ValueError):
+        return False
+    current = int(time.time() if now is None else now)
+    age = current - authenticated_at
+    return authenticated_at > 0 and -60 <= age <= max(int(max_age_seconds), 1)
+
+
 def get_session_user(request: HttpRequest) -> TelegramUser:
     tg_user_id = get_session_tg_user_id(request)
     user = TelegramUser.objects.filter(tg_user_id=tg_user_id).first()
     if user is None:
         raise MiniAppSessionError("Mini App user not found.")
     auth_mode = request.session.get(SESSION_AUTH_MODE_KEY)
-    if auth_mode == "telegram_oidc":
+    if auth_mode in {TELEGRAM_AUTH_MODE, BROWSER_AUTH_MODE, "telegram_oidc"}:
         session_token = str(request.session.get(SESSION_RECORD_TOKEN_KEY) or "")
         if not session_token or not UserAuthSession.objects.filter(
             token_hash=hashlib.sha256(session_token.encode("utf-8")).hexdigest(),
@@ -336,7 +356,7 @@ def get_session_user(request: HttpRequest) -> TelegramUser:
     return user
 
 
-def consume_browser_login_token(token: str) -> TelegramUser:
+def consume_browser_login_token_with_identity(token: str) -> tuple[TelegramUser, BrowserLoginIdentity]:
     # Validation admits only the canonical signed spelling. Keep its existing
     # digest so already-consumed canonical links remain blocked after upgrades.
     token = str(token or "")
@@ -354,6 +374,11 @@ def consume_browser_login_token(token: str) -> TelegramUser:
     except IntegrityError as exc:
         raise MiniAppAuthError("Browser login link already used.") from exc
 
+    return user, identity
+
+
+def consume_browser_login_token(token: str) -> TelegramUser:
+    user, _identity = consume_browser_login_token_with_identity(token)
     return user
 
 

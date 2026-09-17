@@ -238,10 +238,14 @@
   function handleDeepLink() {
     if (!window.vydnoAppReady || !window.vydnoNavigate || routedLocation === window.location.href) return Promise.resolve(false);
     const location = window.location.href;
+    const route = new URL(location);
+    const routeKeys = ["screen", "tab", "section", "notification_id"];
+    const hasDeepLink = routeKeys.some(function (key) { return route.searchParams.has(key); });
     routedLocation = location;
+    if (!hasDeepLink) return Promise.resolve(false);
     return window.vydnoNavigate(location).then(function (success) {
       if (!success) { routedLocation = null; return false; }
-      const id = new URL(location).searchParams.get("notification_id");
+      const id = route.searchParams.get("notification_id");
       if (id && /^\d+$/.test(id)) return post(urls.read, {notification_id: Number(id)}).then(function (payload) { sendBadge(payload.badge_count); return true; });
       return true;
     }).catch(function () { routedLocation = null; return false; });

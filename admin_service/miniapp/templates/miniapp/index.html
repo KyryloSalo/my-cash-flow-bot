@@ -97,6 +97,8 @@
   data-saving-task-cancel-url="{% url 'miniapp:saving-task-cancel' %}"
   data-help-url="{% url 'miniapp:help-center' %}"
   data-logout-url="{% url 'miniapp:auth-logout' %}"
+  data-account-deletion-preflight-url="{% url 'miniapp:account-deletion-preflight' %}"
+  data-account-deletion-confirm-url="{% url 'miniapp:account-deletion-confirm' %}"
   data-service-worker-url="{% url 'miniapp:service-worker' %}?v={{ miniapp_asset_version }}"
   data-dev-auth-enabled="{% if dev_auth_enabled %}true{% else %}false{% endif %}"
   data-preview-enabled="{% if preview_enabled %}true{% else %}false{% endif %}"
@@ -171,6 +173,33 @@
         <button class="ghost-action" id="transactionVoidLeaveBtn" type="button">Закрити</button>
       </div>
       <div class="form-status" id="transactionVoidStatus" hidden aria-live="polite"></div>
+    </section>
+  </div>
+  <div class="activation-modal account-deletion-modal" id="accountDeletionModal" role="dialog" aria-modal="true" aria-labelledby="accountDeletionTitle" aria-describedby="accountDeletionDescription" hidden>
+    <section class="activation-card account-deletion-card" tabindex="-1">
+      <p class="eyebrow" id="accountDeletionEyebrow">Акаунт і дані</p>
+      <h2 id="accountDeletionTitle">Видалити акаунт назавжди?</h2>
+      <p class="activation-lead" id="accountDeletionDescription">Цю дію неможливо скасувати. Vydno відв’яже спосіб оплати, зупинить майбутні списання та видалить дані застосунку.</p>
+      <ul class="account-deletion-consequences" id="accountDeletionConsequences">
+        <li>Рахунки, операції, категорії, борги й цілі буде видалено.</li>
+        <li>Усі активні web та OIDC сесії буде відкликано.</li>
+        <li>Попередні записи банку або платіжного провайдера можуть зберігатися за їхніми правилами чи вимогами закону.</li>
+      </ul>
+      <p class="account-deletion-instruction" id="accountDeletionInstruction">Введіть <strong>ВИДАЛИТИ</strong>, щоб продовжити.</p>
+      <label class="form-field">
+        <span id="accountDeletionConfirmationLabel">Підтвердження</span>
+        <input id="accountDeletionConfirmation" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="accountDeletionInstruction">
+      </label>
+      <label class="settings-toggle account-deletion-acknowledgement">
+        <input id="accountDeletionAcknowledged" type="checkbox">
+        <span id="accountDeletionAcknowledgementLabel">Я розумію, що видалення незворотне.</span>
+      </label>
+      <a class="secondary-action" id="accountDeletionReauthBtn" href="/app/auth/telegram/start" hidden>Підтвердити особу</a>
+      <div class="form-status" id="accountDeletionStatus" role="alert" aria-live="assertive" hidden></div>
+      <div class="activation-actions">
+        <button class="secondary-action" id="accountDeletionCancelBtn" type="button">Залишити акаунт</button>
+        <button class="primary-action danger-action" id="accountDeletionConfirmBtn" type="button" disabled>Видалити назавжди</button>
+      </div>
     </section>
   </div>
   <main class="app" style="visibility:hidden">
@@ -1410,6 +1439,18 @@
             <div class="settings-help-content" id="settingsHelpContent" hidden></div>
             <div class="form-status" id="settingsHelpStatus" hidden aria-live="polite"></div>
           </article>
+
+          <article class="card card-pad account-danger-card">
+            <div class="section-head">
+              <div>
+                <h2 id="settingsAccountHeading">Акаунт і дані</h2>
+                <p id="settingsAccountCaption">Керуйте доступом до акаунта та видаленням даних.</p>
+              </div>
+            </div>
+            <p class="tx-meta" id="settingsAccountDeletionNote">Видалення відв’яже оплату, відкличе всі сесії та назавжди видалить дані Vydno.</p>
+            <p class="tx-meta"><a class="settings-privacy-link" id="settingsAccountDeletionPolicy" href="https://vydno.capital/delete-account.html" target="_blank" rel="noopener">Як працює видалення даних</a></p>
+            <button class="secondary-action danger-action" id="settingsDeleteAccountBtn" type="button" aria-controls="accountDeletionModal" aria-haspopup="dialog">Видалити акаунт</button>
+          </article>
         </div>
       </section>
     </div>
@@ -1537,6 +1578,8 @@
       const savingTaskCancelUrl = root.dataset.savingTaskCancelUrl;
       const helpUrl = root.dataset.helpUrl;
       const logoutUrl = root.dataset.logoutUrl;
+      const accountDeletionPreflightUrl = root.dataset.accountDeletionPreflightUrl;
+      const accountDeletionConfirmUrl = root.dataset.accountDeletionConfirmUrl;
       const serviceWorkerUrl = root.dataset.serviceWorkerUrl;
       const devAuthEnabled = root.dataset.devAuthEnabled === "true";
       const previewEnabled = root.dataset.previewEnabled === "true";
@@ -2432,6 +2475,11 @@
       const settingsState = {
         data: null,
         language: "uk",
+        busy: false
+      };
+      const accountDeletionState = {
+        challenge: "",
+        confirmationText: "ВИДАЛИТИ",
         busy: false
       };
       const helpState = {
@@ -6921,6 +6969,7 @@
         settingsState.language = normalizeLocale(data.user.lang);
         const copy = settingsCopy();
         const el = settingsElements();
+        renderAccountDeletionCopy();
         setText("settingsEyebrow", copy.eyebrow);
         setText("settingsTitle", copy.title);
         setText("settingsSubtitle", copy.subtitle);
@@ -7277,6 +7326,246 @@
           setSettingsStatus(el.helpStatus, error.message || tr("errorText"), "error");
           return null;
         });
+      }
+
+      function accountDeletionElements() {
+        return {
+          start: document.getElementById("settingsDeleteAccountBtn"),
+          modal: document.getElementById("accountDeletionModal"),
+          confirmation: document.getElementById("accountDeletionConfirmation"),
+          acknowledged: document.getElementById("accountDeletionAcknowledged"),
+          reauth: document.getElementById("accountDeletionReauthBtn"),
+          status: document.getElementById("accountDeletionStatus"),
+          cancel: document.getElementById("accountDeletionCancelBtn"),
+          confirm: document.getElementById("accountDeletionConfirmBtn")
+        };
+      }
+
+      function accountDeletionCopy() {
+        if (activeLocale === "en") {
+          return {
+            settingsHeading: "Account and data",
+            settingsCaption: "Manage account access and data deletion.",
+            settingsNote: "Deletion unlinks billing, revokes every session, and permanently erases Vydno app data.",
+            policy: "How data deletion works",
+            start: "Delete account",
+            eyebrow: "Account and data",
+            title: "Delete your account permanently?",
+            description: "This cannot be undone. Vydno will unlink the payment method, stop future charges, and erase app data.",
+            consequences: [
+              "Accounts, transactions, categories, debts, and goals will be deleted.",
+              "Every active web and OIDC session will be revoked.",
+              "Past bank or payment-provider records may remain under their policies or legal duties."
+            ],
+            instructionPrefix: "Enter ", instructionSuffix: " to continue.",
+            confirmationLabel: "Confirmation",
+            acknowledgement: "I understand that deletion is irreversible.",
+            reauth: "Confirm identity",
+            cancel: "Keep account",
+            confirm: "Delete permanently",
+            loading: "Checking whether the account can be deleted safely…",
+            ready: "Review every consequence before confirming.",
+            reauthRequired: "Confirm your identity again before deleting the account.",
+            familyBlocked: "Remove other members from your family space before deleting the account.",
+            billingFailed: "The saved payment method could not be unlinked. No account data was deleted.",
+            failed: "Account deletion could not be completed. Your data remains available.",
+            deleted: "Account deleted. Redirecting…"
+          };
+        }
+        return {
+          settingsHeading: "Акаунт і дані",
+          settingsCaption: "Керуйте доступом до акаунта та видаленням даних.",
+          settingsNote: "Видалення відв’яже оплату, відкличе всі сесії та назавжди видалить дані Vydno.",
+          policy: "Як працює видалення даних",
+          start: "Видалити акаунт",
+          eyebrow: "Акаунт і дані",
+          title: "Видалити акаунт назавжди?",
+          description: "Цю дію неможливо скасувати. Vydno відв’яже спосіб оплати, зупинить майбутні списання та видалить дані застосунку.",
+          consequences: [
+            "Рахунки, операції, категорії, борги й цілі буде видалено.",
+            "Усі активні web та OIDC сесії буде відкликано.",
+            "Попередні записи банку або платіжного провайдера можуть зберігатися за їхніми правилами чи вимогами закону."
+          ],
+          instructionPrefix: "Введіть ", instructionSuffix: ", щоб продовжити.",
+          confirmationLabel: "Підтвердження",
+          acknowledgement: "Я розумію, що видалення незворотне.",
+          reauth: "Підтвердити особу",
+          cancel: "Залишити акаунт",
+          confirm: "Видалити назавжди",
+          loading: "Перевіряємо, чи можна безпечно видалити акаунт…",
+          ready: "Перевірте всі наслідки перед підтвердженням.",
+          reauthRequired: "Ще раз підтвердьте особу перед видаленням акаунта.",
+          familyBlocked: "Спочатку видаліть інших учасників зі спільного сімейного простору.",
+          billingFailed: "Не вдалося відв’язати спосіб оплати. Дані акаунта не видалено.",
+          failed: "Не вдалося видалити акаунт. Ваші дані залишилися доступними.",
+          deleted: "Акаунт видалено. Перенаправляємо…"
+        };
+      }
+
+      function renderAccountDeletionCopy() {
+        const copy = accountDeletionCopy();
+        setText("settingsAccountHeading", copy.settingsHeading);
+        setText("settingsAccountCaption", copy.settingsCaption);
+        setText("settingsAccountDeletionNote", copy.settingsNote);
+        setText("settingsAccountDeletionPolicy", copy.policy);
+        setText("settingsDeleteAccountBtn", copy.start);
+        setText("accountDeletionEyebrow", copy.eyebrow);
+        setText("accountDeletionTitle", copy.title);
+        setText("accountDeletionDescription", copy.description);
+        setText("accountDeletionConfirmationLabel", copy.confirmationLabel);
+        setText("accountDeletionAcknowledgementLabel", copy.acknowledgement);
+        setText("accountDeletionReauthBtn", copy.reauth);
+        setText("accountDeletionCancelBtn", copy.cancel);
+        setText("accountDeletionConfirmBtn", copy.confirm);
+        const list = document.getElementById("accountDeletionConsequences");
+        if (list) {
+          while (list.firstChild) list.removeChild(list.firstChild);
+          copy.consequences.forEach(function (message) {
+            const item = document.createElement("li");
+            item.textContent = message;
+            list.appendChild(item);
+          });
+        }
+        const instruction = document.getElementById("accountDeletionInstruction");
+        if (instruction) {
+          instruction.textContent = copy.instructionPrefix;
+          const strong = document.createElement("strong");
+          strong.textContent = accountDeletionState.confirmationText;
+          instruction.appendChild(strong);
+          instruction.appendChild(document.createTextNode(copy.instructionSuffix));
+        }
+      }
+
+      function setAccountDeletionStatus(message, tone) {
+        const el = accountDeletionElements();
+        if (!el.status) return;
+        el.status.textContent = message || "";
+        el.status.className = "form-status" + (tone ? " " + tone : "");
+        el.status.hidden = !message;
+      }
+
+      function updateAccountDeletionConfirmation() {
+        const el = accountDeletionElements();
+        const ready = Boolean(
+          accountDeletionState.challenge &&
+          !accountDeletionState.busy &&
+          el.confirmation && el.confirmation.value === accountDeletionState.confirmationText &&
+          el.acknowledged && el.acknowledged.checked
+        );
+        if (el.confirm) el.confirm.disabled = !ready;
+      }
+
+      function accountDeletionReauthUrl(value) {
+        try {
+          const url = new URL(String(value || ""), window.location.origin);
+          if (url.origin !== window.location.origin || url.pathname !== "/app/auth/telegram/start") return "";
+          return url.pathname + url.search;
+        } catch (_error) {
+          return "";
+        }
+      }
+
+      function accountDeletionErrorMessage(payload) {
+        const error = payload && payload.error ? payload.error : {};
+        const copy = accountDeletionCopy();
+        if (error.code === "reauth_required") return copy.reauthRequired;
+        if (error.code === "family_members_must_be_removed") return copy.familyBlocked;
+        if (error.code === "billing_unlink_failed") return copy.billingFailed;
+        return error.message || copy.failed;
+      }
+
+      function closeAccountDeletionDialog() {
+        if (accountDeletionState.busy) return;
+        const el = accountDeletionElements();
+        accountDeletionState.challenge = "";
+        if (el.confirmation) { el.confirmation.value = ""; el.confirmation.disabled = false; }
+        if (el.acknowledged) { el.acknowledged.checked = false; el.acknowledged.disabled = false; }
+        if (el.reauth) el.reauth.hidden = true;
+        setAccountDeletionStatus("", "");
+        closeAccessibleModal(el.modal);
+        activationModalOpen = false;
+        updateAccountDeletionConfirmation();
+      }
+
+      function openAccountDeletionDialog() {
+        const el = accountDeletionElements();
+        if (!el.modal || !accountDeletionPreflightUrl) return;
+        accountDeletionState.challenge = "";
+        accountDeletionState.busy = false;
+        if (el.confirmation) { el.confirmation.value = ""; el.confirmation.disabled = true; }
+        if (el.acknowledged) { el.acknowledged.checked = false; el.acknowledged.disabled = true; }
+        if (el.reauth) el.reauth.hidden = true;
+        renderAccountDeletionCopy();
+        setAccountDeletionStatus(accountDeletionCopy().loading, "muted");
+        updateAccountDeletionConfirmation();
+        openAccessibleModal(el.modal, closeAccountDeletionDialog, "accountDeletionCancelBtn", function () { return !accountDeletionState.busy; });
+        activationModalOpen = true;
+        getJson(accountDeletionPreflightUrl, false).then(function (payload) {
+          accountDeletionState.challenge = String(payload.challenge || "");
+          accountDeletionState.confirmationText = String(payload.confirmation_text || "ВИДАЛИТИ");
+          if (el.confirmation) el.confirmation.disabled = false;
+          if (el.acknowledged) el.acknowledged.disabled = false;
+          renderAccountDeletionCopy();
+          setAccountDeletionStatus(accountDeletionCopy().ready, "muted");
+          updateAccountDeletionConfirmation();
+          if (el.confirmation) el.confirmation.focus();
+        }).catch(function (payload) {
+          const error = payload && payload.error ? payload.error : {};
+          const reauthUrl = error.code === "reauth_required" ? accountDeletionReauthUrl(error.reauth_url) : "";
+          if (el.reauth && reauthUrl) { el.reauth.href = reauthUrl; el.reauth.hidden = false; }
+          setAccountDeletionStatus(accountDeletionErrorMessage(payload), "error");
+          updateAccountDeletionConfirmation();
+        });
+      }
+
+      function confirmAccountDeletion() {
+        const el = accountDeletionElements();
+        updateAccountDeletionConfirmation();
+        if (!el.confirm || el.confirm.disabled || accountDeletionState.busy) return;
+        accountDeletionState.busy = true;
+        updateAccountDeletionConfirmation();
+        if (el.cancel) el.cancel.disabled = true;
+        if (el.confirmation) el.confirmation.disabled = true;
+        if (el.acknowledged) el.acknowledged.disabled = true;
+        setAccountDeletionStatus(accountDeletionCopy().loading, "muted");
+        postJson(accountDeletionConfirmUrl, {
+          challenge: accountDeletionState.challenge,
+          confirmation_text: el.confirmation.value,
+          acknowledged: el.acknowledged.checked
+        }).then(function () {
+          accountDeletionState.challenge = "";
+          setAccountDeletionStatus(accountDeletionCopy().deleted, "success");
+          window.setTimeout(function () { window.location.assign("/"); }, 700);
+        }).catch(function (payload) {
+          accountDeletionState.busy = false;
+          accountDeletionState.challenge = "";
+          if (el.cancel) el.cancel.disabled = false;
+          if (el.confirmation) { el.confirmation.value = ""; el.confirmation.disabled = false; }
+          if (el.acknowledged) { el.acknowledged.checked = false; el.acknowledged.disabled = false; }
+          setAccountDeletionStatus(accountDeletionErrorMessage(payload), "error");
+          updateAccountDeletionConfirmation();
+        });
+      }
+
+      function accountDeletionResumeRequested() {
+        return new URL(window.location.href).searchParams.get("account-deletion") === "1";
+      }
+
+      function setupAccountDeletion() {
+        const el = accountDeletionElements();
+        if (el.start) el.start.addEventListener("click", openAccountDeletionDialog);
+        if (el.cancel) el.cancel.addEventListener("click", closeAccountDeletionDialog);
+        if (el.confirmation) el.confirmation.addEventListener("input", updateAccountDeletionConfirmation);
+        if (el.acknowledged) el.acknowledged.addEventListener("change", updateAccountDeletionConfirmation);
+        if (el.confirm) el.confirm.addEventListener("click", confirmAccountDeletion);
+        if (accountDeletionResumeRequested()) {
+          window.addEventListener("vydno:ready", function () {
+            showScreen("settings").then(openAccountDeletionDialog);
+            const cleanUrl = new URL(window.location.href);
+            cleanUrl.searchParams.delete("account-deletion");
+            if (window.history && window.history.replaceState) window.history.replaceState({}, "", cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+          }, {once: true});
+        }
       }
 
       function setupSettingsForms() {
@@ -8122,6 +8411,7 @@
         setupAnalyticsDetails();
         setupHistoryForms();
         setupSettingsForms();
+        setupAccountDeletion();
         const refreshBtn = document.getElementById("refreshBtn");
         if (refreshBtn) {
           refreshBtn.addEventListener("click", function () {
@@ -8138,6 +8428,15 @@
         }
         loadOnboarding()
           .then(function (setupRequired) {
+            if (setupRequired && accountDeletionResumeRequested()) {
+              const onboardingShell = document.getElementById("onboardingShell");
+              if (onboardingShell) onboardingShell.hidden = true;
+              const appRoot = document.querySelector("main.app");
+              if (appRoot) appRoot.style.visibility = "";
+              showDashboard();
+              signalAppReady();
+              return null;
+            }
             if (setupRequired) return null;
             loadLiveDashboard();
             return loadAiImageBatch().catch(function () {});

@@ -8,8 +8,9 @@ from django.core.management import CommandError, call_command
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
-from miniapp.models import AcquisitionSession, FunnelEvent
-from miniapp.retention import purge_funnel_telemetry
+from miniapp.models import AcquisitionSession, BrowserLoginTokenUse, FunnelEvent
+from miniapp.retention import purge_expired_auth_token_uses, purge_funnel_telemetry
+from users.models import UserOidcTokenUse
 
 
 class PurgeFunnelTelemetryCommandTests(SimpleTestCase):
@@ -71,3 +72,41 @@ class FunnelTelemetryRetentionTests(TestCase):
         self.assertFalse(AcquisitionSession.objects.filter(pk=old_session.pk).exists())
         self.assertTrue(FunnelEvent.objects.filter(pk=fresh_event.pk).exists())
         self.assertTrue(AcquisitionSession.objects.filter(pk=fresh_session.pk).exists())
+
+
+class AuthTokenRetentionTests(TestCase):
+    def test_expired_replay_tombstones_are_purged_without_touching_active_hashes(self) -> None:
+        now = timezone.now()
+        UserOidcTokenUse.objects.create(
+            token_hash="a" * 64,
+            provider="",
+            subject="",
+            tg_user_id=0,
+            expires_at=now - timedelta(seconds=1),
+        )
+        active_oidc = UserOidcTokenUse.objects.create(
+            token_hash="b" * 64,
+            provider="",
+            subject="",
+            tg_user_id=0,
+            expires_at=now + timedelta(minutes=5),
+        )
+        BrowserLoginTokenUse.objects.create(
+            token_hash="c" * 64,
+            tg_user_id=0,
+            expires_at=now - timedelta(seconds=1),
+        )
+        active_browser = BrowserLoginTokenUse.objects.create(
+            token_hash="d" * 64,
+            tg_user_id=0,
+            expires_at=now + timedelta(minutes=5),
+        )
+
+        result = purge_expired_auth_token_uses(cutoff=now)
+
+        self.assertEqual(result, {"oidc": 1, "browser": 1})
+        self.assertEqual(list(UserOidcTokenUse.objects.values_list("token_hash", flat=True)), [active_oidc.token_hash])
+        self.assertEqual(
+            list(BrowserLoginTokenUse.objects.values_list("token_hash", flat=True)),
+            [active_browser.token_hash],
+        )

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Видалити акаунт Vydno — vydno.capital</title>
+  <meta
+    name="description"
+    content="Як самостійно видалити акаунт Vydno, фінансові дані, активні сесії та прив'язку автопродовження."
+  >
+  <link rel="canonical" href="https://vydno.capital/delete-account.html">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="index.html" aria-label="vydno.capital">
+        <span class="brand-mark" aria-hidden="true">
+          <img class="brand-icon" src="brand-icon.png" alt="">
+        </span>
+        <span class="brand-wordmark" aria-hidden="true">
+          <span class="brand-word brand-word-light">vydno</span><span class="brand-word brand-word-accent">.capital</span>
+        </span>
+      </a>
+      <button class="nav-toggle-button" type="button" aria-expanded="false" aria-controls="site-nav-menu" aria-label="Відкрити меню">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <nav class="site-nav" id="site-nav-menu" aria-label="Головна навігація">
+        <a href="index.html">Огляд</a>
+        <a href="privacy.html">Приватність</a>
+        <a href="offer.html">Умови</a>
+        <a href="contacts.html">Контакти</a>
+      </nav>
+      <a class="button button-primary header-cta" href="https://vydno.capital/app/?screen=settings&amp;account-deletion=1">
+        Відкрити налаштування
+      </a>
+    </header>
+
+    <main>
+      <section class="legal-hero section">
+        <p class="eyebrow">Керування даними</p>
+        <h1>Видалити акаунт Vydno</h1>
+        <p>
+          Ви можете самостійно й назавжди видалити акаунт без звернення до підтримки.
+          Для захисту фінансових даних потрібно увійти повторно та явно підтвердити дію.
+        </p>
+        <a class="button button-primary" href="https://vydno.capital/app/?screen=settings&amp;account-deletion=1">
+          Перейти до видалення акаунта
+        </a>
+      </section>
+
+      <section class="legal-card legal-rich section" aria-labelledby="deletion-steps-title">
+        <p class="eyebrow">Три кроки</p>
+        <h2 id="deletion-steps-title">Як видалити акаунт</h2>
+        <ol>
+          <li>Увійдіть у Vydno та відкрийте «Налаштування».</li>
+          <li>У блоці «Дані й акаунт» натисніть «Видалити акаунт».</li>
+          <li>Після повторної автентифікації прочитайте наслідки, введіть слово «ВИДАЛИТИ» й підтвердьте незворотну дію.</li>
+        </ol>
+        <p>
+          Якщо ви є власником спільного сімейного простору з іншими учасниками,
+          спочатку передайте власність або видаліть інших учасників. Це захищає їхні дані від випадкового видалення.
+        </p>
+      </section>
+
+      <section class="legal-card legal-rich section" aria-labelledby="deleted-data-title">
+        <p class="eyebrow">Обсяг запиту</p>
+        <h2 id="deleted-data-title">Що буде видалено</h2>
+        <ul>
+          <li>профіль, налаштування та пов'язані способи входу;</li>
+          <li>рахунки, транзакції, бюджети, цілі, борги, категорії та інші фінансові дані в Vydno;</li>
+          <li>активні browser/OIDC-сесії, одноразові login artifacts і push-підписки;</li>
+          <li>внутрішня funnel-телеметрія, платіжні consent snapshots та інший пов'язаний privacy graph.</li>
+        </ul>
+        <p>
+          Перед видаленням Vydno вимикає автопродовження та відв'язує збережений платіжний token у платіжного провайдера.
+          Якщо провайдер не підтвердить відв'язування, видалення не виконається й ви зможете повторити спробу.
+        </p>
+      </section>
+
+      <section class="legal-card legal-rich section" aria-labelledby="retained-data-title">
+        <p class="eyebrow">Межі видалення</p>
+        <h2 id="retained-data-title">Що може зберігатися поза Vydno</h2>
+        <p>
+          Банк, платіжний провайдер, Apple або Google можуть окремо зберігати записи про вже проведені платежі
+          відповідно до власної політики та вимог законодавства. Vydno не керує строками зберігання таких зовнішніх записів.
+        </p>
+        <p>
+          Після завершення Vydno зберігає лише технічний receipt із випадковим номером запиту без Telegram ID,
+          фінансових даних, IP-адреси чи user-agent. Криптографічні hashes уже використаних короткоживучих login tokens
+          можуть залишатися до завершення їх строку дії лише для блокування повторного використання.
+        </p>
+      </section>
+
+      <section class="legal-card legal-rich section" aria-labelledby="support-title">
+        <p class="eyebrow">Немає доступу до акаунта</p>
+        <h2 id="support-title">Запит через підтримку</h2>
+        <p>
+          Якщо ви не можете увійти, зверніться до
+          <a href="https://t.me/Askills_Support" target="_blank" rel="noopener noreferrer">Telegram support</a>.
+          Підтримка попросить безпечно підтвердити право на акаунт; не надсилайте паролі, коди входу або платіжні реквізити.
+        </p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>vydno.capital</strong>
+        <p>Прозорий облік особистих фінансів.</p>
+      </div>
+      <div class="footer-links">
+        <a href="privacy.html">Приватність</a>
+        <a href="offer.html">Умови</a>
+        <a href="contacts.html">Контакти</a>
+        <a href="delete-account.html" aria-current="page">Видалити акаунт</a>
+      </div>
+    </footer>
+  </div>
+  <script src="landing.js" defer></script>
+</body>
+</html>

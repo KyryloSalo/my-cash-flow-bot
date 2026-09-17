@@ -9,11 +9,17 @@ from django.utils import timezone
 
 from miniapp.models import AppNotification, NotificationPreference
 from miniapp.push import deliver_notification, emit_notification
+from miniapp.retention import purge_expired_auth_token_uses
 from subscriptions.models import Subscription
 from transactions.models import Debt
 
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(name="miniapp.purge_expired_auth_token_uses")
+def purge_expired_auth_token_uses_task() -> dict[str, int]:
+    return purge_expired_auth_token_uses()
 
 
 @shared_task(name="miniapp.dispatch_pending_pushes")

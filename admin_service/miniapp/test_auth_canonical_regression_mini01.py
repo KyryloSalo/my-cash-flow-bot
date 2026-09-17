@@ -94,6 +94,9 @@ class BrowserLoginCanonicalRegressionTests(SimpleTestCase):
         self.use_create = self.enterContext(
             patch.object(auth.BrowserLoginTokenUse.objects, "create", side_effect=self._consume_hash)
         )
+        self.session_create = self.enterContext(
+            patch.object(auth.UserAuthSession.objects, "create")
+        )
         self.token = auth.build_browser_login_token(900001, now=NOW, nonce=NONCE)
 
     def _lookup_user(self, *, tg_user_id: int) -> SimpleNamespace:

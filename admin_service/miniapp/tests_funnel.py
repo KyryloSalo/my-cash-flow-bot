@@ -149,7 +149,13 @@ class BillingConsentTermsTests(SimpleTestCase):
 class FunnelAuthLinkTests(SimpleTestCase):
     @patch("miniapp.funnel.record_server_event")
     @patch("miniapp.funnel.link_acquisition_session")
-    def test_login_session_links_server_verified_user(self, link_acquisition_session, _record_event) -> None:
+    @patch("miniapp.auth.UserAuthSession.objects.create")
+    def test_login_session_links_server_verified_user(
+        self,
+        _session_create,
+        link_acquisition_session,
+        _record_event,
+    ) -> None:
         request = SimpleNamespace(session=Session(), META={"HTTP_USER_AGENT": "Synthetic browser"})
         user = SimpleNamespace(tg_user_id=812345)
 
@@ -159,7 +165,13 @@ class FunnelAuthLinkTests(SimpleTestCase):
 
     @patch("miniapp.funnel.record_server_event")
     @patch("miniapp.funnel.link_acquisition_session")
-    def test_login_session_records_server_auth_success(self, link_acquisition_session, record_event) -> None:
+    @patch("miniapp.auth.UserAuthSession.objects.create")
+    def test_login_session_records_server_auth_success(
+        self,
+        _session_create,
+        link_acquisition_session,
+        record_event,
+    ) -> None:
         acquisition = SimpleNamespace(pk="0b387247-f643-4e4c-8e6f-55998c22be20")
         link_acquisition_session.return_value = acquisition
         request = SimpleNamespace(session=Session(), META={"HTTP_USER_AGENT": "Synthetic browser"})

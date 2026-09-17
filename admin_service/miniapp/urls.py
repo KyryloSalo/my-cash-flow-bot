@@ -1,6 +1,6 @@
 from django.urls import path
 
-from miniapp import funnel_views, views
+from miniapp import account_deletion_views, funnel_views, views
 
 
 urlpatterns = [
@@ -35,6 +35,16 @@ urlpatterns = [
     path("api/settings/profile", views.settings_profile, name="settings-profile"),
     path("api/settings/reminder", views.settings_reminder, name="settings-reminder"),
     path("api/settings/savings", views.settings_savings, name="settings-savings"),
+    path(
+        "api/account-deletion",
+        account_deletion_views.account_deletion_preflight,
+        name="account-deletion-preflight",
+    ),
+    path(
+        "api/account-deletion/confirm",
+        account_deletion_views.account_deletion_confirm,
+        name="account-deletion-confirm",
+    ),
     path("api/notifications", views.notification_status, name="notification-status"),
     path("api/notifications/subscribe", views.notification_subscribe, name="notification-subscribe"),
     path("api/notifications/unsubscribe", views.notification_unsubscribe, name="notification-unsubscribe"),

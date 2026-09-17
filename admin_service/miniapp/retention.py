@@ -3,8 +3,10 @@ from __future__ import annotations
 from datetime import datetime
 
 from django.db import transaction
+from django.utils import timezone
 
-from miniapp.models import AcquisitionSession, FunnelEvent
+from miniapp.models import AcquisitionSession, BrowserLoginTokenUse, FunnelEvent
+from users.models import UserOidcTokenUse
 
 
 def _delete_in_batches(queryset, *, batch_size: int) -> tuple[int, int]:
@@ -58,3 +60,10 @@ def purge_funnel_telemetry(
         "sessions": session_count,
         "batches": event_batches + session_batches,
     }
+
+
+def purge_expired_auth_token_uses(*, cutoff: datetime | None = None) -> dict[str, int]:
+    cutoff = cutoff or timezone.now()
+    oidc_deleted, _oidc_details = UserOidcTokenUse.objects.filter(expires_at__lte=cutoff).delete()
+    browser_deleted, _browser_details = BrowserLoginTokenUse.objects.filter(expires_at__lte=cutoff).delete()
+    return {"oidc": oidc_deleted, "browser": browser_deleted}

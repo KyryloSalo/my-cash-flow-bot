@@ -374,9 +374,14 @@ class MiniAppViewUnitTests(unittest.TestCase):
         request = self.factory.get("/app/login/token/?operator=1")
         request.session = FakeSession()
         fake_user = SimpleNamespace(tg_user_id=7884326049)
+        fake_identity = SimpleNamespace(issued_at=1_700_000_000)
 
         with (
-            patch.object(views, "consume_browser_login_token", return_value=fake_user),
+            patch.object(
+                views,
+                "consume_browser_login_token_with_identity",
+                return_value=(fake_user, fake_identity),
+            ),
             patch.object(views, "login_session"),
         ):
             response = views.browser_login(request, "token")
@@ -1347,9 +1352,14 @@ class MiniAppViewUnitTests(unittest.TestCase):
         request = self.factory.get("/app/login/raw-token/")
         request.session = FakeSession()
         fake_user = SimpleNamespace(tg_user_id=1001, first_name="Ihor", base_currency="UAH")
+        fake_identity = SimpleNamespace(issued_at=1_700_000_000)
 
         with (
-            patch.object(views, "consume_browser_login_token", return_value=fake_user) as consume_mock,
+            patch.object(
+                views,
+                "consume_browser_login_token_with_identity",
+                return_value=(fake_user, fake_identity),
+            ) as consume_mock,
             patch.object(views, "login_session") as login_mock,
         ):
             response = views.browser_login(request, "raw-token")
@@ -1362,13 +1372,18 @@ class MiniAppViewUnitTests(unittest.TestCase):
             fake_user,
             session_age_seconds=123456,
             auth_mode=auth.BROWSER_AUTH_MODE,
+            authenticated_at=fake_identity.issued_at,
         )
 
     def test_browser_login_view_returns_clear_error_for_invalid_link(self) -> None:
         request = self.factory.get("/app/login/raw-token/")
         request.session = FakeSession()
 
-        with patch.object(views, "consume_browser_login_token", side_effect=auth.MiniAppAuthError("Browser login link already used.")):
+        with patch.object(
+            views,
+            "consume_browser_login_token_with_identity",
+            side_effect=auth.MiniAppAuthError("Browser login link already used."),
+        ):
             response = views.browser_login(request, "raw-token")
 
         self.assertEqual(response.status_code, 400)
@@ -1381,7 +1396,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
     def test_browser_login_handoff_does_not_consume_token(self) -> None:
         request = self.factory.get("/app/browser-login/raw-token/")
 
-        with patch.object(views, "consume_browser_login_token") as consume_mock:
+        with patch.object(views, "consume_browser_login_token_with_identity") as consume_mock:
             response = views.browser_login_handoff(request, "raw-token")
 
         self.assertEqual(response.status_code, 200)
@@ -1406,8 +1421,13 @@ class MiniAppViewUnitTests(unittest.TestCase):
         login_request = self.factory.get("/app/login/raw-token/?install=1")
         login_request.session = FakeSession()
         fake_user = SimpleNamespace(tg_user_id=1001)
+        fake_identity = SimpleNamespace(issued_at=1_700_000_000)
         with (
-            patch.object(views, "consume_browser_login_token", return_value=fake_user),
+            patch.object(
+                views,
+                "consume_browser_login_token_with_identity",
+                return_value=(fake_user, fake_identity),
+            ),
             patch.object(views, "login_session"),
         ):
             response = views.browser_login(login_request, "raw-token")
@@ -1423,8 +1443,16 @@ class MiniAppViewUnitTests(unittest.TestCase):
     def test_service_worker_bypass_login_route_sets_persistent_browser_session(self) -> None:
         client = Client()
         fake_user = SimpleNamespace(tg_user_id=1001, first_name="Ihor", base_currency="UAH")
+        fake_identity = SimpleNamespace(issued_at=1_700_000_000)
 
-        with patch.object(views, "consume_browser_login_token", return_value=fake_user) as consume_mock:
+        with (
+            patch.object(
+                views,
+                "consume_browser_login_token_with_identity",
+                return_value=(fake_user, fake_identity),
+            ) as consume_mock,
+            patch.object(auth.UserAuthSession.objects, "create"),
+        ):
             response = client.get("/app/api/browser-login/raw-token/", secure=True)
 
         self.assertEqual(response.status_code, 302)

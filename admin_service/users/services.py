@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from django.conf import settings
 from django.db import connection, transaction
@@ -36,6 +37,16 @@ class ResetOnboardingError(Exception):
 
 class HardDeleteUserError(Exception):
     pass
+
+
+class SelfServiceAccountDeletionError(Exception):
+    def __init__(self, code: str, message: str, *, status: int = 409):
+        self.code = code
+        self.status = status
+        super().__init__(message)
+
+
+_SELF_SERVICE_DELETE_CAPABILITY = object()
 
 
 @dataclass(slots=True)
@@ -109,6 +120,8 @@ class HardDeleteStats:
     deleted_auth_identities: int = 0
     deleted_oidc_token_uses: int = 0
     deleted_browser_login_token_uses: int = 0
+    anonymized_oidc_token_uses: int = 0
+    anonymized_browser_login_token_uses: int = 0
     deleted_miniapp_write_receipts: int = 0
     deleted_miniapp_draft_actions: int = 0
     deleted_install_nudge_states: int = 0
@@ -167,6 +180,8 @@ class HardDeleteStats:
             "deleted_auth_identities": self.deleted_auth_identities,
             "deleted_oidc_token_uses": self.deleted_oidc_token_uses,
             "deleted_browser_login_token_uses": self.deleted_browser_login_token_uses,
+            "anonymized_oidc_token_uses": self.anonymized_oidc_token_uses,
+            "anonymized_browser_login_token_uses": self.anonymized_browser_login_token_uses,
             "deleted_miniapp_write_receipts": self.deleted_miniapp_write_receipts,
             "deleted_miniapp_draft_actions": self.deleted_miniapp_draft_actions,
             "deleted_install_nudge_states": self.deleted_install_nudge_states,
@@ -964,6 +979,18 @@ def _sql_placeholders(values: list[int]) -> tuple[str, list[int]]:
     return ", ".join(["%s"] * len(values)), list(values)
 
 
+def _lock_owned_family_ids(*, user_id: int, existing_tables: set[str]) -> list[int]:
+    if "families" not in existing_tables:
+        return []
+    quoted_table = connection.ops.quote_name("families")
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT id FROM {quoted_table} WHERE owner_user_id = %s ORDER BY id FOR UPDATE",
+            [user_id],
+        )
+        return [int(row[0]) for row in cursor.fetchall()]
+
+
 def _validate_hard_delete(*, user: TelegramUser, state: UserAdminState | None, admin_user, options: dict) -> None:
     require_service_action(admin_user, "test_cleanup", request=options.get("request"))
     if not options.get("reason"):
@@ -1284,6 +1311,89 @@ def reset_user_onboarding(
     }
 
 
+def validate_self_service_account_deletion(user_id: int) -> None:
+    with transaction.atomic():
+        user = TelegramUser.objects.select_for_update().filter(pk=user_id).first()
+        if user is None:
+            raise SelfServiceAccountDeletionError("account_not_found", "Account was not found.", status=404)
+        existing_tables = _existing_table_names()
+        columns_cache: dict[str, set[str]] = {}
+        owned_family_ids = _select_ids(
+            table_name="families",
+            column_name="id",
+            where_sql="owner_user_id = %s",
+            params=[user.tg_user_id],
+            existing_tables=existing_tables,
+        )
+        try:
+            _validate_family_delete_safety(
+                user=user,
+                owned_family_ids=owned_family_ids,
+                existing_tables=existing_tables,
+                cache=columns_cache,
+            )
+        except HardDeleteUserError as exc:
+            raise SelfServiceAccountDeletionError(
+                "family_members_must_be_removed",
+                "Remove other members from your family space before deleting the account.",
+            ) from exc
+
+
+def delete_own_account(*, user_id: int, request_id: str) -> dict:
+    try:
+        normalized_request_id = str(UUID(str(request_id)))
+    except (TypeError, ValueError) as exc:
+        raise SelfServiceAccountDeletionError(
+            "deletion_request_invalid",
+            "Account deletion request is invalid.",
+            status=400,
+        ) from exc
+
+    validate_self_service_account_deletion(user_id)
+    try:
+        from subscriptions.billing import revoke_billing_for_account_deletion
+        from subscriptions.monobank import MonobankAPIError
+
+        billing_result = revoke_billing_for_account_deletion(user_id=user_id)
+    except MonobankAPIError as exc:
+        raise SelfServiceAccountDeletionError(
+            "billing_unlink_failed",
+            "The saved payment method could not be unlinked. No account data was deleted.",
+            status=502,
+        ) from exc
+    except ValueError as exc:
+        raise SelfServiceAccountDeletionError(
+            "billing_unlink_failed",
+            "Billing could not be safely finalized before account deletion.",
+            status=409,
+        ) from exc
+
+    try:
+        result = hard_delete_user(
+            user_id,
+            admin_user=None,
+            reason="self_service_account_deletion",
+            options={
+                "_self_service_delete_capability": _SELF_SERVICE_DELETE_CAPABILITY,
+                "completion_audit": False,
+                "purge_audit_logs": True,
+                "self_service_request_id": normalized_request_id,
+                "billing_unlink_attempted": bool(billing_result.get("remote_delete_attempted")),
+            },
+        )
+    except HardDeleteUserError as exc:
+        raise SelfServiceAccountDeletionError(
+            "account_deletion_blocked",
+            "Account deletion could not be completed safely.",
+        ) from exc
+
+    return {
+        "status": "deleted",
+        "request_id": normalized_request_id,
+        "cleanup": result.get("cleanup", {}),
+    }
+
+
 def hard_delete_user(
     user_id: int,
     *,
@@ -1293,15 +1403,24 @@ def hard_delete_user(
 ) -> dict:
     options = dict(options or {})
     options["reason"] = reason
-    options["operator_tg_user_id"] = require_service_action(admin_user, "test_cleanup", request=options.get("request"))
-    require_non_operator_target(user_id)
+    self_service_delete = options.pop("_self_service_delete_capability", None) is _SELF_SERVICE_DELETE_CAPABILITY
+    if self_service_delete:
+        options["operator_tg_user_id"] = None
+    else:
+        options["operator_tg_user_id"] = require_service_action(
+            admin_user,
+            "test_cleanup",
+            request=options.get("request"),
+        )
+        require_non_operator_target(user_id)
 
     user = TelegramUser.objects.filter(pk=user_id).first()
     if user is None:
         raise HardDeleteUserError("User was not found.")
 
     state = UserAdminState.objects.filter(telegram_user_id=user.tg_user_id).first()
-    _validate_hard_delete(user=user, state=state, admin_user=admin_user, options=options)
+    if not self_service_delete:
+        _validate_hard_delete(user=user, state=state, admin_user=admin_user, options=options)
 
     snapshot_state = state if state is not None else UserAdminState(telegram_user_id=user.tg_user_id)
     before = _snapshot_user(user, snapshot_state)
@@ -1317,13 +1436,11 @@ def hard_delete_user(
         }
 
     with transaction.atomic():
+        user = TelegramUser.objects.select_for_update().get(pk=user_id)
         existing_tables = _existing_table_names()
         columns_cache: dict[str, set[str]] = {}
-        owned_family_ids = _select_ids(
-            table_name="families",
-            column_name="id",
-            where_sql="owner_user_id = %s",
-            params=[user.tg_user_id],
+        owned_family_ids = _lock_owned_family_ids(
+            user_id=user.tg_user_id,
             existing_tables=existing_tables,
         )
         _validate_family_delete_safety(
@@ -1332,6 +1449,26 @@ def hard_delete_user(
             existing_tables=existing_tables,
             cache=columns_cache,
         )
+
+        if self_service_delete:
+            stats.anonymized_oidc_token_uses = _update_rows(
+                table_name="user_oidc_token_uses",
+                set_sql="tg_user_id = 0, provider = '', subject = ''",
+                where_sql="tg_user_id = %s",
+                params=[user.tg_user_id],
+                existing_tables=existing_tables,
+                cache=columns_cache,
+                required_columns=("tg_user_id", "provider", "subject"),
+            )
+            stats.anonymized_browser_login_token_uses = _update_rows(
+                table_name="miniapp_browser_login_token_uses",
+                set_sql="tg_user_id = 0",
+                where_sql="tg_user_id = %s",
+                params=[user.tg_user_id],
+                existing_tables=existing_tables,
+                cache=columns_cache,
+                required_columns=("tg_user_id",),
+            )
 
         _delete_privacy_identity_rows(
             user_id=user.tg_user_id,
@@ -1650,25 +1787,42 @@ def hard_delete_user(
         if stats.deleted_user_rows != 1:
             raise HardDeleteUserError("Hard delete не зміг видалити рядок користувача з таблиці users.")
 
-        create_audit_log(
-            request=options.get("request"),
-            admin_user=admin_user,
-            action="telegram_user_hard_deleted",
-            object_type="telegram_user",
-            object_id=user.pk,
-            target_user_id=user.tg_user_id,
-            mode=(
-                f"hard_delete:miniapp_operator:{options.get('operator_tg_user_id')}"
-                if options.get("operator_tg_user_id")
-                else "hard_delete"
-            ),
-            reason=reason,
-            before={},
-            after={
-                "deleted": True,
-                "cleanup": stats.as_dict(),
-            },
-        )
+        if self_service_delete:
+            create_audit_log(
+                request=None,
+                admin_user=None,
+                action="account_self_deleted",
+                object_type="privacy_request",
+                object_id=options["self_service_request_id"],
+                target_user_id=None,
+                mode="self_service",
+                reason="user_initiated",
+                before={},
+                after={
+                    "deleted": True,
+                    "billing_unlink_attempted": bool(options.get("billing_unlink_attempted")),
+                },
+            )
+        elif options.get("completion_audit", True):
+            create_audit_log(
+                request=options.get("request"),
+                admin_user=admin_user,
+                action="telegram_user_hard_deleted",
+                object_type="telegram_user",
+                object_id=user.pk,
+                target_user_id=user.tg_user_id,
+                mode=(
+                    f"hard_delete:miniapp_operator:{options.get('operator_tg_user_id')}"
+                    if options.get("operator_tg_user_id")
+                    else "hard_delete"
+                ),
+                reason=reason,
+                before={},
+                after={
+                    "deleted": True,
+                    "cleanup": stats.as_dict(),
+                },
+            )
 
     return {
         "status": "success",

@@ -27,7 +27,7 @@ from miniapp.auth import (
     MiniAppSessionError,
     browser_session_age_seconds,
     build_browser_login_token,
-    consume_browser_login_token,
+    consume_browser_login_token_with_identity,
     dev_login_user,
     get_session_user,
     login_session,
@@ -617,6 +617,7 @@ def telegram_oidc_callback(request: HttpRequest) -> HttpResponse:
         session_age_seconds=browser_session_age_seconds(),
         auth_mode=TELEGRAM_OIDC_AUTH_MODE,
         identity=registration.identity,
+        authenticated_at=int(identity.claims.get("iat") or 0),
     )
     return redirect(pending.return_to)
 
@@ -743,7 +744,7 @@ def browser_login_handoff(request: HttpRequest, token: str) -> HttpResponse:
 @require_GET
 def browser_login(request: HttpRequest, token: str) -> HttpResponse:
     try:
-        user = consume_browser_login_token(token)
+        user, browser_identity = consume_browser_login_token_with_identity(token)
     except MiniAppAuthError as exc:
         return _browser_login_error_response(exc)
 
@@ -752,6 +753,7 @@ def browser_login(request: HttpRequest, token: str) -> HttpResponse:
         user,
         session_age_seconds=browser_session_age_seconds(),
         auth_mode=BROWSER_AUTH_MODE,
+        authenticated_at=browser_identity.issued_at,
     )
     if str(request.GET.get("operator") or "") == "1":
         if not is_operator_user(user):
@@ -816,7 +818,7 @@ def auth_telegram(request: HttpRequest) -> JsonResponse:
         )
 
     user = registration.user
-    login_session(request, user)
+    login_session(request, user, authenticated_at=identity.auth_date)
     access = resolve_access(user)
     return _json_ok(
         {

@@ -2673,6 +2673,45 @@ def retry_monobank_charge(*, user_id: int, intent_key: str = "") -> dict[str, An
 
 
 @transaction.atomic
+def revoke_billing_for_account_deletion(*, user_id: int) -> dict[str, Any]:
+    """Revoke a stored billing mandate before destructive account deletion.
+
+    Unlike the normal auto-renew cancellation path, provider failure propagates
+    and the transaction rolls back so the token remains available for retry.
+    """
+
+    user = TelegramUser.objects.select_for_update().filter(tg_user_id=user_id).first()
+    if user is None:
+        raise ValueError("User not found.")
+    profile = BillingProfile.objects.select_for_update().filter(user_id=user.tg_user_id).first()
+    if profile is None:
+        return {
+            "remote_delete_attempted": False,
+            "remote_delete_ok": True,
+            "remote_delete_response": {},
+        }
+
+    remote_response: dict[str, Any] = {}
+    token_was_present = bool(profile.card_token)
+    if token_was_present:
+        if profile.provider != MONO_PROVIDER:
+            raise ValueError("Unsupported billing provider for account deletion.")
+        remote_response = delete_wallet_card(profile.card_token)
+
+    _disable_auto_renew_for_profile(
+        user=user,
+        profile=profile,
+        remote_reason="account_deletion_billing_revoked",
+        delete_remote_token=False,
+    )
+    return {
+        "remote_delete_attempted": token_was_present,
+        "remote_delete_ok": True,
+        "remote_delete_response": sanitize_monobank_payload(remote_response),
+    }
+
+
+@transaction.atomic
 def cancel_auto_renew(*, user_id: int) -> BillingProfile:
     user = TelegramUser.objects.select_for_update().filter(tg_user_id=user_id).first()
     if user is None:
