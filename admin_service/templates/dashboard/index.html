@@ -398,6 +398,36 @@
     </article>
   </section>
 
+  <section class="dashboard-panel" aria-labelledby="pwa-funnel-title">
+    <div class="dashboard-panel-heading">
+      <div>
+        <h2 id="pwa-funnel-title">PWA-воронка залучення</h2>
+        <p>Унікальні acquisition sessions за first-party events. Суми, баланси, рахунки, карткові й provider-дані не збираються.</p>
+      </div>
+    </div>
+    {% if pwa_funnel.available %}
+      <p class="dashboard-kpi-detail">
+        Когорта: {{ pwa_funnel.cohort_sessions }} ·
+        Анонімні / некласифіковані: {{ pwa_funnel.anonymous_unclassified }} ·
+        Виключено internal/test: {{ pwa_funnel.excluded_internal }} ·
+        Виключено automation: {{ pwa_funnel.excluded_automation }}
+      </p>
+      <div class="dashboard-funnel">
+        {% for stage in pwa_funnel.stages %}
+          <div class="dashboard-funnel-row">
+            <div class="dashboard-funnel-meta">
+              <span>{{ stage.label }}</span>
+              <strong>{{ stage.value }} · {{ stage.overall_percent }}% від когорти · {{ stage.previous_percent }}% від попереднього</strong>
+            </div>
+            <div class="dashboard-funnel-track"><div class="dashboard-funnel-fill" style="width: {{ stage.overall_percent|unlocalize }}%"></div></div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="dashboard-error">{{ pwa_funnel.reason }}</p>
+    {% endif %}
+  </section>
+
   <section class="dashboard-layout">
     <article class="dashboard-panel">
       <div class="dashboard-panel-heading">

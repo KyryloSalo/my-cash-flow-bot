@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import uuid
 from datetime import time
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 
 from users.models import TelegramUser
@@ -258,6 +260,74 @@ class Payment(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user_id}: {self.status} {self.amount} {self.currency}"
+
+
+class BillingConsent(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        TelegramUser,
+        on_delete=models.CASCADE,
+        to_field="tg_user_id",
+        db_column="telegram_user_id",
+        related_name="billing_consents",
+    )
+    acquisition_session = models.ForeignKey(
+        "miniapp.AcquisitionSession",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="billing_consents",
+    )
+    payment = models.ForeignKey(
+        Payment,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="billing_consents",
+    )
+    idempotency_key = models.UUIDField()
+    offer_id = models.CharField(max_length=128)
+    offer_version = models.CharField(max_length=64)
+    bind_amount_minor = models.PositiveIntegerField()
+    currency = models.CharField(max_length=3)
+    trial_days = models.PositiveSmallIntegerField()
+    renewal_amount_minor = models.PositiveIntegerField()
+    renewal_period_days = models.PositiveSmallIntegerField()
+    renewal_anchor = models.CharField(max_length=32, default="payment_success")
+    first_renewal_at = models.DateTimeField(blank=True, null=True)
+    terms_version = models.CharField(max_length=64)
+    privacy_version = models.CharField(max_length=64)
+    copy_locale = models.CharField(max_length=8)
+    acquisition_snapshot = models.JSONField(default=dict, blank=True)
+    payload_hash = models.CharField(max_length=64)
+    accepted_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "billing_consents"
+        ordering = ("-accepted_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("user", "idempotency_key"),
+                name="billing_consent_user_key_unique",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(bind_amount_minor__gt=0)
+                    & models.Q(trial_days__gt=0)
+                    & models.Q(renewal_amount_minor__gt=0)
+                    & models.Q(renewal_period_days__gt=0)
+                ),
+                name="billing_consent_positive_terms",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("user", "accepted_at"), name="consent_user_time_idx"),
+            models.Index(fields=("payment", "accepted_at"), name="consent_payment_time_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id}:{self.offer_id}:{self.accepted_at:%Y-%m-%d %H:%M:%S}"
 
 
 class SubscriptionEvent(models.Model):

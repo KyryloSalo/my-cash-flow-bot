@@ -42,3 +42,73 @@ document.querySelectorAll(".site-header").forEach((header) => {
     }
   });
 });
+
+const FUNNEL_ATTRIBUTION_FIELDS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "referral_code",
+];
+
+const bootstrapFunnel = async () => {
+  const sourceParams = new URLSearchParams(window.location.search);
+  const attribution = new URLSearchParams({ landing_variant: "home-v1" });
+  FUNNEL_ATTRIBUTION_FIELDS.forEach((field) => {
+    const value = sourceParams.get(field);
+    if (value) {
+      attribution.set(field, value);
+    }
+  });
+  const response = await fetch(`/app/api/funnel/session?${attribution.toString()}`, {
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    return null;
+  }
+  return response.json();
+};
+
+const emitFunnelEvent = async (bootstrap, eventName, dimensions = {}, keepalive = false) => {
+  if (!bootstrap || !bootstrap.csrf_token) {
+    return;
+  }
+  await fetch("/app/api/funnel/event", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    keepalive,
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": bootstrap.csrf_token,
+    },
+    body: JSON.stringify({
+      event_name: eventName,
+      event_id: crypto.randomUUID(),
+      funnel_version: bootstrap.funnel_version || "pwa-v1",
+      landing_variant: bootstrap.landing_variant || "home-v1",
+      ...dimensions,
+    }),
+  });
+};
+
+const funnelBootstrap = bootstrapFunnel();
+
+funnelBootstrap
+  .then((bootstrap) => emitFunnelEvent(bootstrap, "landing_view"))
+  .catch(() => undefined);
+
+document.querySelectorAll("[data-funnel-cta]").forEach((link) => {
+  link.addEventListener("click", () => {
+    funnelBootstrap
+      .then((bootstrap) => emitFunnelEvent(
+        bootstrap,
+        "landing_primary_cta_click",
+        { placement: link.dataset.funnelCta || "unknown" },
+        true,
+      ))
+      .catch(() => undefined);
+  });
+});

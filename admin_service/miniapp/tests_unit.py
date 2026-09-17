@@ -488,7 +488,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
     def test_billing_bind_returns_user_specific_monobank_url(self) -> None:
         request = self.factory.post(
             "/app/api/settings/billing",
-            data=json.dumps({"action": "bind"}),
+            data=json.dumps({"action": "bind", "consent_id": "5e48ce86-24cc-4998-80a3-6e1f34fe81a9"}),
             content_type="application/json",
         )
         request.session = FakeSession()
@@ -498,7 +498,9 @@ class MiniAppViewUnitTests(unittest.TestCase):
         with (
             patch.object(views, "get_session_user", return_value=fake_user),
             patch.object(views, "resolve_access", return_value=access),
-            patch.object(views, "build_bind_invoice", return_value={"page_url": "https://pay.example/1001", "trial_days": 30, "trial_granted": True}) as bind_invoice,
+            patch.object(views, "get_billing_consent_for_user", return_value=object()),
+            patch.object(views, "attach_consent_to_payment_id") as attach_consent,
+            patch.object(views, "build_bind_invoice", return_value={"page_url": "https://pay.example/1001", "payment_id": 91, "trial_days": 30, "trial_granted": True}) as bind_invoice,
             patch.object(views, "_settings_payload", return_value={"user": {"tg_user_id": 1001}}),
         ):
             response = views.billing_action(request)
@@ -508,6 +510,11 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertEqual(payload["action"], "bind")
         self.assertEqual(payload["action_url"], "https://pay.example/1001")
         bind_invoice.assert_called_once_with(user_id=1001, trial_days=30, mode="bind", promo_code="")
+        attach_consent.assert_called_once_with(
+            consent_id="5e48ce86-24cc-4998-80a3-6e1f34fe81a9",
+            user=fake_user,
+            payment_id=91,
+        )
 
     def test_help_center_uses_canonical_bot_help_client_for_session_user(self) -> None:
         request = self.factory.get("/app/api/help", {"topic": "getting_started"})

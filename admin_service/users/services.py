@@ -105,6 +105,21 @@ class CleanupStats:
 @dataclass(slots=True)
 class HardDeleteStats:
     deleted_user_rows: int = 0
+    deleted_auth_sessions: int = 0
+    deleted_auth_identities: int = 0
+    deleted_oidc_token_uses: int = 0
+    deleted_browser_login_token_uses: int = 0
+    deleted_miniapp_write_receipts: int = 0
+    deleted_miniapp_draft_actions: int = 0
+    deleted_install_nudge_states: int = 0
+    deleted_push_deliveries: int = 0
+    deleted_web_push_subscriptions: int = 0
+    deleted_notification_preferences: int = 0
+    deleted_app_notifications: int = 0
+    deleted_daily_expense_reminder_settings: int = 0
+    deleted_funnel_events: int = 0
+    deleted_acquisition_sessions: int = 0
+    deleted_billing_consents: int = 0
     deleted_admin_states: int = 0
     deleted_admin_notes: int = 0
     deleted_user_tags: int = 0
@@ -148,6 +163,21 @@ class HardDeleteStats:
     def as_dict(self) -> dict[str, int]:
         return {
             "deleted_user_rows": self.deleted_user_rows,
+            "deleted_auth_sessions": self.deleted_auth_sessions,
+            "deleted_auth_identities": self.deleted_auth_identities,
+            "deleted_oidc_token_uses": self.deleted_oidc_token_uses,
+            "deleted_browser_login_token_uses": self.deleted_browser_login_token_uses,
+            "deleted_miniapp_write_receipts": self.deleted_miniapp_write_receipts,
+            "deleted_miniapp_draft_actions": self.deleted_miniapp_draft_actions,
+            "deleted_install_nudge_states": self.deleted_install_nudge_states,
+            "deleted_push_deliveries": self.deleted_push_deliveries,
+            "deleted_web_push_subscriptions": self.deleted_web_push_subscriptions,
+            "deleted_notification_preferences": self.deleted_notification_preferences,
+            "deleted_app_notifications": self.deleted_app_notifications,
+            "deleted_daily_expense_reminder_settings": self.deleted_daily_expense_reminder_settings,
+            "deleted_funnel_events": self.deleted_funnel_events,
+            "deleted_acquisition_sessions": self.deleted_acquisition_sessions,
+            "deleted_billing_consents": self.deleted_billing_consents,
             "deleted_admin_states": self.deleted_admin_states,
             "deleted_admin_notes": self.deleted_admin_notes,
             "deleted_user_tags": self.deleted_user_tags,
@@ -775,6 +805,120 @@ def _delete_rows(*, table_name: str, where_sql: str, params: list, existing_tabl
         return cursor.rowcount or 0
 
 
+def _delete_privacy_identity_rows(
+    *,
+    user_id: int,
+    stats: HardDeleteStats,
+    existing_tables: set[str],
+) -> None:
+    """Delete user-linked auth, PWA and acquisition rows in FK-safe order."""
+
+    params = [user_id]
+    stats.deleted_billing_consents = _delete_rows(
+        table_name="billing_consents",
+        where_sql="telegram_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+    stats.deleted_funnel_events = _delete_rows(
+        table_name="funnel_events",
+        where_sql=(
+            "acquisition_session_id IN "
+            "(SELECT id FROM acquisition_sessions WHERE telegram_user_id = %s)"
+        ),
+        params=params,
+        existing_tables=(existing_tables if "acquisition_sessions" in existing_tables else set()),
+    )
+    stats.deleted_acquisition_sessions = _delete_rows(
+        table_name="acquisition_sessions",
+        where_sql="telegram_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+
+    stats.deleted_auth_sessions = _delete_rows(
+        table_name="user_auth_sessions",
+        where_sql="telegram_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+    stats.deleted_auth_identities = _delete_rows(
+        table_name="user_auth_identities",
+        where_sql="telegram_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+    stats.deleted_oidc_token_uses = _delete_rows(
+        table_name="user_oidc_token_uses",
+        where_sql="tg_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+    stats.deleted_browser_login_token_uses = _delete_rows(
+        table_name="miniapp_browser_login_token_uses",
+        where_sql="tg_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+    stats.deleted_miniapp_write_receipts = _delete_rows(
+        table_name="miniapp_write_receipts",
+        where_sql="tg_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+    stats.deleted_miniapp_draft_actions = _delete_rows(
+        table_name="miniapp_draft_actions",
+        where_sql="tg_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+    stats.deleted_install_nudge_states = _delete_rows(
+        table_name="miniapp_install_nudge_states",
+        where_sql="tg_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+
+    push_tables = {
+        "miniapp_push_deliveries",
+        "miniapp_app_notifications",
+        "miniapp_web_push_subscriptions",
+    }
+    stats.deleted_push_deliveries = _delete_rows(
+        table_name="miniapp_push_deliveries",
+        where_sql=(
+            "notification_id IN (SELECT id FROM miniapp_app_notifications WHERE tg_user_id = %s) "
+            "OR subscription_id IN (SELECT id FROM miniapp_web_push_subscriptions WHERE tg_user_id = %s)"
+        ),
+        params=[user_id, user_id],
+        existing_tables=(existing_tables if push_tables.issubset(existing_tables) else set()),
+    )
+    stats.deleted_app_notifications = _delete_rows(
+        table_name="miniapp_app_notifications",
+        where_sql="tg_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+    stats.deleted_web_push_subscriptions = _delete_rows(
+        table_name="miniapp_web_push_subscriptions",
+        where_sql="tg_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+    stats.deleted_notification_preferences = _delete_rows(
+        table_name="miniapp_notification_preferences",
+        where_sql="tg_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+    stats.deleted_daily_expense_reminder_settings = _delete_rows(
+        table_name="daily_expense_reminder_settings",
+        where_sql="tg_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+
+
 def _update_rows(
     *,
     table_name: str,
@@ -1187,6 +1331,12 @@ def hard_delete_user(
             owned_family_ids=owned_family_ids,
             existing_tables=existing_tables,
             cache=columns_cache,
+        )
+
+        _delete_privacy_identity_rows(
+            user_id=user.tg_user_id,
+            stats=stats,
+            existing_tables=existing_tables,
         )
 
         stats.deleted_user_tags = _delete_rows(

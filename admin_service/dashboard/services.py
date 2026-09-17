@@ -16,6 +16,7 @@ from bot_events.models import BotEvent
 from broadcasts.models import BroadcastRecipient
 from common.admin_pages import can_use_test_tools
 from common.healthcheck import _check_redis, _check_telegram_api, _check_worker
+from dashboard.funnel import build_pwa_funnel_report
 from subscriptions.models import Payment, Subscription, TrialRecoveryRecipient
 from subscriptions.recovery_reporting import recovered_recipient_queryset
 from users.models import TelegramUser
@@ -519,6 +520,25 @@ def build_dashboard_context(request) -> dict:
     now = timezone.now()
     include_test_users = _include_test_users(request)
     period = _resolve_period(request, now)
+    try:
+        pwa_funnel = build_pwa_funnel_report(
+            start_at=period["start_at"],
+            end_at=period["end_at"],
+            include_test_users=include_test_users,
+        )
+    except Exception as exc:
+        logger.error("Optional PWA funnel read unavailable (%s)", type(exc).__name__)
+        pwa_funnel = {
+            "available": False,
+            "cohort_sessions": None,
+            "anonymous_unclassified": None,
+            "excluded_internal": None,
+            "excluded_automation": None,
+            "stages": [],
+            "reason": "Дані PWA-воронки недоступні; це не нуль.",
+        }
+    if pwa_funnel.get("available") is not False:
+        pwa_funnel = {**pwa_funnel, "available": True, "reason": ""}
 
     users_qs = _exclude_test_users(TelegramUser.objects.all(), prefix="", include_test_users=include_test_users)
     subscriptions_qs = _exclude_test_users(
@@ -922,6 +942,7 @@ def build_dashboard_context(request) -> dict:
         ],
         "user_segment_series": user_segment_series,
         "funnel_stages": funnel_stages,
+        "pwa_funnel": pwa_funnel,
         "subscription_distribution": subscription_distribution,
         "subscription_donut": subscription_donut,
         "subscription_total": total_users_count,

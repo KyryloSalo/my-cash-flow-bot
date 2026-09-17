@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from datetime import time
 
 from django.db import models
@@ -302,3 +303,89 @@ class AiTransactionDraft(models.Model):
 
     def __str__(self) -> str:
         return f"{self.tg_user_id}:{self.source}:{self.status}"
+
+
+class AcquisitionSession(models.Model):
+    class AutomationStatus(models.TextChoices):
+        UNKNOWN = "unknown", "Unknown"
+        VERIFIED_HUMAN = "verified_human", "Verified human"
+        AUTOMATED = "automated", "Automated"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        TelegramUser,
+        on_delete=models.SET_NULL,
+        to_field="tg_user_id",
+        db_column="telegram_user_id",
+        related_name="acquisition_sessions",
+        blank=True,
+        null=True,
+    )
+    funnel_version = models.CharField(max_length=32, default="pwa_v1")
+    first_landing_variant = models.CharField(max_length=64, blank=True, default="")
+    last_landing_variant = models.CharField(max_length=64, blank=True, default="")
+    utm_source = models.CharField(max_length=128, blank=True, default="")
+    utm_medium = models.CharField(max_length=128, blank=True, default="")
+    utm_campaign = models.CharField(max_length=128, blank=True, default="")
+    utm_content = models.CharField(max_length=128, blank=True, default="")
+    utm_term = models.CharField(max_length=128, blank=True, default="")
+    referral_code = models.CharField(max_length=128, blank=True, default="")
+    platform = models.CharField(max_length=16, blank=True, default="")
+    container = models.CharField(max_length=16, blank=True, default="")
+    device_class = models.CharField(max_length=16, blank=True, default="")
+    automation_status = models.CharField(
+        max_length=16,
+        choices=AutomationStatus.choices,
+        default=AutomationStatus.UNKNOWN,
+        db_index=True,
+    )
+    linked_at = models.DateTimeField(blank=True, null=True)
+    expires_at = models.DateTimeField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "acquisition_sessions"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=("user", "created_at"), name="acq_user_created_idx"),
+            models.Index(fields=("automation_status", "created_at"), name="acq_auto_created_idx"),
+        ]
+
+
+class FunnelEvent(models.Model):
+    class Source(models.TextChoices):
+        CLIENT = "client", "Client"
+        SERVER = "server", "Server"
+
+    acquisition_session = models.ForeignKey(
+        AcquisitionSession,
+        on_delete=models.CASCADE,
+        related_name="events",
+    )
+    event_name = models.CharField(max_length=64, db_index=True)
+    idempotency_key = models.CharField(max_length=160)
+    payload_hash = models.CharField(max_length=64)
+    source = models.CharField(max_length=16, choices=Source.choices)
+    funnel_version = models.CharField(max_length=32, blank=True, default="")
+    landing_variant = models.CharField(max_length=64, blank=True, default="")
+    offer_variant = models.CharField(max_length=64, blank=True, default="")
+    platform = models.CharField(max_length=16, blank=True, default="")
+    container = models.CharField(max_length=16, blank=True, default="")
+    outcome = models.CharField(max_length=64, blank=True, default="")
+    placement = models.CharField(max_length=64, blank=True, default="")
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "funnel_events"
+        ordering = ("recorded_at", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("acquisition_session", "idempotency_key"),
+                name="funnel_event_session_key_unique",
+            )
+        ]
+        indexes = [
+            models.Index(fields=("event_name", "recorded_at"), name="funnel_name_time_idx"),
+            models.Index(fields=("acquisition_session", "recorded_at"), name="funnel_session_time_idx"),
+        ]

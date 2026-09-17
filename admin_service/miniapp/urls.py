@@ -1,6 +1,6 @@
 from django.urls import path
 
-from miniapp import views
+from miniapp import funnel_views, views
 
 
 urlpatterns = [
@@ -17,6 +17,9 @@ urlpatterns = [
     path("api/auth/telegram", views.auth_telegram, name="auth-telegram"),
     path("api/auth/dev", views.auth_dev, name="auth-dev"),
     path("api/auth/logout", views.auth_logout, name="auth-logout"),
+    path("api/funnel/session", funnel_views.funnel_session, name="funnel-session"),
+    path("api/funnel/event", funnel_views.funnel_event, name="funnel-event"),
+    path("api/funnel/billing-consent", funnel_views.billing_consent, name="funnel-billing-consent"),
     path("api/profile", views.profile, name="profile"),
     path("api/operator/bootstrap", views.operator_bootstrap, name="operator-bootstrap"),
     path("api/operator/users/<int:tg_user_id>/", views.operator_user_detail, name="operator-user-detail"),

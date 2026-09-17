@@ -72,6 +72,7 @@
   data-settings-reminder-url="{% url 'miniapp:settings-reminder' %}"
   data-settings-savings-url="{% url 'miniapp:settings-savings' %}"
   data-billing-action-url="{% url 'miniapp:billing-action' %}"
+  data-billing-consent-url="{% url 'miniapp:funnel-billing-consent' %}"
   data-trial-recovery-event-url="{% url 'miniapp:trial-recovery-event' %}"
   data-install-nudge-url="{% url 'miniapp:install-nudge-status' %}"
   data-install-nudge-event-url="{% url 'miniapp:install-nudge-event' %}"
@@ -117,6 +118,10 @@
       <h2 id="cardBindingTitle">Прив’яжіть картку й активуйте доступ</h2>
       <p class="activation-lead" id="cardBindingMessage"></p>
       <ul class="activation-benefits" id="cardBindingBenefits"></ul>
+      <label class="settings-toggle billing-consent-toggle">
+        <input id="cardBindingConsentAccepted" type="checkbox">
+        <span id="cardBindingConsentTerms">Погоджуюсь з умовами списання та автоматичного поновлення.</span>
+      </label>
       <div class="activation-actions">
         <button class="primary-action" id="cardBindingPrimary" type="button">Прив’язати картку</button>
         <button class="ghost-action" id="cardBindingLater" type="button">Не зараз</button>
@@ -1332,6 +1337,10 @@
               </div>
             </div>
             <p class="tx-meta" id="settingsBillingMessage"></p>
+            <label class="settings-toggle billing-consent-toggle">
+              <input id="billingConsentAccepted" type="checkbox">
+              <span id="billingConsentTerms">Погоджуюсь з умовами списання та автоматичного поновлення.</span>
+            </label>
             <div class="settings-action-row">
               <button class="primary-action" id="billingBindBtn" type="button">Manage payment</button>
               <button class="secondary-action" id="billingContinueBtn" type="button" hidden>Open Monobank</button>
@@ -1509,6 +1518,7 @@
       const settingsReminderUrl = root.dataset.settingsReminderUrl;
       const settingsSavingsUrl = root.dataset.settingsSavingsUrl;
       const billingActionUrl = root.dataset.billingActionUrl;
+      const billingConsentUrl = root.dataset.billingConsentUrl;
       const trialRecoveryEventUrl = root.dataset.trialRecoveryEventUrl;
       const installNudgeUrl = root.dataset.installNudgeUrl;
       const installNudgeEventUrl = root.dataset.installNudgeEventUrl;
@@ -2691,10 +2701,23 @@
         return Number(value || 0);
       }
 
+      function cookieValue(name) {
+        const prefix = String(name || "") + "=";
+        const match = String(document.cookie || "").split(";").map(function (part) {
+          return part.trim();
+        }).find(function (part) {
+          return part.startsWith(prefix);
+        });
+        return match ? decodeURIComponent(match.slice(prefix.length)) : "";
+      }
+
       function postJson(url, payload) {
+        const headers = { "Content-Type": "application/json" };
+        const csrfToken = cookieValue("csrftoken");
+        if (csrfToken) headers["X-CSRFToken"] = csrfToken;
         return fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: headers,
           credentials: "same-origin",
           body: JSON.stringify(payload || {})
         }).then(function (response) {
@@ -3338,7 +3361,16 @@
         if (window.crypto && typeof window.crypto.randomUUID === "function") {
           return window.crypto.randomUUID();
         }
-        return String(Date.now()) + "-" + Math.random().toString(36).slice(2);
+        const bytes = new Uint8Array(16);
+        if (window.crypto && typeof window.crypto.getRandomValues === "function") {
+          window.crypto.getRandomValues(bytes);
+        } else {
+          for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+        }
+        bytes[6] = (bytes[6] & 15) | 64;
+        bytes[8] = (bytes[8] & 63) | 128;
+        const hex = Array.from(bytes).map(function (value) { return value.toString(16).padStart(2, "0"); }).join("");
+        return hex.slice(0, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16) + "-" + hex.slice(16, 20) + "-" + hex.slice(20);
       }
 
       function optionText(label, extra) {
@@ -6783,6 +6815,8 @@
           savingsTarget: document.getElementById("settingsSavingsTarget"),
           savingsStatus: document.getElementById("settingsSavingsStatus"),
           billingStatus: document.getElementById("settingsBillingStatusMessage"),
+          billingConsentAccepted: document.getElementById("billingConsentAccepted"),
+          billingConsentTerms: document.getElementById("billingConsentTerms"),
           billingBind: document.getElementById("billingBindBtn"),
           billingContinue: document.getElementById("billingContinueBtn"),
           billingRetry: document.getElementById("billingRetryBtn"),
@@ -6865,6 +6899,19 @@
         return copy.blocked;
       }
 
+      function billingConsentText(access) {
+        const trialDays = Number(access.promo_trial_days || access.trial_days || 30);
+        const bindAmount = access.bind_amount_label || "1 грн";
+        const monthlyPrice = access.monthly_price_label || "499 грн";
+        const renewalDays = Number(access.renewal_period_days || 30);
+        if (activeLocale === "en") {
+          return "I agree to a " + bindAmount + " card verification charge now, " + String(trialDays) +
+            " days of access, and automatic renewal at " + monthlyPrice + " every " + String(renewalDays) + " days.";
+        }
+        return "Погоджуюсь на списання " + bindAmount + " зараз для перевірки картки, " + String(trialDays) +
+          " днів доступу та автоматичне поновлення за " + monthlyPrice + " кожні " + String(renewalDays) + " днів.";
+      }
+
       function renderSettings(payload) {
         if (!payload) return;
         const data = payload.settings || payload;
@@ -6938,6 +6985,7 @@
         replaceSettingsOptions(el.savingsTarget, targetOptions, savings.default_target_account_id || "");
 
         const access = data.access || {};
+        if (el.billingConsentTerms) el.billingConsentTerms.textContent = billingConsentText(access);
         setText("settingsBillingStatus", billingStatusLabel(access, copy));
         setText("settingsBillingCard", access.has_card ? (access.masked_pan || access.card_status_label || copy.active) : copy.noCard);
         const renewalDate = access.next_charge_at || access.expires_at;
@@ -6946,7 +6994,7 @@
         if (el.billingBind) {
           el.billingBind.textContent = access.recommended_action === "resume_subscription" ? copy.restore : (access.has_card ? copy.rebind : copy.bind);
           el.billingBind.hidden = false;
-          el.billingBind.disabled = settingsState.busy;
+          el.billingBind.disabled = settingsState.busy || !el.billingConsentAccepted || !el.billingConsentAccepted.checked;
         }
         if (el.billingContinue) {
           el.billingContinue.hidden = !access.last_action_url;
@@ -7118,13 +7166,36 @@
         window.location.assign(target);
       }
 
+      function createBillingConsent() {
+        return postJson(billingConsentUrl, {
+          accepted: true,
+          idempotency_key: makeIdempotencyKey(),
+          copy_locale: activeLocale
+        });
+      }
+
       function runBillingAction(action) {
         const el = settingsElements();
+        if (action === "bind" && (!el.billingConsentAccepted || !el.billingConsentAccepted.checked)) {
+          setSettingsStatus(
+            el.billingStatus,
+            activeLocale === "en" ? "Accept the billing terms before opening checkout." : "Підтвердьте умови оплати перед переходом до Monobank.",
+            "error"
+          );
+          return Promise.resolve(null);
+        }
         settingsState.busy = true;
         renderSettings(settingsState.data || {});
         setSettingsStatus(el.billingStatus, "", "");
-        return postJson(billingActionUrl, { action: action }).then(function (payload) {
+        const consentRequest = action === "bind" ? createBillingConsent() : Promise.resolve(null);
+        return consentRequest.then(function (consentPayload) {
+          const requestPayload = action === "bind"
+            ? { action: action, consent_id: consentPayload.consent_id }
+            : { action: action };
+          return postJson(billingActionUrl, requestPayload);
+        }).then(function (payload) {
           settingsState.busy = false;
+          if (action === "bind" && el.billingConsentAccepted) el.billingConsentAccepted.checked = false;
           renderSettings(payload.settings || settingsState.data);
           const copy = settingsCopy();
           if (payload.action_url) {
@@ -7260,6 +7331,10 @@
             });
           });
         }
+        if (el.billingConsentAccepted) el.billingConsentAccepted.addEventListener("change", function () {
+          renderSettings(settingsState.data || {});
+          setSettingsStatus(el.billingStatus, "", "");
+        });
         if (el.billingBind) el.billingBind.addEventListener("click", function () { runBillingAction("bind"); });
         if (el.billingContinue) el.billingContinue.addEventListener("click", function () {
           const access = settingsState.data && settingsState.data.access ? settingsState.data.access : {};
@@ -7431,6 +7506,7 @@
       }
 
       let currentCardBindingTrialDays = 0;
+      let cardBindingRequestBusy = false;
 
       function recordTrialRecoveryEvent(eventName) {
         if (currentCardBindingTrialDays !== 90 || !trialRecoveryEventUrl) return Promise.resolve(null);
@@ -7450,6 +7526,12 @@
         const bindAmount = access.bind_amount_label || "1 грн";
         const monthlyPrice = access.monthly_price_label || "499 грн";
         const renewalDays = Number(access.renewal_period_days || 30);
+        const consentAccepted = document.getElementById("cardBindingConsentAccepted");
+        const primary = document.getElementById("cardBindingPrimary");
+        if (consentAccepted) consentAccepted.checked = false;
+        if (primary) primary.disabled = true;
+        cardBindingRequestBusy = false;
+        setText("cardBindingConsentTerms", billingConsentText(access));
         if (activeLocale === "en") {
           setText("cardBindingEyebrow", "One last step");
           setText("cardBindingTitle", "Link a card and activate access");
@@ -7466,7 +7548,7 @@
           setText("cardBindingLater", "Не зараз");
         }
         setCardBindingStatus("", "");
-        openAccessibleModal(modal, hideCardBindingNudge, "cardBindingLater", function () { return !document.getElementById("cardBindingPrimary").disabled; });
+        openAccessibleModal(modal, hideCardBindingNudge, "cardBindingLater", function () { return !cardBindingRequestBusy; });
         activationModalOpen = true;
         recordTrialRecoveryEvent("shown");
         return true;
@@ -7474,15 +7556,28 @@
 
       function startCardBindingFromNudge() {
         const primary = document.getElementById("cardBindingPrimary");
+        const consentAccepted = document.getElementById("cardBindingConsentAccepted");
+        if (!consentAccepted || !consentAccepted.checked) {
+          setCardBindingStatus(
+            activeLocale === "en" ? "Accept the billing terms before opening checkout." : "Підтвердьте умови оплати перед переходом до Monobank.",
+            "error"
+          );
+          return;
+        }
+        cardBindingRequestBusy = true;
         if (primary) primary.disabled = true;
         setCardBindingStatus("", "");
         recordTrialRecoveryEvent("bind_started");
-        postJson(billingActionUrl, { action: "bind" }).then(function (payload) {
-          settingsState.busy = false;
+        createBillingConsent().then(function (consentPayload) {
+          return postJson(billingActionUrl, { action: "bind", consent_id: consentPayload.consent_id });
+        }).then(function (payload) {
+          cardBindingRequestBusy = false;
+          consentAccepted.checked = false;
           renderSettings(payload.settings || settingsState.data || {});
           hideCardBindingNudge();
           if (payload.action_url) openBillingUrl(payload.action_url);
         }).catch(function (payload) {
+          cardBindingRequestBusy = false;
           if (primary) primary.disabled = false;
           const error = payload && payload.error ? payload.error : {};
           setCardBindingStatus(error.message || tr("errorText"), "error");
@@ -7551,10 +7646,15 @@
       function setupActivationNudges() {
         const cardPrimary = document.getElementById("cardBindingPrimary");
         const cardLater = document.getElementById("cardBindingLater");
+        const cardConsentAccepted = document.getElementById("cardBindingConsentAccepted");
         const installPrimary = document.getElementById("installNudgePrimary");
         const installConfirmed = document.getElementById("installNudgeConfirmed");
         const installLater = document.getElementById("installNudgeLater");
         if (cardPrimary) cardPrimary.addEventListener("click", startCardBindingFromNudge);
+        if (cardConsentAccepted) cardConsentAccepted.addEventListener("change", function () {
+          if (cardPrimary) cardPrimary.disabled = !cardConsentAccepted.checked;
+          setCardBindingStatus("", "");
+        });
         if (cardLater) cardLater.addEventListener("click", function () {
           recordTrialRecoveryEvent("dismissed");
           hideCardBindingNudge();

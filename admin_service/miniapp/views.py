@@ -17,7 +17,7 @@ from django.templatetags.static import static
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from miniapp.auth import (
@@ -48,6 +48,7 @@ from miniapp.family import (
     remove_family_member,
     revoke_family_invite,
 )
+from miniapp.funnel import FunnelValidationError, record_request_server_event
 from miniapp.savings_tasks import (
     MiniAppSavingTaskError,
     build_saving_task_draft,
@@ -149,6 +150,7 @@ from miniapp.operator_hub import (
     update_operator_user_status,
 )
 from subscriptions.billing import BILLING_BOT_URL, build_bind_invoice, build_recovery_invoice, cancel_auto_renew, retry_monobank_charge
+from subscriptions.consent import attach_consent_to_payment_id, get_billing_consent_for_user
 from subscriptions.monobank import MonobankAPIError
 from subscriptions.trial_recovery import record_trial_offer_event
 from users.models import TelegramUser, UserAdminState, UserAuthIdentity
@@ -311,6 +313,7 @@ def _ui_message(locale: str, uk_text: str, en_text: str) -> str:
 
 
 @never_cache
+@ensure_csrf_cookie
 @require_GET
 def index(request: HttpRequest) -> HttpResponse:
     response = render(
@@ -1560,6 +1563,12 @@ def onboarding_confirm(request: HttpRequest) -> JsonResponse:
     drafts[draft_id] = entry
     _save_session_drafts(request, ONBOARDING_DRAFTS_SESSION_KEY, drafts)
     _install_nudge_state(user)
+    record_request_server_event(
+        request,
+        user=user,
+        event_name="onboarding_confirmed",
+        idempotency_key=f"onboarding:{draft_id}",
+    )
     return _json_ok({"ok": True, "idempotent": idempotent, "result": commit_result})
 
 
@@ -1718,9 +1727,16 @@ def billing_action(request: HttpRequest) -> JsonResponse:
         return result
     payload = _read_json(request)
     action = str(payload.get("action") or "").strip().lower()
+    consent_id = str(payload.get("consent_id") or "").strip()
     access = resolve_access(result)
     try:
         if action == "bind":
+            if not consent_id:
+                raise FunnelValidationError(
+                    "billing_consent_required",
+                    "Accept the current billing terms before opening checkout.",
+                )
+            get_billing_consent_for_user(consent_id=consent_id, user=result)
             if _billing_recovery_checkout_needed(access):
                 invoice = build_recovery_invoice(user_id=result.tg_user_id)
                 action_name = "recovery"
@@ -1733,6 +1749,11 @@ def billing_action(request: HttpRequest) -> JsonResponse:
                     promo_code=str(access.get("promo_code") or ""),
                 )
                 action_name = mode
+            attach_consent_to_payment_id(
+                consent_id=consent_id,
+                user=result,
+                payment_id=int(invoice["payment_id"]),
+            )
             response: dict[str, object] = {
                 "action": action_name,
                 "action_url": str(invoice.get("page_url") or ""),
@@ -1760,6 +1781,10 @@ def billing_action(request: HttpRequest) -> JsonResponse:
             }
         else:
             raise MiniAppTransactionError("invalid_billing_action", "Unsupported billing action.")
+    except FunnelValidationError as exc:
+        return _transaction_error_response(
+            MiniAppTransactionError(exc.code, str(exc), status=exc.status)
+        )
     except MiniAppTransactionError as exc:
         return _transaction_error_response(exc)
     except (MonobankAPIError, ValueError) as exc:
@@ -2036,6 +2061,12 @@ def transaction_confirm(request: HttpRequest) -> JsonResponse:
     drafts[draft_id] = entry
     _save_session_transaction_drafts(request, drafts)
     batch_payload = _commit_ai_image_batch_item(request, batch_context)
+    record_request_server_event(
+        request,
+        user=user,
+        event_name="first_transaction_confirmed",
+        idempotency_key=f"first_transaction:{user.tg_user_id}",
+    )
     return _json_ok({"ok": True, "idempotent": idempotent, "result": result, "batch": batch_payload})
 
 

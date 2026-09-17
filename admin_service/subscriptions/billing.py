@@ -17,6 +17,7 @@ from django.utils import timezone
 
 from common.telegram import send_telegram_message
 from miniapp.push import emit_notification
+from subscriptions.consent import finalize_paid_consent
 from subscriptions.models import BillingProfile, Payment, PromoOffer, PromoOfferClaim, Subscription, SubscriptionEvent
 from subscriptions.monobank import (
     MonobankAPIError,
@@ -1406,6 +1407,10 @@ def _handle_bind_success(payment: Payment, payload: dict[str, Any], *, apply_eff
     from subscriptions.trial_recovery import mark_trial_recovery_converted
 
     mark_trial_recovery_converted(payment.user_id)
+    finalize_paid_consent(
+        payment=payment,
+        first_renewal_at=getattr(subscription, "next_charge_at", None),
+    )
     if trial_granted and subscription is not None:
         support_note = ""
         if failure_reason:

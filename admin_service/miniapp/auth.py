@@ -5,6 +5,7 @@ import binascii
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 import time
 from dataclasses import dataclass
@@ -18,6 +19,8 @@ from django.utils import timezone
 
 from miniapp.models import BrowserLoginTokenUse
 from users.models import TelegramUser, UserAuthIdentity, UserAuthSession
+
+logger = logging.getLogger(__name__)
 
 SESSION_USER_ID_KEY = "miniapp_tg_user_id"
 SESSION_AUTH_AT_KEY = "miniapp_auth_at"
@@ -245,6 +248,19 @@ def login_session(
     if str(request.session.get(SESSION_USER_ID_KEY) or "") != str(user.tg_user_id):
         _clear_miniapp_session(request)
     request.session.cycle_key()
+    from miniapp.funnel import link_acquisition_session, record_server_event
+
+    try:
+        acquisition = link_acquisition_session(request, user=user)
+        if acquisition is not None:
+            record_server_event(
+                acquisition=acquisition,
+                user=user,
+                event_name="auth_success",
+                idempotency_key=f"auth_success:{user.tg_user_id}",
+            )
+    except Exception as exc:
+        logger.warning("Acquisition telemetry unavailable during login (%s)", type(exc).__name__)
     request.session[SESSION_USER_ID_KEY] = int(user.tg_user_id)
     request.session[SESSION_AUTH_AT_KEY] = int(time.time())
     request.session[SESSION_AUTH_MODE_KEY] = auth_mode
