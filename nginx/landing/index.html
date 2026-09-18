@@ -3,395 +3,457 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>vydno.capital — особисті фінанси у Mini App та PWA</title>
-  <meta
-    name="description"
-    content="vydno.capital допомагає вести особисті фінанси в Telegram: витрати, доходи, рахунки, борги, заощадження, інвестиції, голосові записи й скріншоти."
-  >
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-  <link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css">
+  <title>Vydno — особисті та сімейні фінанси без зайвої рутини</title>
+  <meta name="description" content="Vydno допомагає швидко додавати витрати голосом, текстом або зі скріншота, бачити всі рахунки, борги, цілі й сімейні фінанси в одній PWA.">
+  <meta name="theme-color" content="#f2f6ef">
+  <link rel="canonical" href="https://vydno.capital/">
+  <link rel="icon" type="image/png" href="/pwa-v2/assets/favicon-32.png">
+  <link rel="stylesheet" href="/pwa-v2/product.css">
 </head>
-<body class="page-home">
-  <div class="page-shell">
-    <header class="site-header">
-      <a class="brand" href="index.html" aria-label="vydno.capital">
-        <span class="brand-mark" aria-hidden="true">
-          <img class="brand-icon" src="brand-icon.png" alt="">
-        </span>
-        <span class="brand-wordmark" aria-hidden="true">
-          <span class="brand-word brand-word-light">vydno</span><span class="brand-word brand-word-accent">.capital</span>
-        </span>
+<body>
+  <a class="skip-link" href="#main">До основного вмісту</a>
+
+  <header class="site-header" data-site-header>
+    <div class="shell header-inner">
+      <a class="brand" href="#top" aria-label="Vydno — на початок сторінки">
+        <img class="brand-icon" src="/pwa-v2/assets/brand-icon.png" alt="">
+        <span class="brand-name"><strong>vydno</strong><span>.capital</span></span>
       </a>
-      <button class="nav-toggle-button" type="button" aria-expanded="false" aria-controls="site-nav-menu" aria-label="Відкрити меню">
-        <span></span>
-        <span></span>
-        <span></span>
+
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle>
+        <span class="sr-only">Відкрити меню</span>
+        <i></i><i></i><i></i>
       </button>
-      <nav class="site-nav" id="site-nav-menu" aria-label="Головна навігація">
-        <a href="#overview">Огляд</a>
-        <a href="#how">Як це працює</a>
+
+      <nav class="site-nav" id="site-nav" aria-label="Основна навігація" data-site-nav>
+        <a href="#how">Як працює</a>
         <a href="#features">Можливості</a>
+        <a href="#family">Для сім’ї</a>
         <a href="#pricing">Ціна</a>
-        <a href="privacy.html">Приватність</a>
+        <a href="#faq">Питання</a>
       </nav>
-      <a class="button button-primary header-cta" data-funnel-cta="header" href="https://t.me/vydnocapital_bot" target="_blank" rel="noopener noreferrer">
-        Почати за 1 грн
+
+      <a class="button button-small button-primary header-cta" data-funnel-cta="header" href="https://vydno.capital/app/auth/telegram/start?next=/app/">
+        Спробувати за 1 грн
       </a>
-    </header>
+    </div>
+    <div class="scroll-progress" aria-hidden="true"><i data-scroll-progress></i></div>
+  </header>
 
-    <main>
-      <section class="hero section">
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="shell hero-grid">
         <div class="hero-copy">
-          <p class="eyebrow">vydno.capital</p>
-          <h1>Ваші гроші нарешті складаються в зрозумілу картину.</h1>
+          <p class="eyebrow"><span></span> Особисті та сімейні фінанси</p>
+          <h1>Фінанси під контролем. Без щоденної бухгалтерії.</h1>
           <p class="hero-lead">
-            Mini App для особистих фінансів: рахунки, витрати, доходи, борги та цілі в одному просторі. Telegram — точка входу; налаштування й щоденний облік відбуваються у застосунку. За бажанням додайте вебверсію на головний екран як PWA.
+            Додавайте витрати голосом, текстом або зі скріншота. Vydno збере рахунки,
+            борги, цілі й сімейний бюджет в одну зрозумілу картину.
           </p>
+
           <div class="hero-actions">
-            <a class="button button-primary" data-funnel-cta="hero" href="https://t.me/vydnocapital_bot" target="_blank" rel="noopener noreferrer">
-              Почати за 1 грн
+            <a class="button button-primary" data-funnel-cta="hero" href="https://vydno.capital/app/auth/telegram/start?next=/app/">
+              Спробувати 30 днів за 1 грн
+              <svg aria-hidden="true" viewBox="0 0 20 20"><path d="M4 10h11m-4-4 4 4-4 4"/></svg>
             </a>
-            <a class="button button-secondary" href="#how">
-              Подивитися як це працює
+            <a class="button button-secondary" href="/pwa-v2/quiz/index.html">
+              Перевірити, чи підійде мені
             </a>
           </div>
-          <ul class="hero-points">
-            <li>Зараз прив’язка картки та перша оплата 1 грн</li>
-            <li>Далі 499 грн кожні 30 днів після 30 або 90 днів</li>
-            <li>Голос, скріншоти, борги, цілі й звіти в одному місці</li>
-          </ul>
-        </div>
 
-        <div class="hero-visual" aria-hidden="true">
-          <div class="hero-stage">
-            <div class="floating-card floating-card-top">
-              <span class="mini-label">Швидкий запис</span>
-              <strong>Чернетка → перевірка → підтвердження</strong>
-              <p>Текстом, голосом або зі скріншота.</p>
-            </div>
+          <p class="offer-note">
+            1 грн зараз · потім 499 грн кожні 30 днів · автопродовження можна вимкнути
+          </p>
 
-            <div class="phone-mock phone-mock-main">
-              <div class="phone-top">
-                <span class="phone-avatar">VC</span>
-                <div class="phone-meta">
-                  <span class="phone-title">@vydnocapital_bot</span>
-                  <span class="phone-subtitle">приклад чат-вводу, не скріншот Mini App</span>
-                </div>
-              </div>
-              <div class="chat-flow">
-                <div class="phone-date-chip">Сьогодні</div>
-                <div class="bubble bubble-user">
-                  Продукти 1240
-                  <span class="bubble-time">18:42</span>
-                </div>
-                <div class="bubble bubble-bot">
-                  <strong>Чернетка готова</strong>
-                  <span>Витрата 1 240 грн</span>
-                  <span>Категорія: Продукти</span>
-                  <span>Рахунок: Mono</span>
-                  <span class="bubble-time">18:42</span>
-                </div>
-                <div class="telegram-keyboard">
-                  <span>Зберегти</span>
-                  <span>Змінити</span>
-                </div>
-                <div class="telegram-media-card">
-                  <span class="telegram-media-pill">Скріншот оплати</span>
-                  <p>mono • 540 грн • супермаркет</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="floating-card floating-card-bottom">
-              <span class="mini-label">Фінансова ціль</span>
-              <strong>Подушка безпеки: 62%</strong>
-              <p>Бачите прогрес і не губите довші плани серед щоденних витрат.</p>
-            </div>
+          <div class="hero-proof" aria-label="Ключові переваги">
+            <span><i aria-hidden="true">✓</i> Нічого не записується без підтвердження</span>
+            <span><i aria-hidden="true">✓</i> Українська мова</span>
+            <span><i aria-hidden="true">✓</i> Працює як застосунок на телефоні</span>
           </div>
         </div>
-      </section>
 
-      <section id="overview" class="section stat-strip">
-        <article class="stat-card">
-          <span class="stat-label">Telegram-first</span>
-          <strong>Mini App у Telegram або браузері</strong>
-          <p>Для браузера отримайте одноразове посилання в боті. Встановлення PWA необов’язкове; push залежить від браузера та вашого дозволу.</p>
-        </article>
-        <article class="stat-card">
-          <span class="stat-label">Повна картина</span>
-          <strong>Рахунки, борги, інвестиції</strong>
-          <p>Не тільки витрати, а вся структура ваших особистих грошей.</p>
-        </article>
-        <article class="stat-card">
-          <span class="stat-label">Швидкий старт</span>
-          <strong>Старт і перевірка картки - 1 грн</strong>
-          <p>Починаєте без довгого входу і перевіряєте сервіс у реальному житті.</p>
-        </article>
-      </section>
+        <figure class="hero-product" aria-label="Огляд фінансів у Vydno">
+          <div class="hero-screen-shell">
+            <img src="/pwa-v2/assets/product-ui/overview.png" width="780" height="1688" alt="Екран огляду Vydno з балансом, рахунками, витратами та нижньою навігацією">
+          </div>
+        </figure>
+      </div>
+    </section>
 
-      <section class="section split-overview">
-        <div class="overview-copy">
-          <p class="eyebrow">Have perfect control</p>
-          <h2>Усе, що важливо для ваших грошей, у одному огляді.</h2>
+    <section class="trust-strip" aria-label="Факти, яким можна довіряти">
+      <div class="shell trust-grid">
+        <div><strong>4 способи</strong><span>додати операцію</span></div>
+        <div><strong>Одна картина</strong><span>рахунки, борги, цілі</span></div>
+        <div><strong>XLSX + CSV</strong><span>ваші дані можна експортувати</span></div>
+        <div><strong>Без прихованого запису</strong><span>тільки після підтвердження</span></div>
+      </div>
+    </section>
+
+    <section class="section problem-section">
+      <div class="shell problem-grid">
+        <div class="section-copy">
+          <p class="eyebrow"><span></span> Не про силу волі</p>
+          <h2>Облік зривається, коли кожен запис стає окремою задачею.</h2>
           <p>
-            Сильна сторона good-looking personal finance продуктів у тому, що вони не
-            просто дають записати транзакцію, а збирають з неї зрозумілу фінансову картину.
+            Удень — картка, готівка, переказ, підписка. Увечері — десяток дрібних платежів,
+            які вже не хочеться згадувати. Vydno скорочує шлях від «потім внесу» до готової чернетки.
           </p>
           <ul class="check-list">
-            <li>Рахунки та баланс без ручного зведення в нотатках</li>
-            <li>Борги, які не губляться серед щоденних витрат</li>
-            <li>Заощадження й інвестиції, які не губляться в загальній картині</li>
+            <li>Скажіть витрату одним реченням.</li>
+            <li>Напишіть її звичайною мовою.</li>
+            <li>Завантажте скріншот однієї оплати або виписки.</li>
+            <li>Перевірте результат і лише тоді підтвердьте.</li>
           </ul>
         </div>
-      </section>
 
-      <section id="how" class="section">
-        <div class="section-heading">
-          <p class="eyebrow">How it works</p>
-          <h2>Три короткі кроки до регулярного фінансового ритму.</h2>
+        <figure class="product-evidence product-evidence-add">
+          <div class="product-screen-crop">
+            <img src="/pwa-v2/assets/product-ui/add.png" width="780" height="1688" alt="Екран додавання запису у Vydno з голосовим, текстовим, ручним вводом і завантаженням скріншота">
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section demo-section" id="how">
+      <div class="shell">
+        <div class="section-heading center-heading">
+          <p class="eyebrow"><span></span> Подивіться продукт</p>
+          <h2>Від думки до зрозумілого запису — три короткі кроки.</h2>
+          <p>Оберіть зручний спосіб введення, перевірте запис і одразу побачте оновлену картину фінансів.</p>
         </div>
 
-        <div class="steps-layout">
-          <article class="step-showcase">
-            <div class="step-copy">
-              <span class="step-index">Крок 1</span>
-              <h3>Налаштуйте Mini App і додайте перший запис</h3>
-              <ul class="step-list">
-                <li>Відкрийте бота → Mini App. Оберіть мову, базову валюту, дату початку та рахунки</li>
-                <li>На екрані «Додати» введіть операцію вручну, текстом, голосом або зі скріншота</li>
-                <li>Перевірте суму, рахунок і категорію; лише потім підтвердьте запис</li>
-              </ul>
-            </div>
-            <div class="step-visual step-visual-capture" aria-hidden="true">
-              <div class="capture-card">
-                <span class="capture-badge">Голосовий ввід</span>
-                <div class="voice-row">
-                  <span class="voice-mic"></span>
-                  <div class="voice-wave">
-                    <i></i><i></i><i></i><i></i><i></i><i></i>
-                  </div>
-                  <span class="voice-time">0:08</span>
-                </div>
-                <p>"Кава 120 і таксі 280"</p>
-              </div>
-              <div class="capture-card">
-                <span class="capture-badge">Розпізнавання скріншотів</span>
-                <div class="scan-row">
-                  <div class="scan-thumb"></div>
-                  <div class="scan-copy">
-                    <strong>mono • 540 грн</strong>
-                    <span>категорія: продукти</span>
-                  </div>
-                </div>
-                <div class="capture-confirm">
-                  <span>Зберегти</span>
-                  <span>Змінити</span>
-                </div>
-              </div>
-            </div>
-          </article>
+        <div class="product-tour" data-product-demo>
+          <div class="tour-rail" role="group" aria-label="Екрани Vydno">
+            <button class="tour-tab is-active" type="button" aria-pressed="true" data-product-screen="add" data-product-src="/pwa-v2/assets/product-ui/add.png" data-product-alt="Екран швидкого додавання запису" data-product-title="Додайте операцію так, як зручно зараз." data-product-text="Голос, текст, скріншот або ручна форма живуть на одному екрані. Перед записом застосунок формує чернетку для перевірки.">
+              <span>01</span><strong>Додати</strong><small>Голос · текст · скріншот</small>
+            </button>
+            <button class="tour-tab" type="button" aria-pressed="false" data-product-screen="overview" data-product-src="/pwa-v2/assets/product-ui/overview.png" data-product-alt="Екран фінансового огляду" data-product-title="Побачте загальну картину без зведення вручну." data-product-text="Баланс, активи, борги, витрати та останні операції зібрані в одному огляді, але не змішані між собою.">
+              <span>02</span><strong>Побачити</strong><small>Баланс · рахунки · рух</small>
+            </button>
+            <button class="tour-tab" type="button" aria-pressed="false" data-product-screen="analytics" data-product-src="/pwa-v2/assets/product-ui/analytics.png" data-product-alt="Екран фінансової аналітики" data-product-title="Зрозумійте, куди рухаються гроші." data-product-text="Доходи, витрати, чистий потік і категорії показані за обраний період. Без окремої таблиці наприкінці місяця.">
+              <span>03</span><strong>Зрозуміти</strong><small>Динаміка · категорії · період</small>
+            </button>
+          </div>
 
-          <article class="step-showcase">
-            <div class="step-copy">
-              <span class="step-index">Крок 2</span>
-              <h3>Побачте свої фінансові звички</h3>
-              <ul class="step-list">
-                <li>Дивіться, куди реально йдуть гроші</li>
-                <li>Відділяйте повсякденні витрати від боргів і цілей</li>
-                <li>Формуйте нормальну картину без ручних Excel-таблиць</li>
-              </ul>
+          <figure class="tour-stage">
+            <div class="tour-screen">
+              <img data-tour-image src="/pwa-v2/assets/product-ui/add.png" width="780" height="1688" alt="Екран швидкого додавання запису">
             </div>
-            <div class="step-visual step-visual-bars" aria-hidden="true">
-              <div class="bar-card">
-                <span>Продукти</span>
-                <div class="bar-track"><i style="width: 62%"></i></div>
-              </div>
-              <div class="bar-card">
-                <span>Транспорт</span>
-                <div class="bar-track"><i style="width: 38%"></i></div>
-              </div>
-              <div class="bar-card">
-                <span>Кафе</span>
-                <div class="bar-track"><i style="width: 24%"></i></div>
-              </div>
-            </div>
-          </article>
+          </figure>
 
-          <article class="step-showcase">
-            <div class="step-copy">
-              <span class="step-index">Крок 3</span>
-              <h3>Зробіть фінанси спокійнішими</h3>
-              <ul class="step-list">
-                <li>Тримайте під контролем рахунки, борги й накопичення</li>
-                <li>Повертайтеся до однієї зрозумілої системи щодня</li>
-                <li>Рухайтеся від хаосу до дисципліни без зайвого шуму</li>
-              </ul>
-            </div>
-            <div class="step-visual step-visual-report" aria-hidden="true">
-              <div class="report-columns">
-                <div class="report-column">
-                  <span class="report-bar report-bar-income" style="--bar-height: 164px"></span>
-                  <strong>Доходи</strong>
-                </div>
-                <div class="report-column">
-                  <span class="report-bar report-bar-expense" style="--bar-height: 112px"></span>
-                  <strong>Витрати</strong>
-                </div>
-                <div class="report-column">
-                  <span class="report-bar report-bar-savings" style="--bar-height: 88px"></span>
-                  <strong>Заощадження</strong>
-                </div>
-              </div>
-              <p class="report-caption">Стовпчиковий звіт, який швидко показує баланс між доходами, витратами й відкладеними грошима.</p>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section id="features" class="section">
-        <div class="section-heading">
-          <p class="eyebrow">Features people come for</p>
-          <h2>Функції, заради яких сервіс реально відкривають щодня.</h2>
-        </div>
-
-        <div class="feature-grid">
-          <article class="feature-card">
-            <span class="feature-icon">01</span>
-            <h3>Витрати та доходи</h3>
-            <p>Швидкий базовий облік без складного старту.</p>
-          </article>
-          <article class="feature-card">
-            <span class="feature-icon">02</span>
-            <h3>Рахунки</h3>
-            <p>Картки, готівка та окремі баланси в одному просторі.</p>
-          </article>
-          <article class="feature-card">
-            <span class="feature-icon">03</span>
-            <h3>Борги</h3>
-            <p>Зрозумілий облік “хто кому винен” без ручних костилів.</p>
-          </article>
-          <article class="feature-card">
-            <span class="feature-icon">04</span>
-            <h3>Заощадження</h3>
-            <p>Накопичення і фінансові цілі видно окремо від рутини.</p>
-          </article>
-          <article class="feature-card">
-            <span class="feature-icon">05</span>
-            <h3>Інвестиції</h3>
-            <p>Поточна вартість інвестиційних рахунків. Дохідність портфеля не розраховується.</p>
-          </article>
-          <article class="feature-card">
-            <span class="feature-icon">06</span>
-            <h3>Голосовий ввід</h3>
-            <p>Голос у Mini App або Telegram готує чернетку для вашої перевірки.</p>
-          </article>
-          <article class="feature-card">
-            <span class="feature-icon">07</span>
-            <h3>Розпізнавання скріншотів</h3>
-            <p>Бот витягує суть платежу зі скріншота і дає вам підтвердити.</p>
-          </article>
-          <article class="feature-card">
-            <span class="feature-icon">08</span>
-            <h3>Звіти</h3>
-            <p>Експорт XLSX або CSV з екрана «Аналітика».</p>
-          </article>
-        </div>
-      </section>
-
-      <section id="pricing" class="section pricing-section">
-        <div class="pricing-card pricing-card-highlight">
-          <p class="eyebrow">One plan</p>
-          <h2>Один тариф. Один зрозумілий старт.</h2>
-          <p class="price-line">
-            Почніть за <strong>1 грн</strong>
-          </p>
-          <p class="pricing-subline">
-            Далі 499 грн кожні 30 днів після 30 або 90 днів
-          </p>
-          <ul class="inline-list pricing-list">
-            <li>Telegram-first сценарій</li>
-            <li>Голос і скріншоти</li>
-            <li>Рахунки, борги, цілі</li>
-            <li>Фінансовий огляд і звіти</li>
-          </ul>
-          <div class="pricing-actions">
-            <a class="button button-primary" data-funnel-cta="pricing" href="https://t.me/vydnocapital_bot" target="_blank" rel="noopener noreferrer">
-              Почати за 1 грн
-            </a>
-            <a class="button button-secondary" href="offer.html">
-              Умови користування
-            </a>
+          <div class="tour-copy">
+            <p class="tour-step" data-tour-step>Крок 1 з 3</p>
+            <h3 data-tour-title>Додайте операцію так, як зручно зараз.</h3>
+            <p data-tour-text>Голос, текст, скріншот або ручна форма живуть на одному екрані. Перед записом застосунок формує чернетку для перевірки.</p>
+            <button class="tour-next" type="button" data-tour-next>Наступний екран <span aria-hidden="true">→</span></button>
+            <p class="demo-message" role="status" aria-live="polite" data-demo-message>Записи створюються лише після окремого підтвердження.</p>
           </div>
         </div>
-      </section>
 
-      <section id="faq" class="section faq-section">
-        <div class="section-heading">
-          <p class="eyebrow">FAQ</p>
-          <h2>Короткі відповіді перед стартом.</h2>
+        <div class="section-cta">
+          <a class="button button-primary" data-funnel-cta="after-demo" href="https://vydno.capital/app/auth/telegram/start?next=/app/">Спробувати на своїх фінансах</a>
+          <span>Перші 30 днів — 1 грн</span>
         </div>
-        <div class="faq-list">
-          <details class="faq-item">
-            <summary>Це окремий застосунок чи бот у Telegram?</summary>
-            <p>Telegram відкриває Mini App: Огляд, Гроші, Додати, Аналітика, Статус і Налаштування. Тут проходять початкове налаштування та щоденна робота. Вебверсію можна за бажанням додати на головний екран як PWA; чат-ввід у боті також доступний.</p>
-          </details>
-          <details class="faq-item">
-            <summary>Що саме я зможу вести?</summary>
-            <p>Витрати, доходи, рахунки, борги, заощадження, інвестиції та звіти по своїх фінансах.</p>
-          </details>
-          <details class="faq-item">
-            <summary>Чи можна не вводити все руками?</summary>
-            <p>Так. Бот підтримує голосове введення і розпізнавання скріншотів оплат, після чого показує чернетку перед записом.</p>
-          </details>
-          <details class="faq-item">
-            <summary>Скільки це коштує?</summary>
-            <p>Зараз ви оплачуєте 1 грн для прив’язки картки. Основне списання 499 грн кожні 30 днів стартує через 30 або 90 днів залежно від сценарію.</p>
-          </details>
-          <details class="faq-item">
-            <summary>Що з приватністю?</summary>
-            <p>Окремий публічний документ із принципами приватності доступний на <a href="privacy.html">сторінці приватності</a>.</p>
-          </details>
-        </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="section final-cta">
-        <div class="final-cta-card final-cta-card-bright">
-          <p class="eyebrow">Start now</p>
-          <h2>Зайдіть у бота і наведіть лад у власних грошах.</h2>
+    <section class="section outcomes-section">
+      <div class="shell">
+        <div class="section-heading split-heading">
+          <div>
+            <p class="eyebrow"><span></span> Не просто список витрат</p>
+            <h2>Vydno показує не окремі платежі, а ваш фінансовий контекст.</h2>
+          </div>
+          <p>Щоденні записи перетворюються на огляд, з яким легше приймати звичайні рішення: скільки витратити, що відкласти і де пригальмувати.</p>
+        </div>
+
+        <div class="outcome-grid">
+          <article class="outcome-card outcome-large">
+            <div class="outcome-copy">
+              <span class="card-kicker">01 · Побачити</span>
+              <h3>Усі рахунки й рух грошей — в одному огляді.</h3>
+              <p>Банківські картки, готівка, заощадження, кредитні рахунки та інвестиції не змішуються, але складаються в одну картину.</p>
+            </div>
+            <figure class="outcome-screen outcome-screen-wide">
+              <img src="/pwa-v2/assets/product-ui/status.png" width="780" height="1688" alt="Екран статусу з активами, боргами та фінансовими підсумками">
+              <figcaption>Статус активів і зобов’язань</figcaption>
+            </figure>
+          </article>
+
+          <article class="outcome-card">
+            <span class="card-kicker">02 · Зрозуміти</span>
+            <h3>Категорії та динаміка без ручних таблиць.</h3>
+            <figure class="outcome-screen outcome-screen-analytics">
+              <img src="/pwa-v2/assets/product-ui/analytics.png" width="780" height="1688" alt="Екран аналітики Vydno з доходами, витратами та категоріями">
+              <figcaption>Аналітика за обраний період</figcaption>
+            </figure>
+          </article>
+
+          <article class="outcome-card">
+            <span class="card-kicker">03 · Планувати</span>
+            <h3>Борги, цілі й накопичення не губляться в рутині.</h3>
+            <figure class="outcome-screen outcome-screen-money">
+              <img src="/pwa-v2/assets/product-ui/money.png" width="780" height="1688" alt="Екран керування рахунками та фінансовими цілями у Vydno">
+              <figcaption>Рахунки, цілі та внутрішні перекази</figcaption>
+            </figure>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section features-section" id="features">
+      <div class="shell">
+        <div class="section-heading center-heading compact-heading">
+          <p class="eyebrow"><span></span> Уся система</p>
+          <h2>Коли фінансове життя складніше за баланс однієї картки.</h2>
+          <p>Vydno не під’єднується до банку автоматично. Натомість дає швидкий контроль над тим, що не видно в одному банківському застосунку.</p>
+        </div>
+
+        <div class="feature-map">
+          <article class="feature-group">
+            <div class="feature-group-icon mint-icon" aria-hidden="true">＋</div>
+            <div>
+              <span class="card-kicker">Додати швидко</span>
+              <h3>Менше ручних полів</h3>
+              <ul>
+                <li>Голосове введення до 20 секунд</li>
+                <li>Текст звичайною мовою</li>
+                <li>Один платіж або виписка зі скріншота</li>
+                <li>Ручний ввід доходу чи витрати</li>
+                <li>Чернетка перед кожним записом</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="feature-group">
+            <div class="feature-group-icon navy-icon" aria-hidden="true">₴</div>
+            <div>
+              <span class="card-kicker">Організувати гроші</span>
+              <h3>Рахунки й рух коштів</h3>
+              <ul>
+                <li>Картки, готівка, заощадження та депозити</li>
+                <li>Кредитні й інвестиційні рахунки</li>
+                <li>UAH, USD, EUR, TRY, USDT та custom currencies</li>
+                <li>Внутрішні перекази й ручний FX-курс</li>
+                <li>Корекція балансу з історією змін</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="feature-group">
+            <div class="feature-group-icon lime-icon" aria-hidden="true">↗</div>
+            <div>
+              <span class="card-kicker">Побачити картину</span>
+              <h3>Аналітика й історія</h3>
+              <ul>
+                <li>Доходи, витрати та чистий потік за період</li>
+                <li>Категорії та динаміка</li>
+                <li>Історія з контрольованим редагуванням</li>
+                <li>Експорт XLSX та CSV</li>
+                <li>Web Push і вхідні нагадування за бажанням</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="feature-group">
+            <div class="feature-group-icon coral-icon" aria-hidden="true">◎</div>
+            <div>
+              <span class="card-kicker">Думати довше</span>
+              <h3>Цілі, борги та сім’я</h3>
+              <ul>
+                <li>Особисті й сімейні борги</li>
+                <li>Накопичення та фінансові цілі</li>
+                <li>Поточна вартість інвестицій</li>
+                <li>Спільний сімейний простір</li>
+                <li>Запрошення та керування учасниками</li>
+              </ul>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section family-section" id="family">
+      <div class="shell family-grid">
+        <figure class="family-visual" aria-label="Сімейний фінансовий простір у Vydno">
+          <div class="family-screen">
+            <img src="/pwa-v2/assets/product-ui/family.png" width="780" height="1688" alt="Екран створення сімейного бюджету або приєднання за кодом у Vydno">
+          </div>
+          <figcaption><strong>Сімейний простір у Vydno</strong><span>Створення та приєднання — тільки після вашої дії.</span></figcaption>
+        </figure>
+
+        <div class="section-copy family-copy">
+          <p class="eyebrow"><span></span> Для пари та сім’ї</p>
+          <h2>Менше здогадок. Одна спільна картина грошей.</h2>
           <p>
-            Світлий фінансовий простір Mini App: перевіряйте рахунки в «Гроші», операції — в «Аналітика», доступ і оплату — в «Налаштування».
+            Коли покупки роблять двоє, а цілі спільні, окремі банківські історії не дають повної відповіді.
+            Сімейний простір допомагає бачити загальні рахунки, витрати, борги та прогрес.
           </p>
-          <div class="hero-actions">
-            <a class="button button-primary" data-funnel-cta="final" href="https://t.me/vydnocapital_bot" target="_blank" rel="noopener noreferrer">
-              Почати за 1 грн
-            </a>
-            <a class="button button-secondary" href="contacts.html">
-              Написати в підтримку
-            </a>
+          <div class="family-points">
+            <article><strong>Спільно</strong><span>Додавайте й переглядайте операції в одному фінансовому просторі.</span></article>
+            <article><strong>Прозоро</strong><span>Запрошення, вихід і видалення учасника керуються окремо.</span></article>
+            <article><strong>Без примусу</strong><span>Сімейний режим вмикається тільки після явного підтвердження.</span></article>
           </div>
         </div>
-      </section>
-    </main>
+      </div>
+    </section>
 
-    <footer class="site-footer">
+    <section class="section fit-section">
+      <div class="shell fit-card">
+        <div>
+          <p class="eyebrow light-eyebrow"><span></span> Чесна перевірка</p>
+          <h2>Не впевнені, що вам потрібен окремий фінансовий застосунок?</h2>
+          <p>Дайте відповіді на 10 нативних питань. Без телефону, email і прив’язки до акаунта. Результат підкаже, чи достатньо вам банківського огляду, чи Vydno справді зніме рутину.</p>
+        </div>
+        <div class="fit-action">
+          <span class="fit-time">≈ 2 хвилини</span>
+          <a class="button button-on-dark" href="/pwa-v2/quiz/index.html">Перевірити, чи підійде Vydno</a>
+          <small>Відповіді залишаються у вашому браузері</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="section pricing-section" id="pricing">
+      <div class="shell pricing-grid">
+        <div class="pricing-copy">
+          <p class="eyebrow"><span></span> Простий тариф</p>
+          <h2>Місяць, щоб перевірити Vydno у реальному житті.</h2>
+          <p>Без урізаної демоверсії. Налаштуйте свої рахунки, додайте операції різними способами й подивіться, чи стає фінансова картина зрозумілішою.</p>
+          <ol class="price-timeline">
+            <li><span>Сьогодні</span><strong>1 грн</strong><small>прив’язка картки та активація</small></li>
+            <li><span>Наступні 30 днів</span><strong>Повний доступ</strong><small>усі основні функції Vydno</small></li>
+            <li><span>Після пробного періоду</span><strong>499 грн</strong><small>кожні 30 днів, якщо не вимкнути автопродовження</small></li>
+          </ol>
+        </div>
+
+        <article class="price-card">
+          <span class="price-badge">Перші 30 днів</span>
+          <div class="price-value"><strong>1</strong><span>грн</span></div>
+          <p>Потім 499 грн кожні 30 днів</p>
+          <ul>
+            <li>Особистий і сімейний простір</li>
+            <li>Голос, текст і скріншоти</li>
+            <li>Рахунки, борги, цілі, інвестиції</li>
+            <li>Аналітика, XLSX і CSV</li>
+            <li>Web Push за вашим дозволом</li>
+          </ul>
+          <a class="button button-primary button-full" data-funnel-cta="pricing" href="https://vydno.capital/app/auth/telegram/start?next=/app/">Активувати 30 днів за 1 грн</a>
+          <small>Перед переходом до Monobank ви побачите точну дату наступного списання й окремо підтвердите умови.</small>
+        </article>
+      </div>
+    </section>
+
+    <section class="section trust-section">
+      <div class="shell">
+        <div class="section-heading split-heading">
+          <div>
+            <p class="eyebrow"><span></span> Контроль залишається у вас</p>
+            <h2>Фінансовий сервіс має пояснювати не тільки можливості, а й межі.</h2>
+          </div>
+          <p>Ми не називаємо Vydno банком і не ховаємо фінансові дії за автоматикою. Користувач бачить, що саме буде записано, і сам підтверджує дію.</p>
+        </div>
+
+        <div class="trust-cards">
+          <article><span aria-hidden="true">01</span><h3>Перевірка перед записом</h3><p>Голос, текст і скріншот створюють чернетку. Фінансовий запис з’являється тільки після вашого підтвердження.</p></article>
+          <article><span aria-hidden="true">02</span><h3>Без продажу фінансових даних</h3><p>Фінансова історія не передається рекламним мережам і не використовується для персоналізованої реклами.</p></article>
+          <article><span aria-hidden="true">03</span><h3>Експорт і видалення</h3><p>Дані можна вивантажити в XLSX/CSV, а акаунт — самостійно видалити через Налаштування.</p></article>
+          <article><span aria-hidden="true">04</span><h3>Зрозуміла підписка</h3><p>Автопродовження вимикається в Налаштуваннях. Це зупиняє майбутні списання, але не повертає вже сплачені кошти автоматично.</p></article>
+        </div>
+
+        <div class="trust-links">
+          <a href="https://vydno.capital/privacy.html">Прочитати про приватність <span>↗</span></a>
+          <a href="https://vydno.capital/offer.html">Переглянути умови <span>↗</span></a>
+          <a href="https://vydno.capital/delete-account.html">Як видалити акаунт <span>↗</span></a>
+          <a href="https://t.me/Askills_Support">Написати в підтримку <span>↗</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section faq-section" id="faq">
+      <div class="shell faq-grid">
+        <div class="faq-intro">
+          <p class="eyebrow"><span></span> Коротко перед стартом</p>
+          <h2>Питання, які варто поставити до оплати.</h2>
+          <p>Якщо вашого питання немає, напишіть у <a href="https://t.me/Askills_Support">підтримку</a>.</p>
+        </div>
+
+        <div class="faq-list">
+          <details>
+            <summary>Чи під’єднується Vydno до мого банку автоматично?<span>＋</span></summary>
+            <p>Ні. Vydno не обіцяє автоматичний bank sync. Ви додаєте операції вручну, текстом, голосом або зі скріншота й перевіряєте кожну чернетку перед записом.</p>
+          </details>
+          <details>
+            <summary>Чи потрібно відкривати чат із Telegram-ботом?<span>＋</span></summary>
+            <p>Для основного web/PWA-входу використовується Telegram OIDC: Telegram підтверджує вашу особу, але обов’язково відкривати чат із ботом не потрібно. Бот залишається fallback-каналом.</p>
+          </details>
+          <details>
+            <summary>Що відбудеться після перших 30 днів?<span>＋</span></summary>
+            <p>Якщо автопродовження активне, підписка продовжиться за 499 грн кожні 30 днів. Точну дату наступного списання застосунок показує до підтвердження оплати.</p>
+          </details>
+          <details>
+            <summary>Як вимкнути автопродовження?<span>＋</span></summary>
+            <p>Відкрийте Vydno → Налаштування → Підписка та оплата, оберіть вимкнення й підтвердьте дію. Нових планових списань не буде; чинний доступ збережеться до показаної дати завершення.</p>
+          </details>
+          <details>
+            <summary>Що відбувається з голосом і скріншотами?<span>＋</span></summary>
+            <p>Окремий файл може передаватися технічному AI-сервісу для розпізнавання без повної фінансової історії та профілю користувача. Сирі файли не мають зберігатися довше, ніж потрібно для обробки.</p>
+          </details>
+          <details>
+            <summary>Кому Vydno може бути зайвим?<span>＋</span></summary>
+            <p>Якщо у вас один рахунок, майже немає готівки, боргів чи фінансових цілей і достатньо огляду в банківському застосунку, окремий сервіс може не дати достатньої цінності. Пройдіть коротку перевірку fit без контактних даних.</p>
+          </details>
+          <details>
+            <summary>Чи можна вести фінанси разом?<span>＋</span></summary>
+            <p>Так. Сімейний простір дозволяє запросити учасника й вести спільні дані. Перехід у сімейний режим і керування учасниками потребують окремого підтвердження.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="final-section">
+      <div class="shell final-card">
+        <div>
+          <p class="eyebrow light-eyebrow"><span></span> Почніть із реальних фінансів</p>
+          <h2>Не будуйте ідеальну систему. Зробіть перший зрозумілий запис.</h2>
+        </div>
+        <div class="final-action">
+          <a class="button button-on-dark" data-funnel-cta="final" href="https://vydno.capital/app/auth/telegram/start?next=/app/">Спробувати 30 днів за 1 грн</a>
+          <span>Далі 499 грн кожні 30 днів · скасування в Налаштуваннях</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-grid">
       <div>
-        <strong>vydno.capital</strong>
-        <p>Особисті фінанси у Mini App та PWA. Вхід через Telegram.</p>
+        <a class="brand footer-brand" href="#top" aria-label="Vydno — на початок сторінки">
+          <img class="brand-icon" src="/pwa-v2/assets/brand-icon.png" alt="">
+          <span class="brand-name"><strong>vydno</strong><span>.capital</span></span>
+        </a>
+        <p>Особисті та сімейні фінанси в Mini App і PWA.</p>
       </div>
       <div class="footer-links">
-        <a href="privacy.html">Приватність</a>
-        <a href="offer.html">Умови</a>
-        <a href="contacts.html">Контакти</a>
-        <a href="https://t.me/Askills_Support" target="_blank" rel="noopener noreferrer">Підтримка</a>
+        <a href="#how">Як працює</a>
+        <a href="#features">Можливості</a>
+        <a href="#pricing">Ціна</a>
+        <a href="/pwa-v2/quiz/index.html">Перевірити fit</a>
       </div>
-    </footer>
-  </div>
+      <div class="footer-links">
+        <a href="https://vydno.capital/privacy.html">Приватність</a>
+        <a href="https://vydno.capital/offer.html">Умови</a>
+        <a href="https://vydno.capital/contacts.html">Контакти</a>
+        <a href="https://t.me/Askills_Support">Підтримка</a>
+      </div>
+      <div class="footer-legal">
+        <strong>ФОП САЛО КИРИЛО ВАСИЛЬОВИЧ</strong>
+        <span>© <span data-current-year></span> vydno.capital</span>
+      </div>
+    </div>
+  </footer>
 
-  <a class="sticky-cta" data-funnel-cta="sticky-mobile" href="https://t.me/vydnocapital_bot" target="_blank" rel="noopener noreferrer">
-    Почати за 1 грн
-  </a>
-  <script src="landing.js"></script>
+  <a class="mobile-sticky-cta" data-funnel-cta="sticky-mobile" href="https://vydno.capital/app/auth/telegram/start?next=/app/">30 днів за 1 грн <span>→</span></a>
+
+  <script src="/pwa-v2/script.js"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@ const vm = require("node:vm");
 
 const source = fs.readFileSync(path.join(__dirname, "landing.js"), "utf8");
 const html = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+const oidcTarget = "https://vydno.capital/app/auth/telegram/start?next=/app/";
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -125,7 +126,28 @@ test("CTA telemetry records placement without blocking Telegram navigation", asy
 
 test("all primary Telegram CTAs expose stable placement identifiers", () => {
   const placements = [...html.matchAll(/data-funnel-cta="([a-z-]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(placements, ["header", "hero", "pricing", "final", "sticky-mobile"]);
-  const telegramLinks = html.match(/href="https:\/\/t\.me\/vydnocapital_bot"/g) || [];
-  assert.equal(telegramLinks.length, 5);
+  assert.deepEqual(placements, ["header", "hero", "after-demo", "pricing", "final", "sticky-mobile"]);
+  const conversionLinks = [...html.matchAll(/href="([^"]+)"/g)]
+    .map((match) => match[1])
+    .filter((href) => href.includes("/app/auth/telegram/start"));
+  assert.equal(conversionLinks.length, 6);
+  assert.deepEqual(new Set(conversionLinks), new Set([oidcTarget]));
+});
+
+test("production root promotes the approved PWA-first landing", () => {
+  assert.doesNotMatch(html, /noindex|nofollow/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/vydno\.capital\/">/);
+  assert.match(html, /href="\/pwa-v2\/product\.css"/);
+  assert.match(html, /src="\/pwa-v2\/script\.js"/);
+  assert.match(html, /src="\/pwa-v2\/assets\/product-ui\/overview\.png"/);
+  assert.match(html, /href="\/pwa-v2\/quiz\/index\.html"/);
+  assert.doesNotMatch(html, /Telegram — точка входу|30 або 90 днів|Have perfect control/);
+
+  const promotedFiles = [...html.matchAll(/(?:href|src|data-product-src)="(\/pwa-v2\/[^"#?]+)"/g)]
+    .map((match) => match[1]);
+  assert.ok(promotedFiles.length >= 18);
+  for (const urlPath of promotedFiles) {
+    const relativePath = urlPath.replace(/^\/pwa-v2\//, "");
+    assert.equal(fs.existsSync(path.join(__dirname, "pwa-v2", relativePath)), true, urlPath);
+  }
 });
