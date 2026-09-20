@@ -52,6 +52,42 @@ test("landing and quiz use only resolvable local assets", () => {
   assert.equal(/(?:cdn|fonts\.googleapis|unpkg|jsdelivr)/i.test(`${landingHtml}\n${quizHtml}`), false);
 });
 
+test("landing prioritizes the hero and defers below-fold product imagery", () => {
+  assert.match(landingHtml, /<link rel="preload" as="image" href="assets\/product-ui\/overview\.webp" type="image\/webp" fetchpriority="high">/);
+  assert.match(landingHtml, /<img src="assets\/product-ui\/overview\.webp"[^>]*fetchpriority="high"[^>]*decoding="async"/);
+
+  const belowFoldImages = [...landingHtml.matchAll(/<img\b[^>]*src="assets\/product-ui\/(?!overview)[^"]+"[^>]*>/g)]
+    .map((match) => match[0]);
+  assert.ok(belowFoldImages.length >= 6);
+  belowFoldImages.forEach((tag) => {
+    assert.match(tag, /loading="lazy"/);
+    assert.match(tag, /decoding="async"/);
+  });
+
+  assert.match(landingHtml, /class="brand-icon"[^>]*width="36"[^>]*height="36"/);
+  assert.doesNotMatch(landingScript, /buttons\.forEach\(\(button\) => \{\s*const preload = new Image\(\)/s);
+});
+
+test("optimized landing imagery stays within its transfer budget", () => {
+  const productDir = path.join(root, "assets", "product-ui");
+  const names = ["add", "analytics", "family", "money", "overview", "status"];
+  const productBytes = names.reduce((total, name) => (
+    total + fs.statSync(path.join(productDir, `${name}.webp`)).size
+  ), 0);
+  const brandBytes = fs.statSync(path.join(root, "assets", "brand-icon.webp")).size;
+
+  assert.ok(productBytes < 400_000, `product imagery is ${productBytes} bytes`);
+  assert.ok(brandBytes < 15_000, `brand icon is ${brandBytes} bytes`);
+  assert.doesNotMatch(landingHtml, /product-ui\/[^"]+\.png/);
+});
+
+test("quiz returns to the canonical production root", () => {
+  const landingLinks = [...quizHtml.matchAll(/href="([^"]+)"/g)]
+    .map((match) => match[1])
+    .filter((href) => href === "/" || href === "../index.html");
+  assert.deepEqual(landingLinks, ["/", "/"]);
+});
+
 test("quiz contract has ten named questions and no answer persistence", () => {
   const questionNumbers = [...quizHtml.matchAll(/data-question="(\d+)"/g)].map((match) => Number(match[1]));
   const radioNames = [...new Set([...quizHtml.matchAll(/type="radio" name="(q\d+)"/g)].map((match) => match[1]))];
@@ -116,9 +152,23 @@ test("polish motion is progressive, finite, and reduced-motion safe", () => {
   assert.match(productCss, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(productCss, /\.motion-ready \[data-reveal\]\.is-visible/);
   assert.match(productCss, /\.site-nav a\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
+  assert.match(landingScript, /requestAnimationFrame/);
+  assert.match(landingScript, /ResizeObserver/);
+  assert.match(productCss, /\.mobile-sticky-cta\s*\{[^}]*visibility:\s*hidden/s);
+  assert.match(productCss, /\.mobile-sticky-cta\.is-visible\s*\{[^}]*visibility:\s*visible/s);
+  assert.match(productCss, /@keyframes mobile-nav-enter/);
   assert.match(quizScript, /prefers-reduced-motion: reduce/);
   assert.match(quizScript, /behavior:\s*preferredScrollBehavior\(\)/g);
   assert.equal(/setInterval|requestAnimationFrame\([^)]*requestAnimationFrame/s.test(landingScript), false);
+});
+
+test("every custom landing and quiz control has an explicit behavior path", () => {
+  assert.match(landingScript, /navToggle\.addEventListener\("click"/);
+  assert.match(landingScript, /button\.addEventListener\("click", \(\) => renderScreen\(index\)\)/);
+  assert.match(landingScript, /next\?\.addEventListener\("click"/);
+  assert.match(quizScript, /nextButton\?\.addEventListener\("click"/);
+  assert.match(quizScript, /backButton\?\.addEventListener\("click"/);
+  assert.match(quizScript, /restartButton\?\.addEventListener\("click"/);
 });
 
 test("small muted copy meets WCAG AA contrast", () => {
@@ -137,7 +187,7 @@ test("small muted copy meets WCAG AA contrast", () => {
 test("customer-facing copy keeps the product voice and the brand mark", () => {
   assert.match(landingHtml, /Без щоденної бухгалтерії/);
   assert.match(landingHtml, /class="brand"/);
-  assert.match(landingHtml, /assets\/brand-icon\.png/);
+  assert.match(landingHtml, /assets\/brand-icon\.webp/);
   assert.doesNotMatch(landingHtml, /Реальний інтерфейс|Контрольний preview|синтетичні дані|не намальований для лендінгу|Реальний UI|Так він виглядає у застосунку/);
   assert.doesNotMatch(landingScript, /Показано реальний інтерфейс|контрольних даних/);
 });

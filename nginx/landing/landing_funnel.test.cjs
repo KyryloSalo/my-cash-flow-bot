@@ -4,7 +4,7 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-const source = fs.readFileSync(path.join(__dirname, "landing.js"), "utf8");
+const source = fs.readFileSync(path.join(__dirname, "pwa-v2", "script.js"), "utf8");
 const html = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
 const oidcTarget = "https://vydno.capital/app/auth/telegram/start?next=/app/";
 
@@ -13,6 +13,11 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 test("landing view bootstraps a CSRF session and emits an allowlisted event", async () => {
   const calls = [];
   const document = {
+    body: { classList: { add() {}, remove() {}, toggle() {} } },
+    documentElement: { scrollHeight: 2000 },
+    querySelector() {
+      return null;
+    },
     querySelectorAll(selector) {
       if (selector === ".site-header" || selector === "[data-funnel-cta]") {
         return [];
@@ -22,8 +27,20 @@ test("landing view bootstraps a CSRF session and emits an allowlisted event", as
   };
   const window = {
     innerWidth: 390,
+    innerHeight: 844,
+    scrollY: 0,
     addEventListener() {},
-    location: { search: "?utm_source=store&utm_campaign=launch" },
+    requestAnimationFrame(callback) {
+      setImmediate(callback);
+      return 1;
+    },
+    matchMedia: () => ({ matches: true, addEventListener() {} }),
+    location: {
+      protocol: "https:",
+      hostname: "vydno.capital",
+      search: "?utm_source=store&utm_campaign=launch",
+    },
+    crypto: { randomUUID: () => "8c778eec-5448-4cca-9447-04088fea24e8" },
   };
   const fetch = async (url, options = {}) => {
     calls.push({ url, options });
@@ -38,7 +55,6 @@ test("landing view bootstraps a CSRF session and emits an allowlisted event", as
   const context = {
     URLSearchParams,
     console,
-    crypto: { randomUUID: () => "8c778eec-5448-4cca-9447-04088fea24e8" },
     document,
     fetch,
     setTimeout,
@@ -72,6 +88,11 @@ test("CTA telemetry records placement without blocking Telegram navigation", asy
     },
   };
   const document = {
+    body: { classList: { add() {}, remove() {}, toggle() {} } },
+    documentElement: { scrollHeight: 2000 },
+    querySelector() {
+      return null;
+    },
     querySelectorAll(selector) {
       if (selector === "[data-funnel-cta]") {
         return [cta];
@@ -81,8 +102,16 @@ test("CTA telemetry records placement without blocking Telegram navigation", asy
   };
   const window = {
     innerWidth: 390,
+    innerHeight: 844,
+    scrollY: 0,
     addEventListener() {},
-    location: { search: "" },
+    requestAnimationFrame(callback) {
+      setImmediate(callback);
+      return 1;
+    },
+    matchMedia: () => ({ matches: true, addEventListener() {} }),
+    location: { protocol: "https:", hostname: "vydno.capital", search: "" },
+    crypto: { randomUUID: () => `00000000-0000-4000-8000-${String(++sequence).padStart(12, "0")}` },
   };
   let sequence = 0;
   const fetch = async (url, options = {}) => {
@@ -98,7 +127,6 @@ test("CTA telemetry records placement without blocking Telegram navigation", asy
   const context = {
     URLSearchParams,
     console,
-    crypto: { randomUUID: () => `00000000-0000-4000-8000-${String(++sequence).padStart(12, "0")}` },
     document,
     fetch,
     setTimeout,
@@ -139,7 +167,7 @@ test("production root promotes the approved PWA-first landing", () => {
   assert.match(html, /<link rel="canonical" href="https:\/\/vydno\.capital\/">/);
   assert.match(html, /href="\/pwa-v2\/product\.css"/);
   assert.match(html, /src="\/pwa-v2\/script\.js"/);
-  assert.match(html, /src="\/pwa-v2\/assets\/product-ui\/overview\.png"/);
+  assert.match(html, /src="\/pwa-v2\/assets\/product-ui\/overview\.webp"/);
   assert.match(html, /href="\/pwa-v2\/quiz\/index\.html"/);
   assert.doesNotMatch(html, /Telegram — точка входу|30 або 90 днів|Have perfect control/);
 

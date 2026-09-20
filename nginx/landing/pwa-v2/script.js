@@ -25,7 +25,10 @@
 
     siteNav.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeNavigation));
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeNavigation();
+      if (event.key === "Escape" && navToggle.getAttribute("aria-expanded") === "true") {
+        closeNavigation();
+        navToggle.focus();
+      }
     });
     window.addEventListener("resize", () => {
       if (window.innerWidth > 900) closeNavigation();
@@ -35,6 +38,7 @@
   let scrollableHeight = 1;
   let stickyStart = 480;
   let stickyEnd = Number.POSITIVE_INFINITY;
+  let scrollFramePending = false;
 
   const updateScrollMetrics = () => {
     scrollableHeight = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
@@ -57,15 +61,33 @@
     }
   };
 
+  const scheduleScrollUi = () => {
+    if (scrollFramePending) return;
+    scrollFramePending = true;
+    window.requestAnimationFrame(() => {
+      scrollFramePending = false;
+      updateScrollUi();
+    });
+  };
+
   const refreshScrollUi = () => {
     updateScrollMetrics();
-    updateScrollUi();
+    scheduleScrollUi();
   };
 
   refreshScrollUi();
-  window.addEventListener("scroll", updateScrollUi, { passive: true });
+  window.addEventListener("scroll", scheduleScrollUi, { passive: true });
   window.addEventListener("resize", refreshScrollUi, { passive: true });
   window.addEventListener("load", refreshScrollUi, { once: true });
+
+  document.querySelectorAll("details").forEach((details) => {
+    details.addEventListener("toggle", refreshScrollUi);
+  });
+
+  if ("ResizeObserver" in window && document.body) {
+    const layoutObserver = new ResizeObserver(refreshScrollUi);
+    layoutObserver.observe(document.body);
+  }
 
   document.querySelectorAll("[data-current-year]").forEach((node) => {
     node.textContent = String(new Date().getFullYear());
@@ -98,10 +120,17 @@
     const seen = new Set();
 
     revealGroups.forEach((selector) => {
-      document.querySelectorAll(selector).forEach((node, index) => {
+      const nodes = document.querySelectorAll(selector);
+      nodes.forEach((node, index) => {
         if (seen.has(node)) return;
         seen.add(node);
-        node.dataset.reveal = "";
+        node.dataset.reveal = nodes.length > 1 && index === 0
+          ? "left"
+          : nodes.length > 1 && index === 1
+            ? "right"
+            : index % 3 === 2
+              ? "scale"
+              : "up";
         node.style.setProperty("--reveal-delay", `${Math.min(index * 65, 195)}ms`);
         targets.push(node);
       });
@@ -130,10 +159,16 @@
     const message = demoRoot.querySelector("[data-demo-message]");
     let activeIndex = 0;
 
-    buttons.forEach((button) => {
-      const preload = new Image();
-      preload.src = button.dataset.productSrc;
-    });
+    const warmTourAssets = () => {
+      buttons.forEach((button) => {
+        if (button.dataset.productSrc === image?.getAttribute("src")) return;
+        const preload = new Image();
+        preload.src = button.dataset.productSrc;
+      });
+    };
+
+    demoRoot.addEventListener("pointerenter", warmTourAssets, { once: true, passive: true });
+    demoRoot.addEventListener("focusin", warmTourAssets, { once: true });
 
     const renderScreen = (index) => {
       if (!buttons.length) return;
@@ -161,19 +196,23 @@
           : "Після підтвердження запис одразу з’являється в огляді та аналітиці.";
       }
       if (previousIndex !== activeIndex && !reduceMotion.matches) {
+        image?.getAnimations?.().forEach((animation) => animation.cancel());
         image?.animate([
           { opacity: 0.24, transform: "translateY(10px) scale(0.995)" },
           { opacity: 1, transform: "translateY(0) scale(1)" },
         ], { duration: 420, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
-        [title, text, step].forEach((node, nodeIndex) => node?.animate([
-          { opacity: 0, transform: "translateY(7px)" },
-          { opacity: 1, transform: "translateY(0)" },
-        ], {
-          duration: 340,
-          delay: nodeIndex * 35,
-          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-          fill: "both",
-        }));
+        [title, text, step].forEach((node, nodeIndex) => {
+          node?.getAnimations?.().forEach((animation) => animation.cancel());
+          node?.animate([
+            { opacity: 0, transform: "translateY(7px)" },
+            { opacity: 1, transform: "translateY(0)" },
+          ], {
+            duration: 340,
+            delay: nodeIndex * 35,
+            easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+            fill: "backwards",
+          });
+        });
       }
       emitDemoEvent("product_demo_start", `product-tour-${activeButton.dataset.productScreen}`);
       if (activeIndex === buttons.length - 1) {
@@ -185,6 +224,28 @@
       button.addEventListener("click", () => renderScreen(index));
     });
     next?.addEventListener("click", () => renderScreen(activeIndex + 1));
+  }
+
+  const sectionNavLinks = Array.from(document.querySelectorAll('.site-nav a[href^="#"]'));
+  if (sectionNavLinks.length && "IntersectionObserver" in window) {
+    const sectionLinks = new Map(
+      sectionNavLinks
+        .map((link) => [document.querySelector(link.getAttribute("href")), link])
+        .filter(([section]) => section),
+    );
+    const navObserver = new IntersectionObserver((entries) => {
+      const activeEntry = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!activeEntry) return;
+      sectionLinks.forEach((link, section) => {
+        const active = section === activeEntry.target;
+        link.classList.toggle("is-active", active);
+        if (active) link.setAttribute("aria-current", "location");
+        else link.removeAttribute("aria-current");
+      });
+    }, { rootMargin: "-20% 0px -65%", threshold: [0.01, 0.25, 0.5] });
+    sectionLinks.forEach((_link, section) => navObserver.observe(section));
   }
 
   const FUNNEL_ATTRIBUTION_FIELDS = [

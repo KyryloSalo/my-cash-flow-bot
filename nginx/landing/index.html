@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#f2f6ef">
   <link rel="canonical" href="https://vydno.capital/">
   <link rel="icon" type="image/png" href="/pwa-v2/assets/favicon-32.png">
+  <link rel="preload" as="image" href="/pwa-v2/assets/product-ui/overview.webp" type="image/webp" fetchpriority="high">
   <link rel="stylesheet" href="/pwa-v2/product.css">
 </head>
 <body>
@@ -16,7 +17,7 @@
   <header class="site-header" data-site-header>
     <div class="shell header-inner">
       <a class="brand" href="#top" aria-label="Vydno — на початок сторінки">
-        <img class="brand-icon" src="/pwa-v2/assets/brand-icon.png" alt="">
+        <img class="brand-icon" src="/pwa-v2/assets/brand-icon.webp" width="36" height="36" decoding="async" alt="">
         <span class="brand-name"><strong>vydno</strong><span>.capital</span></span>
       </a>
 
@@ -74,7 +75,7 @@
 
         <figure class="hero-product" aria-label="Огляд фінансів у Vydno">
           <div class="hero-screen-shell">
-            <img src="/pwa-v2/assets/product-ui/overview.png" width="780" height="1688" alt="Екран огляду Vydno з балансом, рахунками, витратами та нижньою навігацією">
+            <img src="/pwa-v2/assets/product-ui/overview.webp" width="780" height="1688" fetchpriority="high" decoding="async" alt="Екран огляду Vydno з балансом, рахунками, витратами та нижньою навігацією">
           </div>
         </figure>
       </div>
@@ -83,9 +84,9 @@
     <section class="trust-strip" aria-label="Факти, яким можна довіряти">
       <div class="shell trust-grid">
         <div><strong>4 способи</strong><span>додати операцію</span></div>
-        <div><strong>Одна картина</strong><span>рахунки, борги, цілі</span></div>
+        <div><strong>5+ валют</strong><span>UAH, USD, EUR, TRY, USDT</span></div>
         <div><strong>XLSX + CSV</strong><span>ваші дані можна експортувати</span></div>
-        <div><strong>Без прихованого запису</strong><span>тільки після підтвердження</span></div>
+        <div><strong>Без підключення до банку</strong><span>операції додаєте ви</span></div>
       </div>
     </section>
 
@@ -108,7 +109,7 @@
 
         <figure class="product-evidence product-evidence-add">
           <div class="product-screen-crop">
-            <img src="/pwa-v2/assets/product-ui/add.png" width="780" height="1688" alt="Екран додавання запису у Vydno з голосовим, текстовим, ручним вводом і завантаженням скріншота">
+            <img src="/pwa-v2/assets/product-ui/add.webp" width="780" height="1688" loading="lazy" decoding="async" alt="Екран додавання запису у Vydno з голосовим, текстовим, ручним вводом і завантаженням скріншота">
           </div>
         </figure>
       </div>
@@ -118,26 +119,26 @@
       <div class="shell">
         <div class="section-heading center-heading">
           <p class="eyebrow"><span></span> Подивіться продукт</p>
-          <h2>Від думки до зрозумілого запису — три короткі кроки.</h2>
-          <p>Оберіть зручний спосіб введення, перевірте запис і одразу побачте оновлену картину фінансів.</p>
+          <h2>Три екрани Vydno: додати, побачити, зрозуміти.</h2>
+          <p>Перемикайте кроки, щоб побачити інтерфейс у роботі.</p>
         </div>
 
         <div class="product-tour" data-product-demo>
           <div class="tour-rail" role="group" aria-label="Екрани Vydno">
-            <button class="tour-tab is-active" type="button" aria-pressed="true" data-product-screen="add" data-product-src="/pwa-v2/assets/product-ui/add.png" data-product-alt="Екран швидкого додавання запису" data-product-title="Додайте операцію так, як зручно зараз." data-product-text="Голос, текст, скріншот або ручна форма живуть на одному екрані. Перед записом застосунок формує чернетку для перевірки.">
+            <button class="tour-tab is-active" type="button" aria-pressed="true" data-product-screen="add" data-product-src="/pwa-v2/assets/product-ui/add.webp" data-product-alt="Екран швидкого додавання запису" data-product-title="Додайте операцію так, як зручно зараз." data-product-text="Голос, текст, скріншот або ручна форма живуть на одному екрані. Перед записом застосунок формує чернетку для перевірки.">
               <span>01</span><strong>Додати</strong><small>Голос · текст · скріншот</small>
             </button>
-            <button class="tour-tab" type="button" aria-pressed="false" data-product-screen="overview" data-product-src="/pwa-v2/assets/product-ui/overview.png" data-product-alt="Екран фінансового огляду" data-product-title="Побачте загальну картину без зведення вручну." data-product-text="Баланс, активи, борги, витрати та останні операції зібрані в одному огляді, але не змішані між собою.">
+            <button class="tour-tab" type="button" aria-pressed="false" data-product-screen="overview" data-product-src="/pwa-v2/assets/product-ui/overview.webp" data-product-alt="Екран фінансового огляду" data-product-title="Побачте загальну картину без зведення вручну." data-product-text="Баланс, активи, борги, витрати та останні операції зібрані в одному огляді, але не змішані між собою.">
               <span>02</span><strong>Побачити</strong><small>Баланс · рахунки · рух</small>
             </button>
-            <button class="tour-tab" type="button" aria-pressed="false" data-product-screen="analytics" data-product-src="/pwa-v2/assets/product-ui/analytics.png" data-product-alt="Екран фінансової аналітики" data-product-title="Зрозумійте, куди рухаються гроші." data-product-text="Доходи, витрати, чистий потік і категорії показані за обраний період. Без окремої таблиці наприкінці місяця.">
+            <button class="tour-tab" type="button" aria-pressed="false" data-product-screen="analytics" data-product-src="/pwa-v2/assets/product-ui/analytics.webp" data-product-alt="Екран фінансової аналітики" data-product-title="Зрозумійте, куди рухаються гроші." data-product-text="Доходи, витрати, чистий потік і категорії показані за обраний період. Без окремої таблиці наприкінці місяця.">
               <span>03</span><strong>Зрозуміти</strong><small>Динаміка · категорії · період</small>
             </button>
           </div>
 
           <figure class="tour-stage">
             <div class="tour-screen">
-              <img data-tour-image src="/pwa-v2/assets/product-ui/add.png" width="780" height="1688" alt="Екран швидкого додавання запису">
+              <img data-tour-image src="/pwa-v2/assets/product-ui/add.webp" width="780" height="1688" loading="lazy" decoding="async" alt="Екран швидкого додавання запису">
             </div>
           </figure>
 
@@ -170,30 +171,30 @@
         <div class="outcome-grid">
           <article class="outcome-card outcome-large">
             <div class="outcome-copy">
-              <span class="card-kicker">01 · Побачити</span>
-              <h3>Усі рахунки й рух грошей — в одному огляді.</h3>
-              <p>Банківські картки, готівка, заощадження, кредитні рахунки та інвестиції не змішуються, але складаються в одну картину.</p>
+              <span class="card-kicker">Рахунки й баланс</span>
+              <h3>Активи та зобов’язання показані окремо.</h3>
+              <p>Картки, готівка, заощадження й інвестиції не змішуються з кредитами та боргами.</p>
             </div>
             <figure class="outcome-screen outcome-screen-wide">
-              <img src="/pwa-v2/assets/product-ui/status.png" width="780" height="1688" alt="Екран статусу з активами, боргами та фінансовими підсумками">
+              <img src="/pwa-v2/assets/product-ui/status.webp" width="780" height="1688" loading="lazy" decoding="async" alt="Екран статусу з активами, боргами та фінансовими підсумками">
               <figcaption>Статус активів і зобов’язань</figcaption>
             </figure>
           </article>
 
           <article class="outcome-card">
-            <span class="card-kicker">02 · Зрозуміти</span>
+            <span class="card-kicker">Витрати й динаміка</span>
             <h3>Категорії та динаміка без ручних таблиць.</h3>
             <figure class="outcome-screen outcome-screen-analytics">
-              <img src="/pwa-v2/assets/product-ui/analytics.png" width="780" height="1688" alt="Екран аналітики Vydno з доходами, витратами та категоріями">
+              <img src="/pwa-v2/assets/product-ui/analytics.webp" width="780" height="1688" loading="lazy" decoding="async" alt="Екран аналітики Vydno з доходами, витратами та категоріями">
               <figcaption>Аналітика за обраний період</figcaption>
             </figure>
           </article>
 
           <article class="outcome-card">
-            <span class="card-kicker">03 · Планувати</span>
+            <span class="card-kicker">Борги й цілі</span>
             <h3>Борги, цілі й накопичення не губляться в рутині.</h3>
             <figure class="outcome-screen outcome-screen-money">
-              <img src="/pwa-v2/assets/product-ui/money.png" width="780" height="1688" alt="Екран керування рахунками та фінансовими цілями у Vydno">
+              <img src="/pwa-v2/assets/product-ui/money.webp" width="780" height="1688" loading="lazy" decoding="async" alt="Екран керування рахунками та фінансовими цілями у Vydno">
               <figcaption>Рахунки, цілі та внутрішні перекази</figcaption>
             </figure>
           </article>
@@ -243,7 +244,7 @@
           <article class="feature-group">
             <div class="feature-group-icon lime-icon" aria-hidden="true">↗</div>
             <div>
-              <span class="card-kicker">Побачити картину</span>
+              <span class="card-kicker">Стежити за змінами</span>
               <h3>Аналітика й історія</h3>
               <ul>
                 <li>Доходи, витрати та чистий потік за період</li>
@@ -277,9 +278,9 @@
       <div class="shell family-grid">
         <figure class="family-visual" aria-label="Сімейний фінансовий простір у Vydno">
           <div class="family-screen">
-            <img src="/pwa-v2/assets/product-ui/family.png" width="780" height="1688" alt="Екран створення сімейного бюджету або приєднання за кодом у Vydno">
+            <img src="/pwa-v2/assets/product-ui/family.webp" width="780" height="1688" loading="lazy" decoding="async" alt="Екран створення сімейного бюджету або приєднання за кодом у Vydno">
           </div>
-          <figcaption><strong>Сімейний простір у Vydno</strong><span>Створення та приєднання — тільки після вашої дії.</span></figcaption>
+          <figcaption><strong>Сімейний простір у Vydno</strong><span>Створіть свій або приєднайтеся за кодом.</span></figcaption>
         </figure>
 
         <div class="section-copy family-copy">
@@ -318,7 +319,7 @@
         <div class="pricing-copy">
           <p class="eyebrow"><span></span> Простий тариф</p>
           <h2>Місяць, щоб перевірити Vydno у реальному житті.</h2>
-          <p>Без урізаної демоверсії. Налаштуйте свої рахунки, додайте операції різними способами й подивіться, чи стає фінансова картина зрозумілішою.</p>
+          <p>Без урізаної демоверсії. Налаштуйте рахунки, додайте кілька реальних операцій і перевірте, чи зручно вам користуватися Vydno щодня.</p>
           <ol class="price-timeline">
             <li><span>Сьогодні</span><strong>1 грн</strong><small>прив’язка картки та активація</small></li>
             <li><span>Наступні 30 днів</span><strong>Повний доступ</strong><small>усі основні функції Vydno</small></li>
@@ -350,7 +351,7 @@
             <p class="eyebrow"><span></span> Контроль залишається у вас</p>
             <h2>Фінансовий сервіс має пояснювати не тільки можливості, а й межі.</h2>
           </div>
-          <p>Ми не називаємо Vydno банком і не ховаємо фінансові дії за автоматикою. Користувач бачить, що саме буде записано, і сам підтверджує дію.</p>
+          <p>Vydno — інструмент для обліку та планування, а не банк. Він не підключається до ваших рахунків автоматично й не проводить платежі.</p>
         </div>
 
         <div class="trust-cards">
@@ -428,7 +429,7 @@
     <div class="shell footer-grid">
       <div>
         <a class="brand footer-brand" href="#top" aria-label="Vydno — на початок сторінки">
-          <img class="brand-icon" src="/pwa-v2/assets/brand-icon.png" alt="">
+          <img class="brand-icon" src="/pwa-v2/assets/brand-icon.webp" width="36" height="36" decoding="async" alt="">
           <span class="brand-name"><strong>vydno</strong><span>.capital</span></span>
         </a>
         <p>Особисті та сімейні фінанси в Mini App і PWA.</p>

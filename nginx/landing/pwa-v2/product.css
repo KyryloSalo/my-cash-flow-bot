@@ -184,13 +184,33 @@ dl {
 }
 
 .site-nav a {
+  position: relative;
   color: #394a43;
   font-size: 14px;
   font-weight: 650;
+  transition: color 180ms ease;
 }
 
-.site-nav a:hover {
+.site-nav a:hover,
+.site-nav a.is-active {
   color: var(--green);
+}
+
+.site-nav a::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 5px;
+  left: 0;
+  height: 2px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 240ms var(--ease-out, ease);
+}
+
+.site-nav a.is-active::after {
+  transform: scaleX(1);
 }
 
 .nav-toggle {
@@ -1463,6 +1483,12 @@ dl {
     font-size: 16px;
   }
 
+  .site-nav a::after {
+    right: auto;
+    bottom: 8px;
+    width: 28px;
+  }
+
   .hero-grid,
   .problem-grid,
   .family-grid,
@@ -1551,6 +1577,10 @@ dl {
 
   .header-inner {
     min-height: 66px;
+  }
+
+  .site-header {
+    backdrop-filter: none;
   }
 
   .site-nav {
@@ -1916,10 +1946,6 @@ summary {
   text-wrap: pretty;
 }
 
-.site-header {
-  will-change: background-color, border-color, box-shadow;
-}
-
 .site-header.is-scrolled {
   box-shadow: 0 8px 28px rgba(18, 35, 29, 0.055);
 }
@@ -1988,10 +2014,6 @@ summary {
   transition: border-color 240ms ease, box-shadow 320ms var(--ease-out), transform 320ms var(--ease-out);
 }
 
-.tour-screen img {
-  will-change: opacity, transform;
-}
-
 .tour-tab {
   position: relative;
   transition: color 220ms ease, background-color 220ms ease;
@@ -2041,7 +2063,7 @@ summary {
 .price-timeline li,
 .trust-links a,
 .faq-list summary {
-  transition: color 180ms ease, background-color 200ms ease, padding 220ms var(--ease-out);
+  transition: color 180ms ease, background-color 200ms ease, transform 220ms var(--ease-out);
 }
 
 .faq-list details[open] summary {
@@ -2116,15 +2138,18 @@ summary {
 
 .mobile-sticky-cta {
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
   transform: translateY(calc(100% + 24px));
-  transition: opacity 220ms ease, transform 360ms var(--ease-out), box-shadow 220ms ease;
+  transition: opacity 220ms ease, transform 360ms var(--ease-out), box-shadow 220ms ease, visibility 0s linear 360ms;
 }
 
 .mobile-sticky-cta.is-visible {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
   transform: translateY(0);
+  transition-delay: 0s;
 }
 
 .motion-ready [data-reveal] {
@@ -2134,9 +2159,21 @@ summary {
   transition-delay: var(--reveal-delay, 0ms);
 }
 
+.motion-ready [data-reveal="left"] {
+  transform: translate3d(-18px, 0, 0);
+}
+
+.motion-ready [data-reveal="right"] {
+  transform: translate3d(18px, 0, 0);
+}
+
+.motion-ready [data-reveal="scale"] {
+  transform: translate3d(0, 14px, 0) scale(0.985);
+}
+
 .motion-ready [data-reveal].is-visible {
   opacity: 1;
-  transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0) scale(1);
 }
 
 @keyframes hero-copy-enter {
@@ -2172,6 +2209,17 @@ summary {
   }
 }
 
+@keyframes mobile-nav-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .hero-copy > * {
     animation: hero-copy-enter 720ms var(--ease-out) both;
@@ -2188,6 +2236,19 @@ summary {
     animation: hero-product-enter 880ms var(--ease-out) 150ms both;
   }
 
+  .button:active,
+  .tour-tab:active,
+  .tour-next:active,
+  .nav-toggle:active {
+    transform: scale(0.98);
+  }
+
+}
+
+@media (max-width: 900px) and (prefers-reduced-motion: no-preference) {
+  .site-nav.is-open {
+    animation: mobile-nav-enter 200ms var(--ease-out) both;
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -2249,7 +2310,7 @@ summary {
   .family-points article:hover,
   .price-timeline li:hover {
     background: rgba(234, 241, 232, 0.42);
-    padding-inline: 8px;
+    transform: translateX(4px);
   }
 
   .price-card:hover {
