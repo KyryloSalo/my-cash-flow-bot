@@ -162,6 +162,21 @@ test("all primary Telegram CTAs expose stable placement identifiers", () => {
   assert.deepEqual(new Set(conversionLinks), new Set([oidcTarget]));
 });
 
+test("hero sets the expectation of quick Telegram registration", () => {
+  assert.match(
+    html,
+    /class="telegram-entry-note"[\s\S]*Швидка реєстрація через Telegram/
+  );
+  assert.match(
+    html,
+    /data-funnel-cta="hero"[^>]*>[\s\S]*Зареєструватися через Telegram[\s\S]*?<\/a>/
+  );
+  assert.match(
+    html,
+    /data-funnel-cta="final"[^>]*>Швидко зареєструватися через Telegram<\/a>/
+  );
+});
+
 test("production root promotes the approved PWA-first landing", () => {
   assert.doesNotMatch(html, /noindex|nofollow/);
   assert.match(html, /<link rel="canonical" href="https:\/\/vydno\.capital\/">/);

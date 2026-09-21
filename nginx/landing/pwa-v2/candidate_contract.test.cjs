@@ -81,6 +81,23 @@ test("optimized landing imagery stays within its transfer budget", () => {
   assert.doesNotMatch(landingHtml, /product-ui\/[^"]+\.png/);
 });
 
+test("product outcomes use editorial stories instead of a raw screenshot grid", () => {
+  const stories = [...landingHtml.matchAll(/<article class="outcome-card[^"]*">([\s\S]*?)<\/article>/g)];
+
+  assert.equal(stories.length, 3);
+  ["01", "02", "03"].forEach((index) => {
+    assert.match(landingHtml, new RegExp(`class="outcome-index"[^>]*>${index}<`));
+  });
+  ["status", "analytics", "money"].forEach((variant) => {
+    assert.match(landingHtml, new RegExp(`outcome-card--${variant}`));
+  });
+  assert.match(productCss, /\.outcome-card\s*\{[^}]*overflow:\s*hidden;[^}]*border-radius:\s*32px;/s);
+  assert.match(productCss, /\.outcome-card--status\s*\{[^}]*background:\s*var\(--green-dark\);/s);
+  assert.match(productCss, /\.outcome-large\s*\{[^}]*grid-template-columns:\s*minmax\(0, 0\.78fr\) minmax\(0, 1\.22fr\);/s);
+  assert.match(productCss, /@media \(max-width:\s*1024px\)[\s\S]*\.outcome-card\s*\{[^}]*grid-template-columns:\s*minmax\(0, 0\.84fr\) minmax\(280px, 1\.16fr\);/s);
+  assert.doesNotMatch(productCss, /\.outcome-grid\s*\{[^}]*border-block:/s);
+});
+
 test("quiz returns to the canonical production root", () => {
   const landingLinks = [...quizHtml.matchAll(/href="([^"]+)"/g)]
     .map((match) => match[1])
@@ -174,13 +191,18 @@ test("every custom landing and quiz control has an explicit behavior path", () =
 test("small muted copy meets WCAG AA contrast", () => {
   const quizMuted = quizEditorialCss.match(/--muted:\s*(#[0-9a-f]{6})/i)?.[1];
   const tourNumber = productCss.match(/\.tour-tab > span\s*\{[^}]*color:\s*(#[0-9a-f]{6})/s)?.[1];
+  const outcomeMuted = productCss.match(/\.outcome-card--analytics \.outcome-copy > p,[^}]*color:\s*(#[0-9a-f]{6})/s)?.[1];
 
   assert.ok(quizMuted);
   assert.ok(tourNumber);
+  assert.ok(outcomeMuted);
   ["#ebe8df", "#f4f1e8", "#edf4dc", "#faf9f5"].forEach((background) => {
     assert.ok(contrastRatio(quizMuted, background) >= 4.5, `${quizMuted} on ${background}`);
   });
   assert.ok(contrastRatio(tourNumber, "#102f25") >= 4.5, `${tourNumber} on #102f25`);
+  ["#f4efe5", "#dfede4"].forEach((background) => {
+    assert.ok(contrastRatio(outcomeMuted, background) >= 4.5, `${outcomeMuted} on ${background}`);
+  });
   assert.doesNotMatch(landingHtml, /variant-marker|PWA-first candidate|product UI/);
 });
 

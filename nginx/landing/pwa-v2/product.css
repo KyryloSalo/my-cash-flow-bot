@@ -364,6 +364,27 @@ dl {
   margin-bottom: 13px;
 }
 
+.telegram-entry-note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: -7px 0 18px;
+  color: var(--green);
+  font-size: 14px;
+  letter-spacing: 0.01em;
+}
+
+.telegram-entry-note svg {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
 .offer-note {
   margin-bottom: 27px;
   color: var(--muted);
@@ -715,7 +736,7 @@ dl {
 }
 
 .outcomes-section {
-  background: var(--surface);
+  background: #fafbf8;
 }
 
 .split-heading {
@@ -740,32 +761,71 @@ dl {
 
 .outcome-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  border-block: 1px solid var(--line);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 24px;
 }
 
 .outcome-card {
+  position: relative;
+  grid-column: span 6;
   min-width: 0;
-  padding: 48px 0 0;
+  min-height: 720px;
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  padding: 48px 48px 0;
+  background: #f4efe5;
+  border: 1px solid var(--line);
+  border-radius: 32px;
 }
 
 .outcome-large {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(260px, 0.72fr) minmax(420px, 1.28fr);
+  min-height: 610px;
+  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
   align-items: center;
-  gap: 70px;
-  padding: 58px 0;
-  border-bottom: 1px solid var(--line);
+  gap: clamp(48px, 7vw, 92px);
+  padding: 64px 64px 0;
 }
 
-.outcome-card:nth-child(2) {
-  padding-right: 40px;
-  border-right: 1px solid var(--line);
+.outcome-card--status {
+  color: var(--white);
+  background: var(--green-dark);
+  border-color: #234f40;
 }
 
-.outcome-card:nth-child(3) {
-  padding-left: 40px;
+.outcome-card--analytics {
+  background: #f4efe5;
+}
+
+.outcome-card--money {
+  background: #dfede4;
+}
+
+.outcome-copy {
+  position: relative;
+  z-index: 2;
+}
+
+.outcome-index {
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 48px;
+  color: var(--green-dark);
+  border: 1px solid rgba(18, 35, 29, 0.2);
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+
+.outcome-card--status .outcome-index {
+  color: #c5ead6;
+  border-color: rgba(197, 234, 214, 0.42);
 }
 
 .card-kicker {
@@ -793,44 +853,80 @@ dl {
   line-height: 1.7;
 }
 
+.outcome-card--status .card-kicker,
+.outcome-card--status .outcome-copy > p {
+  color: #c5d8cf;
+}
+
+.outcome-card--analytics .outcome-copy > p,
+.outcome-card--money .outcome-copy > p {
+  color: #53645c;
+}
+
+.outcome-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin: 36px 0 0;
+  padding: 0;
+  color: #e9f4ee;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.outcome-facts li {
+  padding: 0 16px;
+}
+
+.outcome-facts li:first-child {
+  padding-left: 0;
+}
+
+.outcome-facts li + li {
+  border-left: 1px solid rgba(233, 244, 238, 0.28);
+}
+
 .outcome-screen {
-  margin: 34px 0 0;
+  position: relative;
+  z-index: 1;
+  width: min(100%, 450px);
+  height: 500px;
+  flex: 0 0 auto;
+  align-self: center;
+  margin: auto auto -78px;
+  overflow: hidden;
+  background: #f4f7f2;
+  border: 1px solid rgba(18, 35, 29, 0.14);
+  border-radius: 28px;
+  box-shadow: 0 30px 70px rgba(18, 35, 29, 0.18), 0 2px 8px rgba(18, 35, 29, 0.08);
 }
 
 .outcome-screen-wide {
-  margin: 0;
+  width: min(100%, 470px);
+  height: 590px;
+  margin: 0 auto -92px;
+  border-color: rgba(255, 255, 255, 0.34);
+  box-shadow: 0 34px 80px rgba(4, 20, 15, 0.34), 0 2px 8px rgba(4, 20, 15, 0.18);
 }
 
 .outcome-screen img {
+  display: block;
   width: 100%;
   height: auto;
 }
 
-.outcome-screen-wide,
-.outcome-screen-analytics,
-.outcome-screen-money {
-  overflow: hidden;
-  background: #f4f7f2;
-  border: 1px solid var(--line);
-}
-
-.outcome-screen-wide {
-  height: 430px;
-}
-
-.outcome-screen-wide img {
-  width: 100%;
-  transform: translateY(-8%);
-}
-
-.outcome-screen-analytics,
-.outcome-screen-money {
-  height: 440px;
-}
-
-.outcome-screen-analytics img,
-.outcome-screen-money img {
-  transform: translateY(-2%);
+.outcome-card--analytics::after,
+.outcome-card--money::after {
+  content: "";
+  position: absolute;
+  right: -100px;
+  bottom: 150px;
+  width: 280px;
+  height: 1px;
+  background: rgba(18, 35, 29, 0.13);
+  transform: rotate(-28deg);
+  transform-origin: right center;
 }
 
 .outcome-screen figcaption {
@@ -1446,6 +1542,46 @@ dl {
   }
 }
 
+@media (max-width: 1024px) {
+  .outcome-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .outcome-card {
+    grid-column: auto;
+    min-height: 520px;
+    display: grid;
+    grid-template-columns: minmax(0, 0.84fr) minmax(280px, 1.16fr);
+    align-items: center;
+    gap: 36px;
+    padding: 44px 44px 0;
+  }
+
+  .outcome-index {
+    margin-bottom: 32px;
+  }
+
+  .outcome-screen,
+  .outcome-screen-wide {
+    width: min(100%, 390px);
+    height: 470px;
+    margin: auto auto -62px;
+  }
+
+  .outcome-card--money .outcome-copy {
+    order: 2;
+  }
+
+  .outcome-card--money {
+    grid-template-columns: minmax(280px, 1.16fr) minmax(0, 0.84fr);
+  }
+
+  .outcome-card--money .outcome-screen {
+    order: 1;
+  }
+}
+
 @media (max-width: 900px) {
   .site-header {
     background: rgba(242, 246, 239, 0.97);
@@ -1524,11 +1660,6 @@ dl {
   .split-heading {
     grid-template-columns: 1fr;
     gap: 24px;
-  }
-
-  .outcome-large {
-    grid-template-columns: 1fr 1fr;
-    gap: 48px;
   }
 
   .feature-map {
@@ -1763,27 +1894,46 @@ dl {
 
   .outcome-grid {
     grid-template-columns: 1fr;
-  }
-
-  .outcome-large {
-    grid-column: auto;
-    grid-template-columns: 1fr;
-    gap: 34px;
-    padding: 44px 0;
+    gap: 16px;
   }
 
   .outcome-card,
-  .outcome-card:nth-child(2),
-  .outcome-card:nth-child(3) {
-    padding: 38px 0 0;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
+  .outcome-large {
+    grid-column: auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding: 34px 22px 0;
+    border-radius: 24px;
+  }
+
+  .outcome-card--money .outcome-copy,
+  .outcome-card--money .outcome-screen {
+    order: initial;
+  }
+
+  .outcome-card--money {
+    grid-template-columns: 1fr;
+  }
+
+  .outcome-index {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 26px;
+  }
+
+  .outcome-facts {
+    margin-top: 28px;
   }
 
   .outcome-screen-wide,
   .outcome-screen-analytics,
   .outcome-screen-money {
+    width: min(100%, 390px);
     height: 420px;
+    margin: 0 auto -54px;
+    border-radius: 22px;
   }
 
   .feature-group,
