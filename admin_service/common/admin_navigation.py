@@ -12,6 +12,7 @@ class AdminMenuSection:
 
 SECTION_OVERVIEW = "Огляд"
 SECTION_USERS = "Користувачі"
+SECTION_ACQUISITION = "Залучення"
 SECTION_VYDNO_SUBSCRIPTIONS = "Підписки Vydno"
 SECTION_COMMUNICATIONS = "Комунікації"
 SECTION_SUPPORT = "Підтримка"
@@ -29,6 +30,11 @@ PRIMARY_MENU_SECTIONS = (
             ("users.TelegramUser", "Усі користувачі"),
             ("users.Tag", "Теги користувачів"),
         ),
+    ),
+    AdminMenuSection(
+        "acquisition",
+        SECTION_ACQUISITION,
+        (("miniapp.PartnerLink", "Партнерські посилання"),),
     ),
     AdminMenuSection(
         "vydno_subscriptions",

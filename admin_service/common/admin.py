@@ -3,8 +3,8 @@ from __future__ import annotations
 from django.conf import settings
 from unfold.admin import ModelAdmin as UnfoldModelAdmin
 
-from .audit import create_audit_log, serialize_instance
 from .admin_navigation import MENU_MODEL_LABELS
+from .audit import create_audit_log, serialize_instance
 
 
 ADMIN_PAGE_METADATA = {
@@ -27,6 +27,11 @@ ADMIN_PAGE_METADATA = {
         "section": "Комунікації",
         "description": "Теми push-повідомлень і доступність цих тем для користувачів.",
         "ordering": ("-is_active", "name"),
+    },
+    "miniapp.PartnerLink": {
+        "section": "Залучення",
+        "description": "Керовані посилання для каналів трафіку з переходами, реєстраціями та наступними funnel-конверсіями.",
+        "ordering": ("-created_at",),
     },
     "accounts.Account": {
         "section": "Приватні фінансові дані",

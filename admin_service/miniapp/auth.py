@@ -250,7 +250,11 @@ def login_session(
     if str(request.session.get(SESSION_USER_ID_KEY) or "") != str(user.tg_user_id):
         _clear_miniapp_session(request)
     request.session.cycle_key()
-    from miniapp.funnel import link_acquisition_session, record_server_event
+    from miniapp.funnel import (
+        link_acquisition_session,
+        record_server_event,
+        retry_pending_registration_event,
+    )
 
     try:
         acquisition = link_acquisition_session(request, user=user)
@@ -261,6 +265,7 @@ def login_session(
                 event_name="auth_success",
                 idempotency_key=f"auth_success:{user.tg_user_id}",
             )
+            retry_pending_registration_event(request, user=user)
     except Exception as exc:
         logger.warning("Acquisition telemetry unavailable during login (%s)", type(exc).__name__)
     request.session[SESSION_USER_ID_KEY] = int(user.tg_user_id)

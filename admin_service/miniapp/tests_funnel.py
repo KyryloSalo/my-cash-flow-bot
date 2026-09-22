@@ -10,9 +10,12 @@ from django.urls import resolve
 
 from miniapp import auth, views
 from miniapp.funnel import (
+    ACQUISITION_SESSION_KEY,
     FunnelValidationError,
+    PENDING_REGISTRATION_EVENT_KEY,
     _request_device_dimensions,
     normalize_attribution,
+    retry_pending_registration_event,
     validate_client_event_payload,
 )
 from miniapp import funnel_views
@@ -36,6 +39,16 @@ class FunnelPayloadValidationTests(SimpleTestCase):
         request = RequestFactory().get(
             "/app/api/funnel/session",
             HTTP_USER_AGENT="Mozilla/5.0 Playwright automated acceptance",
+        )
+
+        dimensions = _request_device_dimensions(request)
+
+        self.assertEqual(dimensions["automation_status"], "automated")
+
+    def test_social_link_preview_is_classified_for_default_exclusion(self) -> None:
+        request = RequestFactory().get(
+            "/app/r/creator",
+            HTTP_USER_AGENT="TelegramBot (like TwitterBot)",
         )
 
         dimensions = _request_device_dimensions(request)
@@ -216,6 +229,49 @@ class RequestServerEventTests(SimpleTestCase):
             event_name="onboarding_confirmed",
             idempotency_key="onboarding:draft-1",
         )
+
+    @patch("miniapp.funnel.AcquisitionSession.objects.select_for_update")
+    def test_expired_acquisition_is_not_linked(self, select_for_update) -> None:
+        queryset = select_for_update.return_value.filter.return_value
+        queryset.first.return_value = None
+        session_id = "0b387247-f643-4e4c-8e6f-55998c22be20"
+        request = SimpleNamespace(session=Session({ACQUISITION_SESSION_KEY: session_id}))
+        user = SimpleNamespace(tg_user_id=812345)
+
+        from miniapp.funnel import link_acquisition_session
+
+        result = link_acquisition_session.__wrapped__(request, user=user)
+
+        self.assertIsNone(result)
+        self.assertNotIn(ACQUISITION_SESSION_KEY, request.session)
+        filter_kwargs = select_for_update.return_value.filter.call_args.kwargs
+        self.assertEqual(str(filter_kwargs["pk"]), session_id)
+        self.assertIn("expires_at__gt", filter_kwargs)
+
+    @patch("miniapp.funnel.record_request_server_event", return_value=None)
+    def test_pending_registration_is_kept_until_event_can_be_written(self, record_event) -> None:
+        user = SimpleNamespace(tg_user_id=812345)
+        request = SimpleNamespace(
+            session=Session({PENDING_REGISTRATION_EVENT_KEY: user.tg_user_id})
+        )
+
+        created = retry_pending_registration_event(request, user=user)
+
+        self.assertFalse(created)
+        self.assertEqual(request.session[PENDING_REGISTRATION_EVENT_KEY], user.tg_user_id)
+        record_event.assert_called_once()
+
+    @patch("miniapp.funnel.record_request_server_event", return_value=(object(), True))
+    def test_pending_registration_is_cleared_after_success(self, _record_event) -> None:
+        user = SimpleNamespace(tg_user_id=812345)
+        request = SimpleNamespace(
+            session=Session({PENDING_REGISTRATION_EVENT_KEY: user.tg_user_id})
+        )
+
+        created = retry_pending_registration_event(request, user=user)
+
+        self.assertTrue(created)
+        self.assertNotIn(PENDING_REGISTRATION_EVENT_KEY, request.session)
 
 
 class OnboardingFunnelHookTests(SimpleTestCase):

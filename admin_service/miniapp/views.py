@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import secrets
 import uuid
 from datetime import timedelta
@@ -50,7 +51,7 @@ from miniapp.family import (
     remove_family_member,
     revoke_family_invite,
 )
-from miniapp.funnel import FunnelValidationError, record_request_server_event
+from miniapp.funnel import FunnelValidationError, queue_registration_event, record_request_server_event
 from miniapp.savings_tasks import (
     MiniAppSavingTaskError,
     build_saving_task_draft,
@@ -163,6 +164,22 @@ from users.registration import (
     RegistrationTelegramIdentity,
     bootstrap_telegram_identity,
 )
+
+
+logger = logging.getLogger(__name__)
+
+
+def _record_new_registration_event(request: HttpRequest, registration) -> None:
+    if not bool(getattr(registration, "created", False)):
+        return
+    user = registration.user
+    try:
+        queue_registration_event(request, user=user)
+    except Exception as exc:
+        logger.warning(
+            "Acquisition registration telemetry unavailable (%s)",
+            type(exc).__name__,
+        )
 
 
 MINIAPP_TEMPLATE = "miniapp/index.html"
@@ -705,6 +722,7 @@ def telegram_oidc_callback(request: HttpRequest) -> HttpResponse:
         identity=registration.identity,
         authenticated_at=int(identity.claims.get("iat") or 0),
     )
+    _record_new_registration_event(request, registration)
     return redirect(pending.return_to)
 
 
@@ -929,6 +947,7 @@ def auth_telegram(request: HttpRequest) -> JsonResponse:
 
     user = registration.user
     login_session(request, user, authenticated_at=identity.auth_date)
+    _record_new_registration_event(request, registration)
     access = resolve_access(user)
     return _json_ok(
         {

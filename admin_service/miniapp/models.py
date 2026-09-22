@@ -3,6 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import time
 
+from django.conf import settings
+from django.core.validators import RegexValidator
 from django.db import models
 
 from users.models import TelegramUser
@@ -334,6 +336,98 @@ class AiTransactionDraft(models.Model):
         return f"{self.tg_user_id}:{self.source}:{self.status}"
 
 
+def generate_partner_link_code() -> str:
+    return uuid.uuid4().hex[:12]
+
+
+tracking_dimension_validator = RegexValidator(
+    regex=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    message="Використовуйте лише латинські літери, цифри, крапку, _ або -.",
+)
+
+
+class PartnerLink(models.Model):
+    class Destination(models.TextChoices):
+        LANDING = "landing", "Лендінг"
+        APP = "app", "Вебзастосунок"
+
+    name = models.CharField("Назва", max_length=160)
+    code = models.CharField(
+        "Код посилання",
+        max_length=64,
+        unique=True,
+        default=generate_partner_link_code,
+        validators=[
+            RegexValidator(
+                regex=r"^[a-z0-9][a-z0-9_-]{2,63}$",
+                message="Використовуйте 3–64 малих латинських літери, цифри, _ або -.",
+            )
+        ],
+    )
+    destination = models.CharField(
+        "Куди вести",
+        max_length=16,
+        choices=Destination.choices,
+        default=Destination.LANDING,
+    )
+    utm_source = models.CharField(
+        "Джерело (utm_source)",
+        max_length=128,
+        validators=[tracking_dimension_validator],
+    )
+    utm_medium = models.CharField(
+        "Канал (utm_medium)",
+        max_length=128,
+        blank=True,
+        default="",
+        validators=[tracking_dimension_validator],
+    )
+    utm_campaign = models.CharField(
+        "Кампанія (utm_campaign)",
+        max_length=128,
+        blank=True,
+        default="",
+        validators=[tracking_dimension_validator],
+    )
+    utm_content = models.CharField(
+        "Креатив (utm_content)",
+        max_length=128,
+        blank=True,
+        default="",
+        validators=[tracking_dimension_validator],
+    )
+    utm_term = models.CharField(
+        "Ключ / сегмент (utm_term)",
+        max_length=128,
+        blank=True,
+        default="",
+        validators=[tracking_dimension_validator],
+    )
+    notes = models.TextField("Нотатки", blank=True, default="")
+    is_active = models.BooleanField("Активне", default=True, db_index=True)
+    created_at = models.DateTimeField("Створено", auto_now_add=True)
+    updated_at = models.DateTimeField("Оновлено", auto_now=True)
+
+    class Meta:
+        db_table = "partner_links"
+        ordering = ("-created_at",)
+        verbose_name = "партнерське посилання"
+        verbose_name_plural = "партнерські посилання"
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.code})"
+
+    @property
+    def destination_path(self) -> str:
+        if self.destination == self.Destination.APP:
+            return "/app/"
+        return "/"
+
+    @property
+    def public_url(self) -> str:
+        return f"https://{settings.DOMAIN}/app/r/{self.code}"
+
+
 class AcquisitionSession(models.Model):
     class AutomationStatus(models.TextChoices):
         UNKNOWN = "unknown", "Unknown"
@@ -350,6 +444,21 @@ class AcquisitionSession(models.Model):
         blank=True,
         null=True,
     )
+    first_partner_link = models.ForeignKey(
+        PartnerLink,
+        on_delete=models.SET_NULL,
+        related_name="first_touch_sessions",
+        blank=True,
+        null=True,
+    )
+    last_partner_link = models.ForeignKey(
+        PartnerLink,
+        on_delete=models.SET_NULL,
+        related_name="last_touch_sessions",
+        blank=True,
+        null=True,
+    )
+    last_partner_link_clicked_at = models.DateTimeField(blank=True, null=True)
     funnel_version = models.CharField(max_length=32, default="pwa_v1")
     first_landing_variant = models.CharField(max_length=64, blank=True, default="")
     last_landing_variant = models.CharField(max_length=64, blank=True, default="")
@@ -379,6 +488,30 @@ class AcquisitionSession(models.Model):
         indexes = [
             models.Index(fields=("user", "created_at"), name="acq_user_created_idx"),
             models.Index(fields=("automation_status", "created_at"), name="acq_auto_created_idx"),
+            models.Index(fields=("first_partner_link", "created_at"), name="acq_first_link_time_idx"),
+            models.Index(fields=("last_partner_link", "created_at"), name="acq_last_link_time_idx"),
+        ]
+
+
+class PartnerLinkClick(models.Model):
+    partner_link = models.ForeignKey(
+        PartnerLink,
+        on_delete=models.PROTECT,
+        related_name="clicks",
+    )
+    acquisition_session = models.ForeignKey(
+        AcquisitionSession,
+        on_delete=models.CASCADE,
+        related_name="partner_link_clicks",
+    )
+    clicked_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "partner_link_clicks"
+        ordering = ("-clicked_at", "-id")
+        indexes = [
+            models.Index(fields=("partner_link", "clicked_at"), name="partner_click_link_time_idx"),
+            models.Index(fields=("acquisition_session", "clicked_at"), name="partner_click_sess_time_idx"),
         ]
 
 
@@ -391,6 +524,20 @@ class FunnelEvent(models.Model):
         AcquisitionSession,
         on_delete=models.CASCADE,
         related_name="events",
+    )
+    first_partner_link = models.ForeignKey(
+        PartnerLink,
+        on_delete=models.SET_NULL,
+        related_name="first_touch_events",
+        blank=True,
+        null=True,
+    )
+    last_partner_link = models.ForeignKey(
+        PartnerLink,
+        on_delete=models.SET_NULL,
+        related_name="last_touch_events",
+        blank=True,
+        null=True,
     )
     event_name = models.CharField(max_length=64, db_index=True)
     idempotency_key = models.CharField(max_length=160)
@@ -417,4 +564,12 @@ class FunnelEvent(models.Model):
         indexes = [
             models.Index(fields=("event_name", "recorded_at"), name="funnel_name_time_idx"),
             models.Index(fields=("acquisition_session", "recorded_at"), name="funnel_session_time_idx"),
+            models.Index(
+                fields=("first_partner_link", "event_name", "recorded_at"),
+                name="funnel_first_link_event_idx",
+            ),
+            models.Index(
+                fields=("last_partner_link", "event_name", "recorded_at"),
+                name="funnel_last_link_event_idx",
+            ),
         ]

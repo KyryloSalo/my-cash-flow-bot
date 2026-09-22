@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from django.http import HttpRequest, JsonResponse
 from django.middleware.csrf import get_token
+from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
@@ -14,11 +16,14 @@ from miniapp.funnel import (
     get_or_create_acquisition_session,
     ingest_client_event,
     link_acquisition_session,
+    track_partner_link_click,
 )
+from miniapp.models import PartnerLink
 from miniapp.services import resolve_access
 from subscriptions.consent import accept_billing_consent, build_server_consent_terms
 
 MAX_FUNNEL_EVENT_BODY_BYTES = 4096
+logger = logging.getLogger(__name__)
 ATTRIBUTION_QUERY_FIELDS = (
     "utm_source",
     "utm_medium",
@@ -35,6 +40,17 @@ def _error_response(error: FunnelValidationError) -> JsonResponse:
         {"error": {"code": error.code, "message": str(error)}},
         status=error.status,
     )
+
+
+@never_cache
+@require_GET
+def partner_link_redirect(request: HttpRequest, code: str):
+    link = get_object_or_404(PartnerLink, code=code, is_active=True)
+    try:
+        track_partner_link_click(request, link=link)
+    except Exception:
+        logger.exception("Partner-link analytics persistence failed", extra={"partner_link_id": link.pk})
+    return redirect(link.destination_path)
 
 
 def _link_authenticated_request(request: HttpRequest) -> None:

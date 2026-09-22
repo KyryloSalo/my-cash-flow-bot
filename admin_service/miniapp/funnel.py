@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import re
-import uuid
 import hashlib
 import json
+import re
+import uuid
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
@@ -13,7 +13,12 @@ from django.db import IntegrityError, transaction
 from django.http import HttpRequest
 from django.utils import timezone
 
-from miniapp.models import AcquisitionSession, FunnelEvent
+from miniapp.models import (
+    AcquisitionSession,
+    FunnelEvent,
+    PartnerLink,
+    PartnerLinkClick,
+)
 from users.models import TelegramUser
 
 
@@ -54,6 +59,7 @@ SERVER_EVENT_NAMES = frozenset(
         "auth_start",
         "auth_success",
         "auth_failure",
+        "registration_completed",
         "onboarding_confirmed",
         "billing_consent_accepted",
         "bind_invoice_created",
@@ -97,6 +103,7 @@ _ATTRIBUTION_LIMITS = {
     "landing_variant": 64,
 }
 ACQUISITION_SESSION_KEY = "funnel_acquisition_session_id"
+PENDING_REGISTRATION_EVENT_KEY = "funnel_pending_registration_user_id"
 
 
 class FunnelValidationError(ValueError):
@@ -193,7 +200,22 @@ def _request_device_dimensions(request: HttpRequest) -> dict[str, str]:
         for marker in getattr(
             settings,
             "FUNNEL_AUTOMATION_USER_AGENT_MARKERS",
-            ("playwright", "selenium", "cypress", "headlesschrome", "lighthouse", "puppeteer"),
+            (
+                "playwright",
+                "selenium",
+                "cypress",
+                "headlesschrome",
+                "lighthouse",
+                "puppeteer",
+                "facebookexternalhit",
+                "telegrambot",
+                "twitterbot",
+                "linkedinbot",
+                "discordbot",
+                "slackbot",
+                "googlebot",
+                "bingbot",
+            ),
         )
         if str(marker).strip()
     )
@@ -263,6 +285,55 @@ def get_or_create_acquisition_session(
     return acquisition
 
 
+def _lock_acquisition_session(acquisition: AcquisitionSession) -> AcquisitionSession:
+    return AcquisitionSession.objects.select_for_update().get(pk=acquisition.pk)
+
+
+def _track_partner_link_click_locked(
+    request: HttpRequest,
+    *,
+    link: PartnerLink,
+) -> tuple[AcquisitionSession, PartnerLinkClick]:
+    attribution = normalize_attribution(
+        {
+            "utm_source": link.utm_source,
+            "utm_medium": link.utm_medium,
+            "utm_campaign": link.utm_campaign,
+            "utm_content": link.utm_content,
+            "utm_term": link.utm_term,
+            "referral_code": link.code,
+        }
+    )
+    acquisition = get_or_create_acquisition_session(request, attribution=attribution)
+    acquisition = _lock_acquisition_session(acquisition)
+    update_fields: list[str] = []
+    if acquisition.first_partner_link_id is None:
+        acquisition.first_partner_link_id = link.pk
+        update_fields.append("first_partner_link")
+        for field, value in attribution.items():
+            if value and not getattr(acquisition, field):
+                setattr(acquisition, field, value)
+                update_fields.append(field)
+    acquisition.last_partner_link_id = link.pk
+    acquisition.last_partner_link_clicked_at = timezone.now()
+    update_fields.extend(["last_partner_link", "last_partner_link_clicked_at"])
+    acquisition.save(update_fields=sorted(set(update_fields + ["updated_at"])))
+    click = PartnerLinkClick.objects.create(
+        partner_link=link,
+        acquisition_session=acquisition,
+    )
+    return acquisition, click
+
+
+def track_partner_link_click(
+    request: HttpRequest,
+    *,
+    link: PartnerLink,
+) -> tuple[AcquisitionSession, PartnerLinkClick]:
+    with transaction.atomic():
+        return _track_partner_link_click_locked(request, link=link)
+
+
 @transaction.atomic
 def link_acquisition_session(
     request: HttpRequest,
@@ -277,7 +348,10 @@ def link_acquisition_session(
     except ValueError:
         request.session.pop(ACQUISITION_SESSION_KEY, None)
         return None
-    acquisition = AcquisitionSession.objects.select_for_update().filter(pk=parsed_id).first()
+    acquisition = AcquisitionSession.objects.select_for_update().filter(
+        pk=parsed_id,
+        expires_at__gt=timezone.now(),
+    ).first()
     if acquisition is None:
         request.session.pop(ACQUISITION_SESSION_KEY, None)
         return None
@@ -317,6 +391,8 @@ def _create_event_once(
         "event_name": payload["event_name"],
         "payload_hash": payload_hash,
         "source": source,
+        "first_partner_link_id": getattr(acquisition, "first_partner_link_id", None),
+        "last_partner_link_id": getattr(acquisition, "last_partner_link_id", None),
         **{field: payload.get(field, "") for field in _DIMENSION_FIELDS},
     }
     try:
@@ -422,3 +498,26 @@ def record_request_server_event(
         event_name=event_name,
         idempotency_key=idempotency_key,
     )
+
+
+def retry_pending_registration_event(request: HttpRequest, *, user: TelegramUser) -> bool:
+    pending_user_id = str(request.session.get(PENDING_REGISTRATION_EVENT_KEY) or "")
+    if pending_user_id != str(user.tg_user_id):
+        return False
+    result = record_request_server_event(
+        request,
+        user=user,
+        event_name="registration_completed",
+        idempotency_key=f"registration:{user.tg_user_id}",
+    )
+    if result is None:
+        return False
+    request.session.pop(PENDING_REGISTRATION_EVENT_KEY, None)
+    request.session.modified = True
+    return True
+
+
+def queue_registration_event(request: HttpRequest, *, user: TelegramUser) -> bool:
+    request.session[PENDING_REGISTRATION_EVENT_KEY] = int(user.tg_user_id)
+    request.session.modified = True
+    return retry_pending_registration_event(request, user=user)
