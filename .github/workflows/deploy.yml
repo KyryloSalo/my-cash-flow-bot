@@ -93,5 +93,22 @@ jobs:
           path: artifacts/
           if-no-files-found: error
           retention-days: 30
+  publish:
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Publish immutable validated deployment bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir artifacts
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "validated-release-$GITHUB_SHA" --dir artifacts
+          gh release create "validated-$GITHUB_SHA" artifacts/release.zip artifacts/images.tar artifacts/release-evidence.json \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Validated deployment $GITHUB_SHA" \
+            --notes "Immutable CI-validated deployment bundle for commit $GITHUB_SHA." --prerelease
 # No SSH secrets or automatic production job. Download a successful artifact,
 # approve staging gates/runbook, then use ops/deploy.ps1 -ConfirmProduction.
