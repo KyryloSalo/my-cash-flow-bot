@@ -109,6 +109,7 @@ class OperationalAdminArchitectureTests(SimpleTestCase):
             [
                 "Огляд",
                 "Користувачі",
+                "Залучення",
                 "Підписки Vydno",
                 "Комунікації",
                 "Підтримка",
@@ -128,6 +129,7 @@ class OperationalAdminArchitectureTests(SimpleTestCase):
             {
                 "Огляд": ["Огляд"],
                 "Користувачі": ["Усі користувачі", "Теги користувачів"],
+                "Залучення": ["Партнерські посилання"],
                 "Підписки Vydno": [
                     "Підписки користувачів",
                     "Оплати за Vydno",
