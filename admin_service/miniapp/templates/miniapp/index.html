@@ -19,6 +19,7 @@
   <link rel="apple-touch-icon" href="{% static 'miniapp/apple-touch-icon.png' %}?v={{ miniapp_asset_version }}">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="{% static 'miniapp/app.css' %}?v={{ miniapp_asset_version }}">
+  <script defer src="{% static 'miniapp/install-coach.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/push.js' %}?v={{ miniapp_asset_version }}"></script>
 </head>
 <body class="calm-fintech-v2"
@@ -73,6 +74,8 @@
   data-settings-savings-url="{% url 'miniapp:settings-savings' %}"
   data-billing-action-url="{% url 'miniapp:billing-action' %}"
   data-billing-consent-url="{% url 'miniapp:funnel-billing-consent' %}"
+  data-funnel-session-url="{% url 'miniapp:funnel-session' %}"
+  data-funnel-event-url="{% url 'miniapp:funnel-event' %}"
   data-trial-recovery-event-url="{% url 'miniapp:trial-recovery-event' %}"
   data-install-nudge-url="{% url 'miniapp:install-nudge-status' %}"
   data-install-nudge-event-url="{% url 'miniapp:install-nudge-event' %}"
@@ -131,19 +134,111 @@
       <p class="form-status" id="cardBindingStatus" hidden aria-live="polite"></p>
     </section>
   </div>
-  <div class="activation-modal" id="installNudgeModal" role="dialog" aria-modal="true" aria-labelledby="installNudgeTitle" hidden>
-    <section class="activation-card">
-      <div class="activation-icon" aria-hidden="true">📲</div>
-      <p class="eyebrow" id="installNudgeEyebrow">Швидкий доступ</p>
-      <h2 id="installNudgeTitle">Додайте Vydno на головний екран</h2>
-      <p class="activation-lead" id="installNudgeMessage"></p>
-      <ol class="activation-steps" id="installNudgeSteps"></ol>
-      <div class="activation-actions">
-        <button class="primary-action" id="installNudgePrimary" type="button">Додати на головний екран</button>
-        <button class="secondary-action" id="installNudgeConfirmed" type="button">Вже додав(ла)</button>
-        <button class="ghost-action" id="installNudgeLater" type="button">Нагадати пізніше</button>
+  <div class="activation-modal install-coach-modal" id="installNudgeModal" role="dialog" aria-modal="true" aria-labelledby="installNudgeTitle" aria-describedby="installNudgeMessage" hidden>
+    <section class="activation-card install-coach-card" tabindex="-1">
+      <div class="install-coach-heading">
+        <img class="install-coach-app-icon" src="{% static 'miniapp/icon-192.png' %}?v={{ miniapp_asset_version }}" width="56" height="56" alt="">
+        <div>
+          <p class="eyebrow" id="installNudgeEyebrow">Окремий застосунок</p>
+          <h2 id="installNudgeTitle">Додайте Vydno на головний екран</h2>
+        </div>
       </div>
-      <p class="activation-footnote" id="installNudgeFootnote"></p>
+      <p class="activation-lead" id="installNudgeMessage">Vydno відкриватиметься одним тапом.</p>
+
+      <div class="install-coach-visual" id="installCoachVisual" data-install-platform="ios" data-install-mode="manual" data-install-step="0" role="img" aria-label="Крок встановлення Vydno">
+        <div class="install-coach-scene install-coach-scene--ios" data-install-scene="ios" aria-hidden="true">
+          <div class="install-coach-phone">
+            <div class="install-coach-browser-bar"><span></span><strong>vydno.capital</strong><span></span></div>
+            <div class="install-coach-preview-card"><small>Ваші фінанси</small><strong>Vydno</strong><span>Огляд · Гроші · Аналітика</span></div>
+            <div class="install-coach-share" data-install-highlight="0" data-install-stage="share">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L8 7m4-4 4 4M5 11v8h14v-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span>Поділитися</span>
+            </div>
+            <div class="install-coach-sheet" data-install-highlight="1" data-install-stage="home-screen-action">
+              <span>＋</span><strong>На початковий екран</strong><i class="install-coach-scroll-cue" aria-hidden="true">↓</i>
+            </div>
+            <div class="install-coach-ios-add" data-install-highlight="2" data-install-stage="add-confirmation">
+              <div><button type="button" tabindex="-1">Скасувати</button><strong>На початковий екран</strong><button type="button" tabindex="-1">Додати</button></div>
+              <p><img src="{% static 'miniapp/icon-192.png' %}?v={{ miniapp_asset_version }}" width="34" height="34" alt=""><span><strong>Vydno</strong><small>vydno.capital</small></span></p>
+              <label><span>Відкрити як вебдодаток</span><i aria-hidden="true"></i></label>
+            </div>
+            <div class="install-coach-home" data-install-highlight="3" data-install-stage="installed-icon">
+              <img src="{% static 'miniapp/icon-192.png' %}?v={{ miniapp_asset_version }}" width="48" height="48" alt="">
+              <strong>Vydno</strong>
+            </div>
+            <div class="install-coach-arrow" id="installCoachPointer" aria-hidden="true">
+              <svg viewBox="0 0 74 54"><path d="M4 7c17 3 34 10 49 27"></path><path d="m47 24 8 12-14 2"></path></svg><span></span>
+            </div>
+          </div>
+        </div>
+        <div class="install-coach-scene install-coach-scene--android" data-install-scene="android" aria-hidden="true">
+          <div class="install-coach-phone">
+            <div class="install-coach-browser-bar"><strong>vydno.capital</strong><span class="install-coach-menu-button" data-install-highlight="0" data-install-stage="browser-menu">⋮</span></div>
+            <button class="install-coach-browser-install" type="button" tabindex="-1" data-install-highlight="0" data-install-stage="install-action">Встановити Vydno</button>
+            <div class="install-coach-android-menu" data-install-highlight="1" data-install-stage="install-menu-action">
+              <small>Нова вкладка</small><small>Історія</small><strong>Встановити додаток</strong>
+            </div>
+            <div class="install-coach-native-card" data-install-highlight="2" data-install-stage="native-prompt">
+              <img src="{% static 'miniapp/icon-192.png' %}?v={{ miniapp_asset_version }}" width="44" height="44" alt="">
+              <span><strong>Vydno</strong><small>Встановити застосунок?</small></span><button type="button" tabindex="-1">Встановити</button>
+            </div>
+            <div class="install-coach-home" data-install-highlight="3" data-install-stage="installed-icon">
+              <img src="{% static 'miniapp/icon-192.png' %}?v={{ miniapp_asset_version }}" width="48" height="48" alt="">
+              <strong>Vydno</strong>
+            </div>
+            <div class="install-coach-arrow" aria-hidden="true">
+              <svg viewBox="0 0 74 54"><path d="M4 7c17 3 34 10 49 27"></path><path d="m47 24 8 12-14 2"></path></svg><span></span>
+            </div>
+          </div>
+        </div>
+        <div class="install-coach-scene install-coach-scene--handoff-ios" data-install-scene="handoff-ios" aria-hidden="true">
+          <div class="install-coach-phone">
+            <div class="install-coach-telegram-bar"><strong>Vydno</strong><span>⋮</span></div>
+            <div class="install-coach-telegram-preview"><small>Вбудований браузер Telegram</small><strong>vydno.capital</strong></div>
+            <div class="install-coach-handoff-menu" data-install-highlight="0" data-install-stage="safari-only-handoff"><span>Відкрити у Safari</span></div>
+            <div class="install-coach-arrow" aria-hidden="true">
+              <svg viewBox="0 0 74 54"><path d="M4 7c17 3 34 10 49 27"></path><path d="m47 24 8 12-14 2"></path></svg><span></span>
+            </div>
+          </div>
+        </div>
+        <div class="install-coach-scene install-coach-scene--handoff-android" data-install-scene="handoff-android" aria-hidden="true">
+          <div class="install-coach-phone">
+            <div class="install-coach-telegram-bar"><strong>Vydno</strong><span>⋮</span></div>
+            <div class="install-coach-telegram-preview"><small>Вбудований браузер Telegram</small><strong>vydno.capital</strong></div>
+            <div class="install-coach-handoff-menu" data-install-highlight="0" data-install-stage="browser-handoff"><span>Відкрити у Chrome</span></div>
+            <div class="install-coach-arrow" aria-hidden="true">
+              <svg viewBox="0 0 74 54"><path d="M4 7c17 3 34 10 49 27"></path><path d="m47 24 8 12-14 2"></path></svg><span></span>
+            </div>
+          </div>
+        </div>
+        <div class="install-coach-scene install-coach-scene--open-safari" data-install-scene="open-safari" aria-hidden="true">
+          <div class="install-coach-phone">
+            <div class="install-coach-telegram-bar"><strong>Браузер на iPhone</strong><span>⋯</span></div>
+            <div class="install-coach-telegram-preview"><small>Відкрийте цю сторінку в Safari</small><strong>vydno.capital</strong></div>
+            <div class="install-coach-safari-menu" data-install-highlight="0" data-install-stage="safari-only-handoff"><span>Відкрити у Safari</span></div>
+            <div class="install-coach-arrow" aria-hidden="true">
+              <svg viewBox="0 0 74 54"><path d="M4 7c17 3 34 10 49 27"></path><path d="m47 24 8 12-14 2"></path></svg><span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="install-coach-progress-row">
+        <span id="installCoachProgress" aria-live="polite">Крок 1 із 4</span>
+        <progress id="installCoachProgressBar" value="1" max="4">1 / 4</progress>
+      </div>
+      <div class="install-coach-command" aria-live="polite">
+        <strong id="installCoachCommand">У Safari натисніть кнопку «Поділитися» — квадрат зі стрілкою вгору.</strong>
+        <p id="installCoachHint">Кнопка розташована в панелі Safari — зверху або знизу залежно від налаштувань браузера.</p>
+      </div>
+      <ol class="install-coach-steps" id="installNudgeSteps" aria-label="Прогрес встановлення"></ol>
+      <p class="install-coach-help" id="installCoachHelp" role="status" aria-live="polite" hidden></p>
+      <div class="activation-actions install-coach-actions">
+        <button class="primary-action" id="installNudgePrimary" type="button">Далі</button>
+        <button class="secondary-action" id="installNudgeHelp" type="button" aria-controls="installCoachHelp" aria-expanded="false">Не бачу цієї кнопки</button>
+        <button class="ghost-action" id="installNudgeLater" type="button">Продовжити без встановлення</button>
+      </div>
+      <p class="activation-footnote" id="installNudgeFootnote">Встановлення не блокує доступ до Vydno.</p>
     </section>
   </div>
   <div class="activation-modal" id="pushPermissionModal" role="dialog" aria-modal="true" aria-labelledby="pushPermissionTitle" hidden>
@@ -1560,9 +1655,12 @@
       const settingsSavingsUrl = root.dataset.settingsSavingsUrl;
       const billingActionUrl = root.dataset.billingActionUrl;
       const billingConsentUrl = root.dataset.billingConsentUrl;
+      const funnelSessionUrl = root.dataset.funnelSessionUrl;
+      const funnelEventUrl = root.dataset.funnelEventUrl;
       const trialRecoveryEventUrl = root.dataset.trialRecoveryEventUrl;
       const installNudgeUrl = root.dataset.installNudgeUrl;
       const installNudgeEventUrl = root.dataset.installNudgeEventUrl;
+      const installDeviceStorageKey = "vydno.install-device.v1";
       const familyUrl = root.dataset.familyUrl;
       const familyCreateDraftUrl = root.dataset.familyCreateDraftUrl;
       const familyCreateConfirmUrl = root.dataset.familyCreateConfirmUrl;
@@ -1591,6 +1689,16 @@
       let deferredInstallPrompt = null;
       let installNudgePayload = null;
       let installNudgeShownForVisit = false;
+      let installEligibilityKnown = false;
+      let installPromptAvailabilityRecorded = false;
+      let installPromptBusy = false;
+      let installPromptFallbackShown = false;
+      let nativePromptRunner = null;
+      let installCoachStep = 0;
+      let installCoachHelpOpen = false;
+      let installFunnelSessionPromise = null;
+      let installDeviceId = "";
+      let standaloneLaunchRecorded = false;
       let activationModalOpen = false;
       let sessionPromise = null;
       let sessionEstablished = false;
@@ -7215,6 +7323,17 @@
         window.location.assign(target);
       }
 
+      function openInstallBrowserUrl(url, platform) {
+        const target = String(url || "").trim();
+        if (!target) return;
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
+          const tryBrowser = platform === "ios" ? "safari" : "chrome";
+          window.Telegram.WebApp.openLink(target, { try_browser: tryBrowser });
+          return;
+        }
+        window.location.assign(target);
+      }
+
       function createBillingConsent() {
         return postJson(billingConsentUrl, {
           accepted: true,
@@ -7763,15 +7882,70 @@
         return Boolean(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData);
       }
 
+      function installDeviceIdentifier() {
+        if (installDeviceId) return installDeviceId;
+        try {
+          const stored = String(window.localStorage.getItem(installDeviceStorageKey) || "").trim();
+          if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(stored)) {
+            installDeviceId = stored;
+            return installDeviceId;
+          }
+        } catch (_error) {}
+        installDeviceId = installEventId();
+        try { window.localStorage.setItem(installDeviceStorageKey, installDeviceId); } catch (_error) {}
+        return installDeviceId;
+      }
+
       function recordInstallNudge(eventName, platform) {
         if (!installNudgeEventUrl) return Promise.resolve(null);
         return postJson(installNudgeEventUrl, {
           event: eventName,
-          platform: platform || (isTelegramHost() ? "telegram" : installPlatform())
+          platform: platform || (isTelegramHost() ? "telegram" : installPlatform()),
+          device_id: installDeviceIdentifier()
         }).then(function (payload) {
           installNudgePayload = payload.install_nudge || installNudgePayload;
           return payload;
         }).catch(function () { return null; });
+      }
+
+      function installEventId() {
+        if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID();
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (character) {
+          const value = Math.floor(Math.random() * 16);
+          const mapped = character === "x" ? value : (value & 0x3) | 0x8;
+          return mapped.toString(16);
+        });
+      }
+
+      function installContainer() {
+        if (isStandaloneMode()) return "standalone";
+        if (isTelegramHost()) return "telegram";
+        return "browser";
+      }
+
+      function recordInstallFunnelEvent(eventName, outcome) {
+        if (!funnelSessionUrl || !funnelEventUrl) return Promise.resolve(null);
+        if (!installFunnelSessionPromise) {
+          const separator = funnelSessionUrl.indexOf("?") === -1 ? "?" : "&";
+          installFunnelSessionPromise = getJson(funnelSessionUrl + separator + "landing_variant=app-install-v1", false)
+            .catch(function () {
+              installFunnelSessionPromise = null;
+              return null;
+            });
+        }
+        return installFunnelSessionPromise.then(function (session) {
+          if (!session) return null;
+          return postJson(funnelEventUrl, {
+            event_name: eventName,
+            event_id: installEventId(),
+            funnel_version: String(session.funnel_version || "pwa-first-v1"),
+            landing_variant: "app-install-v1",
+            platform: installPlatform(),
+            container: installContainer(),
+            outcome: String(outcome || ""),
+            placement: "post-access-coach"
+          }).catch(function () { return null; });
+        });
       }
 
       function hideInstallNudge() {
@@ -7873,39 +8047,50 @@
         });
       }
 
+      function installCoachOptions(overrides) {
+        const coach = window.VydnoInstallCoach;
+        const options = overrides || {};
+        return {
+          locale: activeLocale,
+          platform: installPlatform(),
+          browser: coach ? coach.detectBrowser(window.navigator) : "other",
+          telegram: isTelegramHost(),
+          canPrompt: Boolean(deferredInstallPrompt || installPromptBusy),
+          step: installCoachStep,
+          helpOpen: installCoachHelpOpen,
+          outcome: String(options.outcome || "")
+        };
+      }
+
+      function refreshInstallCoach(overrides) {
+        const modal = document.getElementById("installNudgeModal");
+        if (!modal || !window.VydnoInstallCoach) return null;
+        const model = window.VydnoInstallCoach.apply(modal, installCoachOptions(overrides));
+        const help = document.getElementById("installNudgeHelp");
+        if (help) help.setAttribute("aria-expanded", installCoachHelpOpen ? "true" : "false");
+        return model;
+      }
+
+      function skipInstallNudge() {
+        recordInstallFunnelEvent("install_skip", "continued-without-install");
+        recordInstallNudge("dismissed");
+        hideInstallNudge();
+      }
+
       function renderInstallNudge(payload) {
         const modal = document.getElementById("installNudgeModal");
-        if (!modal) return false;
-        const platform = installPlatform();
-        const telegram = isTelegramHost();
-        const steps = document.getElementById("installNudgeSteps");
-        const primary = document.getElementById("installNudgePrimary");
-        const remaining = Math.max(Number(payload.remaining_prompts || 0) - (payload.due ? 1 : 0), 0);
-        if (activeLocale === "en") {
-          setText("installNudgeEyebrow", "Quick access");
-          setText("installNudgeTitle", "Add Vydno to your Home Screen");
-          setText("installNudgeMessage", telegram ? "Open the secure browser login, then add Vydno as an app." : "Launch Vydno in one tap without looking for the Telegram chat.");
-          steps.innerHTML = platform === "ios"
-            ? "<li>Tap <strong>Share</strong> in Safari.</li><li>Choose <strong>Add to Home Screen</strong>.</li><li>Keep <strong>Open as Web App</strong> enabled and tap Add.</li>"
-            : "<li>Open the secure app page in Chrome.</li><li>Confirm <strong>Install</strong> or <strong>Add to Home screen</strong>.</li><li>Launch Vydno from the new icon.</li>";
-          primary.textContent = telegram ? "Open in Safari / Chrome" : (deferredInstallPrompt ? "Install app" : (platform === "ios" ? "Got it, I’ll add it" : "Show install steps"));
-          setText("installNudgeConfirmed", "I already added it");
-          setText("installNudgeLater", "Remind me later");
-          setText("installNudgeFootnote", remaining ? "We’ll remind you up to " + String(remaining) + " more times." : "This is the last reminder.");
-        } else {
-          setText("installNudgeEyebrow", "Швидкий доступ");
-          setText("installNudgeTitle", "Додайте Vydno на головний екран");
-          setText("installNudgeMessage", telegram ? "Відкрийте захищений браузерний вхід, а потім додайте Vydno як окремий додаток." : "Запускайте Vydno одним тапом — без пошуку чату в Telegram.");
-          steps.innerHTML = platform === "ios"
-            ? "<li>У Safari натисніть <strong>Поділитися</strong>.</li><li>Оберіть <strong>На початковий екран</strong>.</li><li>Залиште <strong>Відкрити як вебдодаток</strong> і натисніть Додати.</li>"
-            : "<li>Відкрийте захищену сторінку додатка в Chrome.</li><li>Підтвердьте <strong>Встановити</strong> або <strong>Додати на головний екран</strong>.</li><li>Запускайте Vydno з нової іконки.</li>";
-          primary.textContent = telegram ? "Відкрити в Safari / Chrome" : (deferredInstallPrompt ? "Встановити додаток" : (platform === "ios" ? "Зрозуміло, додаю" : "Показати встановлення"));
-          setText("installNudgeConfirmed", "Вже додав(ла)");
-          setText("installNudgeLater", "Нагадати пізніше");
-          setText("installNudgeFootnote", remaining ? "Ми нагадаємо ще максимум " + String(remaining) + " раз(и)." : "Це останнє нагадування.");
-        }
-        modal.hidden = false;
+        if (!modal || !window.VydnoInstallCoach) return false;
+        installCoachStep = 0;
+        installCoachHelpOpen = false;
+        installPromptFallbackShown = false;
+        const model = refreshInstallCoach();
+        if (!model) return false;
+        openAccessibleModal(modal, skipInstallNudge, "installNudgePrimary");
         activationModalOpen = true;
+        recordInstallFunnelEvent("install_education_view", model.mode);
+        if (model.mode === "manual" || model.mode === "open-safari") {
+          recordInstallFunnelEvent("install_manual_steps_view", model.mode);
+        }
         if (!installNudgeShownForVisit && payload.due) {
           installNudgeShownForVisit = true;
           recordInstallNudge("shown");
@@ -7913,15 +8098,37 @@
         return true;
       }
 
+      function revealInstallAvailability() {
+        const installBtn = document.getElementById("installAppBtn");
+        const platform = installPlatform();
+        const eligible = Boolean(installEligibilityKnown && installNudgePayload && installNudgePayload.eligible);
+        const supported = isTelegramHost() || platform === "ios" || platform === "android" || Boolean(deferredInstallPrompt);
+        const available = eligible && supported;
+        if (installBtn) installBtn.hidden = !available;
+        if (available && deferredInstallPrompt && !installPromptAvailabilityRecorded) {
+          installPromptAvailabilityRecorded = true;
+          recordInstallFunnelEvent("install_prompt_available", "available");
+        }
+        const modal = document.getElementById("installNudgeModal");
+        if (available && modal && !modal.hidden) refreshInstallCoach();
+        return available;
+      }
+
       function maybeShowInstallNudge(force) {
         if (!installNudgeUrl || activationModalOpen) return Promise.resolve(false);
         if (isStandaloneMode()) {
+          if (!standaloneLaunchRecorded) {
+            standaloneLaunchRecorded = true;
+            recordInstallFunnelEvent("standalone_launch", "detected");
+          }
           return recordInstallNudge("installed", "standalone").then(function () { return false; });
         }
-        return getJson(installNudgeUrl).then(function (payload) {
+        return postJson(installNudgeUrl, {
+          device_id: installDeviceIdentifier()
+        }).then(function (payload) {
           installNudgePayload = payload.install_nudge || {};
-          const installBtn = document.getElementById("installAppBtn");
-          if (installBtn && (installNudgePayload.due || deferredInstallPrompt)) installBtn.hidden = false;
+          installEligibilityKnown = true;
+          if (!revealInstallAvailability()) return false;
           if (!force && !installNudgePayload.due) return false;
           if (force && installRequested && window.history && window.history.replaceState) {
             const cleanUrl = new URL(window.location.href);
@@ -7932,12 +8139,98 @@
         }).catch(function () { return false; });
       }
 
+      function advanceInstallCoach() {
+        const coach = window.VydnoInstallCoach;
+        if (!coach) return;
+        const model = coach.buildModel(installCoachOptions());
+        if (model.complete) {
+          recordInstallFunnelEvent("install_cta_click", "manual-confirmed");
+          recordInstallNudge("confirmed").then(hideInstallNudge);
+          return;
+        }
+        installCoachStep = coach.nextStep(installCoachStep, model.steps.length);
+        installCoachHelpOpen = false;
+        refreshInstallCoach();
+        recordInstallFunnelEvent("install_cta_click", "next-step");
+      }
+
+      function setInstallPromptBusy(value) {
+        installPromptBusy = Boolean(value);
+        const installPrimary = document.getElementById("installNudgePrimary");
+        if (installPrimary) {
+          installPrimary.disabled = installPromptBusy;
+          installPrimary.setAttribute("aria-busy", installPromptBusy ? "true" : "false");
+        }
+      }
+
+      function transitionToNativePromptFallback(reason) {
+        if (installPromptFallbackShown) return;
+        installPromptFallbackShown = true;
+        setInstallPromptBusy(false);
+        installCoachStep = 0;
+        installCoachHelpOpen = reason === "error";
+        refreshInstallCoach({ outcome: reason === "error" ? "prompt-error" : "dismissed" });
+        recordInstallFunnelEvent("install_manual_steps_view", reason === "error" ? "prompt-error" : "native-fallback");
+      }
+
+      function ensureNativePromptRunner() {
+        if (nativePromptRunner || !window.VydnoInstallCoach) return nativePromptRunner;
+        nativePromptRunner = window.VydnoInstallCoach.createNativePromptRunner({
+          onBusy: setInstallPromptBusy,
+          onAccepted: function () {
+            recordInstallFunnelEvent("install_prompt_accepted", "accepted");
+            hideInstallNudge();
+          },
+          onDismissed: function () {
+            recordInstallFunnelEvent("install_prompt_dismissed", "dismissed");
+            recordInstallNudge("dismissed");
+          },
+          onError: function () {
+            recordInstallFunnelEvent("install_prompt_dismissed", "prompt-error");
+          },
+          onFallback: transitionToNativePromptFallback
+        });
+        return nativePromptRunner;
+      }
+
+      function startInstallFromCoach() {
+        if (installPromptBusy) return;
+        const coach = window.VydnoInstallCoach;
+        if (!coach) return;
+        const model = coach.buildModel(installCoachOptions());
+        if (model.mode === "handoff" && installNudgePayload && installNudgePayload.browser_login_url) {
+          recordInstallFunnelEvent("install_cta_click", "browser-handoff");
+          openInstallBrowserUrl(installNudgePayload.browser_login_url, model.platform);
+          hideInstallNudge();
+          return;
+        }
+        if (model.mode === "native" && deferredInstallPrompt) {
+          const promptEvent = deferredInstallPrompt;
+          deferredInstallPrompt = null;
+          recordInstallFunnelEvent("install_cta_click", "native-prompt");
+          ensureNativePromptRunner();
+          nativePromptRunner.run(promptEvent);
+          installCoachStep = coach.nextStep(installCoachStep, model.steps.length);
+          refreshInstallCoach({ outcome: "prompt-opened" });
+          return;
+        }
+        if (model.mode === "open-safari" || model.mode === "unsupported") {
+          installCoachHelpOpen = true;
+          const help = document.getElementById("installNudgeHelp");
+          if (help) help.setAttribute("aria-expanded", "true");
+          refreshInstallCoach();
+          recordInstallFunnelEvent("install_manual_steps_view", "open-safari");
+          return;
+        }
+        advanceInstallCoach();
+      }
+
       function setupActivationNudges() {
         const cardPrimary = document.getElementById("cardBindingPrimary");
         const cardLater = document.getElementById("cardBindingLater");
         const cardConsentAccepted = document.getElementById("cardBindingConsentAccepted");
         const installPrimary = document.getElementById("installNudgePrimary");
-        const installConfirmed = document.getElementById("installNudgeConfirmed");
+        const installHelp = document.getElementById("installNudgeHelp");
         const installLater = document.getElementById("installNudgeLater");
         if (cardPrimary) cardPrimary.addEventListener("click", startCardBindingFromNudge);
         if (cardConsentAccepted) cardConsentAccepted.addEventListener("change", function () {
@@ -7949,30 +8242,14 @@
           hideCardBindingNudge();
           maybeShowInstallNudge(false);
         });
-        if (installPrimary) installPrimary.addEventListener("click", function () {
-          if (isTelegramHost() && installNudgePayload && installNudgePayload.browser_login_url) {
-            openBillingUrl(installNudgePayload.browser_login_url);
-            hideInstallNudge();
-            return;
-          }
-          if (deferredInstallPrompt) {
-            deferredInstallPrompt.prompt();
-            deferredInstallPrompt.userChoice.then(function (choice) {
-              if (choice && choice.outcome === "accepted") recordInstallNudge("installed");
-              hideInstallNudge();
-              deferredInstallPrompt = null;
-            });
-            return;
-          }
-          hideInstallNudge();
+        if (installPrimary) installPrimary.addEventListener("click", startInstallFromCoach);
+        if (installHelp) installHelp.addEventListener("click", function () {
+          installCoachHelpOpen = !installCoachHelpOpen;
+          installHelp.setAttribute("aria-expanded", installCoachHelpOpen ? "true" : "false");
+          refreshInstallCoach();
+          if (installCoachHelpOpen) recordInstallFunnelEvent("install_manual_steps_view", "help-opened");
         });
-        if (installConfirmed) installConfirmed.addEventListener("click", function () {
-          recordInstallNudge("confirmed").then(hideInstallNudge);
-        });
-        if (installLater) installLater.addEventListener("click", function () {
-          recordInstallNudge("dismissed");
-          hideInstallNudge();
-        });
+        if (installLater) installLater.addEventListener("click", skipInstallNudge);
       }
 
       function updateNetworkStatus() {
@@ -7996,7 +8273,9 @@
         window.addEventListener("beforeinstallprompt", function (event) {
           event.preventDefault();
           deferredInstallPrompt = event;
-          installBtn.hidden = false;
+          nativePromptRunner = null;
+          installPromptFallbackShown = false;
+          revealInstallAvailability();
         });
 
         installBtn.addEventListener("click", function () {
@@ -8005,6 +8284,7 @@
 
         window.addEventListener("appinstalled", function () {
           deferredInstallPrompt = null;
+          setInstallPromptBusy(false);
           installBtn.hidden = true;
           hideInstallNudge();
           recordInstallNudge("installed");

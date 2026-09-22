@@ -81,6 +81,7 @@ class InstallNudgeState(models.Model):
     next_telegram_reminder_at = models.DateTimeField(blank=True, null=True)
     last_prompted_at = models.DateTimeField(blank=True, null=True)
     last_telegram_reminder_at = models.DateTimeField(blank=True, null=True)
+    manual_confirmed_at = models.DateTimeField(blank=True, null=True)
     installed_at = models.DateTimeField(blank=True, null=True)
     installed_platform = models.CharField(max_length=24, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -92,6 +93,34 @@ class InstallNudgeState(models.Model):
 
     def __str__(self) -> str:
         return f"{self.tg_user_id}:prompts={self.prompt_count}:installed={bool(self.installed_at)}"
+
+
+class InstallNudgeDeviceState(models.Model):
+    """Per-device install education state; raw client device identifiers are never stored."""
+
+    tg_user_id = models.BigIntegerField(db_index=True)
+    device_hash = models.CharField(max_length=64)
+    platform = models.CharField(max_length=24, blank=True, default="")
+    prompt_count = models.PositiveSmallIntegerField(default=0)
+    next_prompt_at = models.DateTimeField(blank=True, null=True)
+    last_prompted_at = models.DateTimeField(blank=True, null=True)
+    manual_confirmed_at = models.DateTimeField(blank=True, null=True)
+    installed_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "miniapp_install_nudge_device_states"
+        ordering = ("-updated_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("tg_user_id", "device_hash"),
+                name="miniapp_install_device_unique",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.tg_user_id}:{self.platform}:installed={bool(self.installed_at)}"
 
 
 class WebPushSubscription(models.Model):

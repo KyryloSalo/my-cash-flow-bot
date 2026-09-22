@@ -124,6 +124,7 @@ class HardDeleteStats:
     anonymized_browser_login_token_uses: int = 0
     deleted_miniapp_write_receipts: int = 0
     deleted_miniapp_draft_actions: int = 0
+    deleted_install_nudge_device_states: int = 0
     deleted_install_nudge_states: int = 0
     deleted_push_deliveries: int = 0
     deleted_web_push_subscriptions: int = 0
@@ -184,6 +185,7 @@ class HardDeleteStats:
             "anonymized_browser_login_token_uses": self.anonymized_browser_login_token_uses,
             "deleted_miniapp_write_receipts": self.deleted_miniapp_write_receipts,
             "deleted_miniapp_draft_actions": self.deleted_miniapp_draft_actions,
+            "deleted_install_nudge_device_states": self.deleted_install_nudge_device_states,
             "deleted_install_nudge_states": self.deleted_install_nudge_states,
             "deleted_push_deliveries": self.deleted_push_deliveries,
             "deleted_web_push_subscriptions": self.deleted_web_push_subscriptions,
@@ -883,6 +885,12 @@ def _delete_privacy_identity_rows(
     )
     stats.deleted_miniapp_draft_actions = _delete_rows(
         table_name="miniapp_draft_actions",
+        where_sql="tg_user_id = %s",
+        params=params,
+        existing_tables=existing_tables,
+    )
+    stats.deleted_install_nudge_device_states = _delete_rows(
+        table_name="miniapp_install_nudge_device_states",
         where_sql="tg_user_id = %s",
         params=params,
         existing_tables=existing_tables,

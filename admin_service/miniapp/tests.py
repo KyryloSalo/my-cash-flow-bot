@@ -16,10 +16,18 @@ from accounts.models import Account
 from categories.models import Category, CategoryTemplate
 from common.test_helpers import ensure_runtime_finance_tables, ensure_telegram_user_table
 from miniapp import auth as miniapp_auth
+from miniapp import views as miniapp_views
 import miniapp.fx as miniapp_fx
 from miniapp.fx import FxSnapshot
 from miniapp.history import MiniAppHistoryError, build_history_payload
-from miniapp.models import AppNotification, InstallNudgeState, NotificationPreference, WebPushSubscription, WriteReceipt
+from miniapp.models import (
+    AppNotification,
+    InstallNudgeDeviceState,
+    InstallNudgeState,
+    NotificationPreference,
+    WebPushSubscription,
+    WriteReceipt,
+)
 from subscriptions.models import BillingProfile, Subscription
 from transactions.models import Debt, DebtPayment, Transaction
 from users.models import TelegramUser, UserAdminState
@@ -268,12 +276,74 @@ class MiniAppTests(TestCase):
         self.assertTrue(self.user.onboarding_completed)
         self.assertTrue(Account.objects.filter(tg_user=self.user, family_id=1, label="Monobank", is_active=True).exists())
 
-    def test_install_nudge_tracks_shows_and_stops_after_confirmation(self):
+    def test_ineligible_install_nudge_status_returns_defaults_without_creating_state(self):
+        device_id = "00000000-0000-4000-8000-000000000001"
         self.assertEqual(self.client.post("/app/api/auth/dev").status_code, 200)
 
-        status_response = self.client.get("/app/api/install-nudge")
+        response = self.client.post(
+            "/app/api/install-nudge",
+            data=json.dumps({"device_id": device_id}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["install_nudge"],
+            {
+                "eligible": False,
+                "due": False,
+                "installed": False,
+                "installed_anywhere": False,
+                "confirmed": False,
+                "confirmed_anywhere": False,
+                "device_scoped": False,
+                "prompt_count": 0,
+                "remaining_prompts": miniapp_views.INSTALL_NUDGE_MAX_PROMPTS,
+                "max_prompts": miniapp_views.INSTALL_NUDGE_MAX_PROMPTS,
+                "browser_login_url": "",
+            },
+        )
+        self.assertFalse(InstallNudgeState.objects.filter(tg_user_id=self.user.tg_user_id).exists())
+        self.assertFalse(InstallNudgeDeviceState.objects.filter(tg_user_id=self.user.tg_user_id).exists())
+
+    def test_install_nudge_tracks_shows_and_stops_after_confirmation(self):
+        android_device_id = "00000000-0000-4000-8000-000000000001"
+        ios_device_id = "00000000-0000-4000-8000-000000000002"
+        self.assertEqual(self.client.post("/app/api/auth/dev").status_code, 200)
+
+        ineligible_event = self.client.post(
+            "/app/api/install-nudge/event",
+            data=json.dumps({"event": "shown", "platform": "android", "device_id": android_device_id}),
+            content_type="application/json",
+        )
+        self.assertEqual(ineligible_event.status_code, 403)
+        self.assertEqual(ineligible_event.json()["error"]["code"], "access_blocked")
+        self.assertFalse(InstallNudgeState.objects.filter(tg_user_id=self.user.tg_user_id).exists())
+        self.assertFalse(InstallNudgeDeviceState.objects.filter(tg_user_id=self.user.tg_user_id).exists())
+
+        get_response = self.client.get("/app/api/install-nudge")
+        self.assertEqual(get_response.status_code, 405)
+        ineligible_response = self.client.post(
+            "/app/api/install-nudge",
+            data=json.dumps({"device_id": android_device_id}),
+            content_type="application/json",
+        )
+        self.assertEqual(ineligible_response.status_code, 200)
+        ineligible = ineligible_response.json()["install_nudge"]
+        self.assertFalse(ineligible["eligible"])
+        self.assertFalse(ineligible["due"])
+        self.assertEqual(ineligible["browser_login_url"], "")
+        self.assertFalse(InstallNudgeDeviceState.objects.filter(tg_user_id=self.user.tg_user_id).exists())
+
+        self._grant_full_access()
+        status_response = self.client.post(
+            "/app/api/install-nudge",
+            data=json.dumps({"device_id": android_device_id}),
+            content_type="application/json",
+        )
         self.assertEqual(status_response.status_code, 200)
         status = status_response.json()["install_nudge"]
+        self.assertTrue(status["eligible"])
         self.assertTrue(status["due"])
         self.assertEqual(status["prompt_count"], 0)
         self.assertEqual(status["max_prompts"], 4)
@@ -281,7 +351,7 @@ class MiniAppTests(TestCase):
 
         shown_response = self.client.post(
             "/app/api/install-nudge/event",
-            data=json.dumps({"event": "shown", "platform": "android"}),
+            data=json.dumps({"event": "shown", "platform": "android", "device_id": android_device_id}),
             content_type="application/json",
         )
         self.assertEqual(shown_response.status_code, 200)
@@ -294,18 +364,127 @@ class MiniAppTests(TestCase):
 
         confirmed_response = self.client.post(
             "/app/api/install-nudge/event",
-            data=json.dumps({"event": "confirmed", "platform": "android"}),
+            data=json.dumps({"event": "confirmed", "platform": "android", "device_id": android_device_id}),
             content_type="application/json",
         )
         self.assertEqual(confirmed_response.status_code, 200)
         confirmed = confirmed_response.json()["install_nudge"]
-        self.assertTrue(confirmed["installed"])
+        self.assertFalse(confirmed["installed"])
+        self.assertTrue(confirmed["confirmed"])
         self.assertFalse(confirmed["due"])
         self.assertEqual(confirmed["browser_login_url"], "")
         state.refresh_from_db()
-        self.assertEqual(state.installed_platform, "android")
+        self.assertIsNone(state.installed_at)
+        self.assertIsNotNone(state.manual_confirmed_at)
+        self.assertEqual(state.installed_platform, "")
         self.assertIsNone(state.next_prompt_at)
         self.assertIsNone(state.next_telegram_reminder_at)
+        device_state = InstallNudgeDeviceState.objects.get(tg_user_id=self.user.tg_user_id)
+        self.assertEqual(device_state.platform, "android")
+        self.assertIsNone(device_state.installed_at)
+        self.assertIsNotNone(device_state.manual_confirmed_at)
+
+        installed_response = self.client.post(
+            "/app/api/install-nudge/event",
+            data=json.dumps({"event": "installed", "platform": "standalone", "device_id": android_device_id}),
+            content_type="application/json",
+        )
+        self.assertEqual(installed_response.status_code, 200)
+        installed = installed_response.json()["install_nudge"]
+        self.assertTrue(installed["installed"])
+        state.refresh_from_db()
+        device_state.refresh_from_db()
+        self.assertIsNotNone(state.installed_at)
+        self.assertEqual(state.installed_platform, "standalone")
+        self.assertIsNotNone(device_state.installed_at)
+
+        second_device_response = self.client.post(
+            "/app/api/install-nudge",
+            data=json.dumps({"device_id": ios_device_id}),
+            content_type="application/json",
+        )
+        self.assertEqual(second_device_response.status_code, 200)
+        second_device = second_device_response.json()["install_nudge"]
+        self.assertTrue(second_device["eligible"])
+        self.assertTrue(second_device["due"])
+        self.assertFalse(second_device["installed"])
+        self.assertTrue(second_device["installed_anywhere"])
+        self.assertIn("/app/browser-login/", second_device["browser_login_url"])
+
+    def test_install_nudge_device_rows_are_capped_per_user(self):
+        self._grant_full_access()
+        self.assertEqual(self.client.post("/app/api/auth/dev").status_code, 200)
+        for index in range(miniapp_views.INSTALL_NUDGE_MAX_DEVICES_PER_USER):
+            raw_device_id = f"00000000-0000-4000-8000-{index:012d}"
+            InstallNudgeDeviceState.objects.create(
+                tg_user_id=self.user.tg_user_id,
+                device_hash=miniapp_views._install_nudge_device_hash(self.user, raw_device_id),
+                next_prompt_at=timezone.now(),
+            )
+        overflow_device_id = "00000000-0000-4000-8000-999999999999"
+
+        status_response = self.client.post(
+            "/app/api/install-nudge",
+            data=json.dumps({"device_id": overflow_device_id}),
+            content_type="application/json",
+        )
+        event_response = self.client.post(
+            "/app/api/install-nudge/event",
+            data=json.dumps({"event": "shown", "platform": "android", "device_id": overflow_device_id}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(status_response.status_code, 200)
+        self.assertEqual(event_response.status_code, 200)
+        self.assertFalse(status_response.json()["install_nudge"]["device_scoped"])
+        self.assertEqual(
+            InstallNudgeDeviceState.objects.filter(tg_user_id=self.user.tg_user_id).count(),
+            miniapp_views.INSTALL_NUDGE_MAX_DEVICES_PER_USER,
+        )
+
+    def test_install_nudge_stores_account_scoped_hashes_for_the_same_device(self):
+        raw_device_id = "00000000-0000-4000-8000-000000000001"
+        other_user = TelegramUser.objects.create(
+            tg_user_id=2002,
+            first_name="Other",
+            username="other-install",
+            lang="uk",
+            base_currency="UAH",
+            onboarding_completed=True,
+            onboarding_version=2,
+            created_at=timezone.now(),
+            last_seen_at=timezone.now(),
+        )
+        InstallNudgeState.objects.create(tg_user_id=self.user.tg_user_id, next_prompt_at=timezone.now())
+        InstallNudgeState.objects.create(tg_user_id=other_user.tg_user_id, next_prompt_at=timezone.now())
+
+        first = miniapp_views._install_nudge_device_state(self.user, raw_device_id)
+        second = miniapp_views._install_nudge_device_state(other_user, raw_device_id)
+
+        self.assertIsNotNone(first)
+        self.assertIsNotNone(second)
+        self.assertNotEqual(first.device_hash, second.device_hash)
+        self.assertNotIn(raw_device_id, first.device_hash)
+        self.assertNotIn(raw_device_id, second.device_hash)
+
+    def test_install_nudge_rejects_missing_or_invalid_device_before_state_write(self):
+        self._grant_full_access()
+        self.assertEqual(self.client.post("/app/api/auth/dev").status_code, 200)
+
+        for path, payload in (
+            ("/app/api/install-nudge", {}),
+            ("/app/api/install-nudge", {"device_id": "not-a-uuid"}),
+            (
+                "/app/api/install-nudge/event",
+                {"event": "shown", "platform": "android", "device_id": "not-a-uuid"},
+            ),
+        ):
+            response = self.client.post(path, data=json.dumps(payload), content_type="application/json")
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.json()["error"]["code"], "invalid_install_device")
+
+        self.assertFalse(InstallNudgeState.objects.filter(tg_user_id=self.user.tg_user_id).exists())
+        self.assertFalse(InstallNudgeDeviceState.objects.filter(tg_user_id=self.user.tg_user_id).exists())
 
     def test_onboarding_requires_an_account_before_draft(self):
         self.user.onboarding_completed = False

@@ -8,7 +8,8 @@ from django.db import connection
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
-from miniapp.models import AcquisitionSession, BrowserLoginTokenUse, FunnelEvent
+from common.test_helpers import ensure_telegram_user_table
+from miniapp.models import AcquisitionSession, BrowserLoginTokenUse, FunnelEvent, InstallNudgeDeviceState
 from subscriptions.models import BillingConsent
 from users import services
 from users.models import TelegramUser, UserAuthIdentity, UserAuthSession, UserOidcTokenUse
@@ -28,6 +29,7 @@ class PrivacyDeletionGraphTests(SimpleTestCase):
             "miniapp_write_receipts",
             "miniapp_draft_actions",
             "miniapp_install_nudge_states",
+            "miniapp_install_nudge_device_states",
             "miniapp_push_deliveries",
             "miniapp_web_push_subscriptions",
             "miniapp_notification_preferences",
@@ -55,9 +57,15 @@ class PrivacyDeletionGraphTests(SimpleTestCase):
         self.assertEqual(stats.deleted_billing_consents, 1)
         self.assertEqual(stats.deleted_acquisition_sessions, 1)
         self.assertEqual(stats.deleted_auth_sessions, 1)
+        self.assertEqual(stats.deleted_install_nudge_device_states, 1)
 
 
 class PrivacyDeletionGraphDatabaseTests(TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        ensure_telegram_user_table()
+
     def test_phase2_rows_are_deleted_in_fk_safe_order(self) -> None:
         now = timezone.now()
         user = TelegramUser.objects.create(
@@ -93,6 +101,12 @@ class PrivacyDeletionGraphDatabaseTests(TestCase):
             token_hash="c" * 64,
             tg_user_id=user.tg_user_id,
             expires_at=now + timedelta(days=1),
+        )
+        install_device = InstallNudgeDeviceState.objects.create(
+            tg_user_id=user.tg_user_id,
+            device_hash="f" * 40,
+            platform="android",
+            next_prompt_at=now,
         )
         acquisition = AcquisitionSession.objects.create(
             user=user,
@@ -136,3 +150,5 @@ class PrivacyDeletionGraphDatabaseTests(TestCase):
         self.assertFalse(UserAuthIdentity.objects.filter(telegram_user=user).exists())
         self.assertFalse(UserOidcTokenUse.objects.filter(tg_user_id=user.tg_user_id).exists())
         self.assertFalse(BrowserLoginTokenUse.objects.filter(tg_user_id=user.tg_user_id).exists())
+        self.assertFalse(InstallNudgeDeviceState.objects.filter(pk=install_device.pk).exists())
+        self.assertEqual(stats.deleted_install_nudge_device_states, 1)

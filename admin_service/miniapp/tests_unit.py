@@ -186,6 +186,112 @@ class MiniAppViewUnitTests(unittest.TestCase):
     def setUp(self) -> None:
         self.factory = RequestFactory()
 
+    def test_install_nudge_is_eligible_only_after_onboarding_with_active_access(self) -> None:
+        onboarded = SimpleNamespace(onboarding_completed=True)
+        pending = SimpleNamespace(onboarding_completed=False)
+
+        self.assertTrue(views._install_nudge_eligible(onboarded, {"mode": "active"}))
+        self.assertFalse(views._install_nudge_eligible(pending, {"mode": "active"}))
+        self.assertFalse(views._install_nudge_eligible(onboarded, {"mode": "paywall"}))
+        self.assertFalse(views._install_nudge_eligible(onboarded, {}))
+
+    def test_install_device_identifier_is_hashed_and_invalid_values_are_rejected(self) -> None:
+        raw_device_id = "00000000-0000-4000-8000-000000000001"
+        user = SimpleNamespace(tg_user_id=1001)
+        device_hash = views._install_nudge_device_hash(user, raw_device_id)
+
+        self.assertEqual(len(device_hash), 40)
+        self.assertNotIn(raw_device_id, device_hash)
+        self.assertEqual(device_hash, views._install_nudge_device_hash(user, raw_device_id.upper()))
+        self.assertNotEqual(device_hash, views._install_nudge_device_hash(SimpleNamespace(tg_user_id=1002), raw_device_id))
+        self.assertEqual(views._install_nudge_device_hash(user, "not-a-device-id"), "")
+        self.assertEqual(views._install_nudge_device_hash(user, ""), "")
+        self.assertEqual(views._install_nudge_device_hash(SimpleNamespace(), raw_device_id), "")
+        self.assertEqual(views._install_nudge_device_hash(SimpleNamespace(tg_user_id=0), raw_device_id), "")
+
+    def test_install_nudge_event_rejects_ineligible_user_before_touching_state(self) -> None:
+        request = self.factory.post(
+            "/app/api/install-nudge/event",
+            data=json.dumps(
+                {
+                    "event": "shown",
+                    "platform": "android",
+                    "device_id": "00000000-0000-4000-8000-000000000001",
+                }
+            ),
+            content_type="application/json",
+        )
+        request.session = FakeSession()
+        user = SimpleNamespace(tg_user_id=1001, onboarding_completed=False)
+
+        with (
+            patch.object(views, "_get_session_user_or_response", return_value=user),
+            patch.object(views, "resolve_access", return_value={"mode": "active", "locale": "uk"}),
+            patch.object(
+                views.InstallNudgeState.objects,
+                "select_for_update",
+                side_effect=AssertionError("install state must not be touched"),
+            ),
+        ):
+            response = views.install_nudge_event(request)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(json.loads(response.content)["error"]["code"], "access_blocked")
+
+    def test_telegram_miniapp_login_uses_validated_auth_date_for_session_freshness(self) -> None:
+        request = self.factory.post("/app/api/auth/telegram", data=json.dumps({"init_data": "signed"}), content_type="application/json")
+        request.session = FakeSession()
+        user = SimpleNamespace(tg_user_id=1001, first_name="Ihor", base_currency="UAH", lang="uk")
+        identity = SimpleNamespace(
+            tg_user_id=1001,
+            first_name="Ihor",
+            last_name="",
+            username="ihor",
+            raw_user={"language_code": "uk"},
+            auth_date=1_700_000_000,
+        )
+        registration = SimpleNamespace(user=user, identity=object())
+
+        with (
+            patch.object(views, "validate_telegram_init_data", return_value=identity),
+            patch.object(views, "bootstrap_telegram_identity", return_value=registration),
+            patch.object(views, "login_session") as login_mock,
+            patch.object(views, "resolve_access", return_value={"mode": "active"}),
+        ):
+            response = views.auth_telegram(request)
+
+        self.assertEqual(response.status_code, 200)
+        login_mock.assert_called_once_with(request, user, authenticated_at=identity.auth_date)
+
+    def test_telegram_oidc_login_uses_validated_iat_for_session_freshness(self) -> None:
+        request = self.factory.get("/app/auth/telegram/callback?state=state&code=code")
+        request.session = FakeSession()
+        pending = SimpleNamespace(code="code", code_verifier="verifier", nonce="nonce", return_to="/app/")
+        user = SimpleNamespace(tg_user_id=1001)
+        registration_identity = object()
+        registration = SimpleNamespace(user=user, identity=registration_identity)
+        oidc_identity = SimpleNamespace(claims={"iat": 1_700_000_100})
+
+        with (
+            patch.object(views, "consume_pending_authorization", return_value=pending),
+            patch.object(views, "exchange_authorization_code", return_value="id-token"),
+            patch.object(views, "verify_id_token", return_value=oidc_identity),
+            patch.object(views, "consume_id_token_once"),
+            patch.object(views, "bootstrap_telegram_identity", return_value=registration),
+            patch.object(views, "login_session") as login_mock,
+        ):
+            response = views.telegram_oidc_callback(request)
+
+        self.assertEqual(response.status_code, 302)
+        login_mock.assert_called_once_with(
+            request,
+            user,
+            session_age_seconds=auth.browser_session_age_seconds(),
+            auth_mode=views.TELEGRAM_OIDC_AUTH_MODE,
+            identity=registration_identity,
+            authenticated_at=oidc_identity.claims["iat"],
+        )
+
     def test_profile_requires_session(self) -> None:
         request = self.factory.get("/app/api/profile")
         request.session = FakeSession()
@@ -1394,23 +1500,47 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertEqual(response["Cache-Control"], "no-store, no-cache, must-revalidate, max-age=0, private")
 
     def test_browser_login_handoff_does_not_consume_token(self) -> None:
-        request = self.factory.get("/app/browser-login/raw-token/")
+        request = self.factory.get(
+            "/app/browser-login/raw-token/",
+            HTTP_USER_AGENT=(
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) "
+                "AppleWebKit/605.1.15 Mobile/15E148 Telegram"
+            ),
+        )
 
         with patch.object(views, "consume_browser_login_token_with_identity") as consume_mock:
             response = views.browser_login_handoff(request, "raw-token")
 
         self.assertEqual(response.status_code, 200)
         body = response.content.decode("utf-8")
+        handoff_copy = body.split("<main>", 1)[1].split("</main>", 1)[0]
         self.assertIn("/app/api/browser-login/raw-token/", body)
         self.assertNotIn('href="/app/login/raw-token/"', body)
-        self.assertIn("Safari", body)
-        self.assertIn("Натисни компас", body)
+        self.assertIn("Safari", handoff_copy)
+        self.assertNotIn("Chrome", handoff_copy)
+        self.assertIn("натисни компас", handoff_copy)
         self.assertIn("isKnownEmbedded", body)
         self.assertIn("embedded-browser", body)
         self.assertIn("ios-embedded-browser", body)
         self.assertIn('class="browser-login-action"', body)
         consume_mock.assert_not_called()
         self.assertEqual(response["Cache-Control"], "no-store, no-cache, must-revalidate, max-age=0, private")
+
+    def test_browser_login_handoff_non_ios_copy_is_chrome_oriented(self) -> None:
+        request = self.factory.get(
+            "/app/browser-login/raw-token/",
+            HTTP_USER_AGENT=(
+                "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 "
+                "Chrome/128.0 Mobile Safari/537.36 Telegram"
+            ),
+        )
+
+        response = views.browser_login_handoff(request, "raw-token")
+
+        handoff_copy = response.content.decode("utf-8").split("<main>", 1)[1].split("</main>", 1)[0]
+        self.assertIn("Chrome", handoff_copy)
+        self.assertNotIn("Safari", handoff_copy)
+        self.assertIn("меню ⋮", handoff_copy)
 
     @override_settings(MINIAPP_BROWSER_SESSION_AGE_SECONDS=123456)
     def test_install_handoff_preserves_install_intent_through_browser_login(self) -> None:

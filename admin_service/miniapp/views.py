@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+import uuid
 from datetime import timedelta
 from html import escape
 from pathlib import Path
@@ -16,6 +17,7 @@ from django.shortcuts import redirect, render
 from django.templatetags.static import static
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.crypto import salted_hmac
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
@@ -115,6 +117,7 @@ from miniapp.models import (
     AppNotification,
     DailyExpenseReminderSetting,
     DraftAction,
+    InstallNudgeDeviceState,
     InstallNudgeState,
     SavingPromptSetting,
     WebPushSubscription,
@@ -178,6 +181,7 @@ ONBOARDING_DRAFTS_SESSION_KEY = "miniapp_onboarding_drafts"
 MAX_TRANSACTION_DRAFTS = 8
 MIN_IDEMPOTENCY_KEY_LENGTH = 16
 INSTALL_NUDGE_MAX_PROMPTS = 4
+INSTALL_NUDGE_MAX_DEVICES_PER_USER = 8
 INSTALL_NUDGE_PROMPT_DELAYS = {
     1: timedelta(days=1),
     2: timedelta(days=3),
@@ -197,6 +201,7 @@ MINIAPP_ASSET_VERSION = str(
     max(
         _miniapp_asset_stamp("app.css"),
         _miniapp_asset_stamp("app.js"),
+        _miniapp_asset_stamp("install-coach.js"),
         _miniapp_asset_stamp("push.js"),
         _miniapp_asset_stamp("icon-192.png"),
         _miniapp_asset_stamp("icon-512.png"),
@@ -277,21 +282,100 @@ def _install_nudge_browser_url(request: HttpRequest, user: TelegramUser) -> str:
     return request.build_absolute_uri(f"{path}?install=1")
 
 
-def _install_nudge_payload(request: HttpRequest, user: TelegramUser, state: InstallNudgeState) -> dict[str, object]:
+def _install_nudge_eligible(user: TelegramUser, access: dict[str, object]) -> bool:
+    return bool(getattr(user, "onboarding_completed", False)) and str(access.get("mode") or "") == "active"
+
+
+def _install_nudge_device_hash(user: object, raw_device_id: object) -> str:
+    try:
+        raw_tg_user_id = getattr(user, "tg_user_id")
+        if isinstance(raw_tg_user_id, bool):
+            return ""
+        tg_user_id = int(raw_tg_user_id)
+        if tg_user_id <= 0 or str(raw_tg_user_id).strip() != str(tg_user_id):
+            return ""
+        device_id = str(uuid.UUID(str(raw_device_id or "").strip()))
+    except (ValueError, AttributeError, TypeError, OverflowError):
+        return ""
+    message = f"tg_user_id={tg_user_id}\ndevice_uuid={device_id}"
+    return salted_hmac("miniapp.install-device.v2", message).hexdigest()
+
+
+def _install_nudge_device_state(
+    user: TelegramUser,
+    raw_device_id: object,
+    *,
+    platform: str = "",
+    now=None,
+) -> InstallNudgeDeviceState | None:
+    device_hash = _install_nudge_device_hash(user, raw_device_id)
+    if not device_hash:
+        return None
+    current = now or timezone.now()
+    with db_transaction.atomic():
+        # The per-user campaign row is the creation lock. Every device creator
+        # takes it before counting, so concurrent identifiers cannot exceed the cap.
+        InstallNudgeState.objects.select_for_update().get(tg_user_id=user.tg_user_id)
+        existing = InstallNudgeDeviceState.objects.filter(
+            tg_user_id=user.tg_user_id,
+            device_hash=device_hash,
+        ).first()
+        if existing is not None:
+            return existing
+        if InstallNudgeDeviceState.objects.filter(tg_user_id=user.tg_user_id).count() >= INSTALL_NUDGE_MAX_DEVICES_PER_USER:
+            return None
+        return InstallNudgeDeviceState.objects.create(
+            tg_user_id=user.tg_user_id,
+            device_hash=device_hash,
+            next_prompt_at=current,
+            platform=platform,
+        )
+
+
+def _install_nudge_payload(
+    request: HttpRequest,
+    user: TelegramUser,
+    state: InstallNudgeState | None,
+    device_state: InstallNudgeDeviceState | None = None,
+    *,
+    access: dict[str, object] | None = None,
+) -> dict[str, object]:
     now = timezone.now()
-    installed = state.installed_at is not None
+    installed_anywhere = state is not None and state.installed_at is not None
+    installed = device_state.installed_at is not None if device_state is not None else installed_anywhere
+    confirmed_anywhere = state is not None and state.manual_confirmed_at is not None
+    confirmed = device_state.manual_confirmed_at is not None if device_state is not None else confirmed_anywhere
+    prompt_count = (
+        int(device_state.prompt_count or 0)
+        if device_state is not None
+        else int(state.prompt_count or 0) if state is not None else 0
+    )
+    next_prompt_at = (
+        device_state.next_prompt_at
+        if device_state is not None
+        else state.next_prompt_at if state is not None else None
+    )
+    access = access if access is not None else resolve_access(user)
+    eligible = _install_nudge_eligible(user, access)
     due = (
-        not installed
-        and int(state.prompt_count or 0) < INSTALL_NUDGE_MAX_PROMPTS
-        and (state.next_prompt_at is None or state.next_prompt_at <= now)
+        eligible
+        and not installed
+        and not confirmed
+        and prompt_count < INSTALL_NUDGE_MAX_PROMPTS
+        and (next_prompt_at is None or next_prompt_at <= now)
     )
     return {
+        "eligible": eligible,
         "due": due,
         "installed": installed,
-        "prompt_count": int(state.prompt_count or 0),
-        "remaining_prompts": max(INSTALL_NUDGE_MAX_PROMPTS - int(state.prompt_count or 0), 0),
+        "installed_anywhere": installed_anywhere,
+        "confirmed": confirmed,
+        "confirmed_anywhere": confirmed_anywhere,
+        "device_scoped": device_state is not None,
+        "prompt_count": prompt_count,
+        "remaining_prompts": max(INSTALL_NUDGE_MAX_PROMPTS - prompt_count, 0),
         "max_prompts": INSTALL_NUDGE_MAX_PROMPTS,
-        "browser_login_url": "" if installed else _install_nudge_browser_url(request, user),
+        "browser_login_url": "" if installed or confirmed or not eligible else _install_nudge_browser_url(request, user),
     }
 
 
@@ -413,6 +497,7 @@ def manifest(request: HttpRequest) -> JsonResponse:
 @require_GET
 def service_worker(request: HttpRequest) -> HttpResponse:
     app_css_url = _versioned_static("miniapp/app.css")
+    install_coach_url = _versioned_static("miniapp/install-coach.js")
     icon_192_url = _versioned_static("miniapp/icon-192.png")
     icon_512_url = _versioned_static("miniapp/icon-512.png")
     icon_maskable_192_url = _versioned_static("miniapp/icon-maskable-192.png")
@@ -427,6 +512,7 @@ const APP_SHELL_URL = "/app/";
 const SHELL_ASSETS = [
   APP_SHELL_URL,
   "{app_css_url}",
+  "{install_coach_url}",
   "{icon_192_url}",
   "{icon_512_url}",
   "{icon_maskable_192_url}",
@@ -683,6 +769,30 @@ def browser_login_handoff(request: HttpRequest, token: str) -> HttpResponse:
     # has always bypassed /app/api/*, so this repairs already installed clients
     # without waiting for a Service Worker update.
     login_url = f"/app/api/browser-login/{quote(token, safe='')}/{login_query}"
+    user_agent = str(request.META.get("HTTP_USER_AGENT") or "").lower()
+    is_ios_handoff = any(marker in user_agent for marker in ("iphone", "ipad", "ipod")) or (
+        "macintosh" in user_agent and "mobile" in user_agent
+    )
+    if is_ios_handoff:
+        handoff_intro = (
+            "Відкрий цю сторінку в Safari, потім натисни кнопку входу. "
+            "Так сесія збережеться для іконки на робочому столі."
+        )
+        handoff_note = "Кнопка входу з’явиться після відкриття цієї сторінки в Safari."
+        handoff_guidance = (
+            "На iPhone у Telegram натисни компас унизу праворуч. "
+            "Уже в Safari натисни кнопку входу."
+        )
+    else:
+        handoff_intro = (
+            "Відкрий цю сторінку в Chrome, потім натисни кнопку входу. "
+            "Так сесія збережеться для іконки на робочому столі."
+        )
+        handoff_note = "Кнопка входу з’явиться після відкриття цієї сторінки в Chrome."
+        handoff_guidance = (
+            "На Android у Telegram відкрий меню ⋮ і вибери Chrome. "
+            "Уже в Chrome натисни кнопку входу."
+        )
     body = f"""<!doctype html>
 <html lang="uk">
 <head>
@@ -721,10 +831,10 @@ def browser_login_handoff(request: HttpRequest, token: str) -> HttpResponse:
 <body>
   <main>
     <h1>Vydno.Capital</h1>
-    <p>Відкрий цю сторінку в Safari або Chrome, потім натисни кнопку входу. Так сесія збережеться для іконки на робочому столі.</p>
-    <p class="embedded-browser-note">Кнопка входу з’явиться після відкриття цієї сторінки в Safari або Chrome.</p>
+    <p>{handoff_intro}</p>
+    <p class="embedded-browser-note">{handoff_note}</p>
     <a class="browser-login-action" href="{escape(login_url)}">Увійти у веб-додаток</a>
-    <small>На iPhone у Telegram натисни компас унизу праворуч. На Android відкрий меню ⋮ і вибери Chrome. Уже в браузері натисни кнопку входу.</small>
+    <small>{handoff_guidance}</small>
   </main>
   <div class="ios-browser-tip" aria-label="Натисни компас унизу праворуч, щоб відкрити Safari">
     <span class="ios-browser-tip__icon" aria-hidden="true">↗</span>
@@ -1597,13 +1707,24 @@ def settings_options(request: HttpRequest) -> JsonResponse:
     return _json_ok(_settings_payload(result))
 
 
-@require_GET
+@require_POST
 def install_nudge_status(request: HttpRequest) -> JsonResponse:
     result = _get_session_user_or_response(request)
     if isinstance(result, JsonResponse):
         return result
-    state = _install_nudge_state(result)
-    return _json_ok({"install_nudge": _install_nudge_payload(request, result, state)})
+    payload = _read_json(request)
+    raw_device_id = payload.get("device_id")
+    if not _install_nudge_device_hash(result, raw_device_id):
+        return _transaction_error_response(
+            MiniAppTransactionError("invalid_install_device", "A valid install device identifier is required.")
+        )
+    access = resolve_access(result)
+    eligible = _install_nudge_eligible(result, access)
+    state = _install_nudge_state(result) if eligible else None
+    device_state = _install_nudge_device_state(result, raw_device_id) if eligible else None
+    return _json_ok(
+        {"install_nudge": _install_nudge_payload(request, result, state, device_state, access=access)}
+    )
 
 
 @csrf_exempt
@@ -1612,9 +1733,17 @@ def install_nudge_event(request: HttpRequest) -> JsonResponse:
     result = _get_session_user_or_response(request)
     if isinstance(result, JsonResponse):
         return result
+    access = resolve_access(result)
+    if not _install_nudge_eligible(result, access):
+        return _access_blocked_response(access)
     payload = _read_json(request)
     event = str(payload.get("event") or "").strip().lower()
     platform = str(payload.get("platform") or "").strip().lower()
+    raw_device_id = payload.get("device_id")
+    if not _install_nudge_device_hash(result, raw_device_id):
+        return _transaction_error_response(
+            MiniAppTransactionError("invalid_install_device", "A valid install device identifier is required.")
+        )
     if event not in {"shown", "dismissed", "installed", "confirmed"}:
         return _transaction_error_response(
             MiniAppTransactionError("invalid_install_event", "Unsupported install prompt event.")
@@ -1623,6 +1752,7 @@ def install_nudge_event(request: HttpRequest) -> JsonResponse:
         platform = "other"
 
     now = timezone.now()
+    device_state: InstallNudgeDeviceState | None = None
     with db_transaction.atomic():
         state = InstallNudgeState.objects.select_for_update().filter(tg_user_id=result.tg_user_id).first()
         if state is None:
@@ -1632,13 +1762,18 @@ def install_nudge_event(request: HttpRequest) -> JsonResponse:
                 next_telegram_reminder_at=now + INSTALL_NUDGE_TELEGRAM_FIRST_DELAY,
             )
         update_fields: list[str] = ["updated_at"]
-        if event in {"installed", "confirmed"}:
+        if event == "installed":
             state.installed_at = now
             state.installed_platform = platform
             state.next_prompt_at = None
             state.next_telegram_reminder_at = None
             update_fields.extend(["installed_at", "installed_platform", "next_prompt_at", "next_telegram_reminder_at"])
-        elif event == "shown" and state.installed_at is None:
+        elif event == "confirmed":
+            state.manual_confirmed_at = now
+            state.next_prompt_at = None
+            state.next_telegram_reminder_at = None
+            update_fields.extend(["manual_confirmed_at", "next_prompt_at", "next_telegram_reminder_at"])
+        elif event == "shown" and state.installed_at is None and state.manual_confirmed_at is None:
             is_due = state.next_prompt_at is None or state.next_prompt_at <= now
             if is_due and int(state.prompt_count or 0) < INSTALL_NUDGE_MAX_PROMPTS:
                 state.prompt_count = int(state.prompt_count or 0) + 1
@@ -1649,7 +1784,37 @@ def install_nudge_event(request: HttpRequest) -> JsonResponse:
                 update_fields.extend(["prompt_count", "last_prompted_at", "next_prompt_at"])
         state.save(update_fields=sorted(set(update_fields)))
 
-    return _json_ok({"ok": True, "install_nudge": _install_nudge_payload(request, result, state)})
+        device_state = _install_nudge_device_state(result, raw_device_id, platform=platform, now=now)
+        if device_state is not None:
+            device_update_fields: list[str] = ["updated_at"]
+            if device_state.platform != platform:
+                device_state.platform = platform
+                device_update_fields.append("platform")
+            if event == "installed":
+                device_state.installed_at = now
+                device_state.next_prompt_at = None
+                device_update_fields.extend(["installed_at", "next_prompt_at"])
+            elif event == "confirmed":
+                device_state.manual_confirmed_at = now
+                device_state.next_prompt_at = None
+                device_update_fields.extend(["manual_confirmed_at", "next_prompt_at"])
+            elif event == "shown" and device_state.installed_at is None and device_state.manual_confirmed_at is None:
+                device_is_due = device_state.next_prompt_at is None or device_state.next_prompt_at <= now
+                if device_is_due and int(device_state.prompt_count or 0) < INSTALL_NUDGE_MAX_PROMPTS:
+                    device_state.prompt_count = int(device_state.prompt_count or 0) + 1
+                    device_state.last_prompted_at = now
+                    device_state.next_prompt_at = INSTALL_NUDGE_PROMPT_DELAYS.get(device_state.prompt_count)
+                    if device_state.next_prompt_at is not None:
+                        device_state.next_prompt_at = now + device_state.next_prompt_at
+                    device_update_fields.extend(["prompt_count", "last_prompted_at", "next_prompt_at"])
+            device_state.save(update_fields=sorted(set(device_update_fields)))
+
+    return _json_ok(
+        {
+            "ok": True,
+            "install_nudge": _install_nudge_payload(request, result, state, device_state, access=access),
+        }
+    )
 
 
 @csrf_exempt
