@@ -174,13 +174,16 @@
         <div class="install-coach-scene install-coach-scene--android" data-install-scene="android" aria-hidden="true">
           <div class="install-coach-phone">
             <div class="install-coach-browser-bar"><strong>vydno.capital</strong><span class="install-coach-menu-button" data-install-highlight="0" data-install-stage="browser-menu">⋮</span></div>
-            <button class="install-coach-browser-install" type="button" tabindex="-1" data-install-highlight="0" data-install-stage="install-action">Встановити Vydno</button>
+            <div class="install-coach-native-ready" data-install-stage="native-ready"><strong>Chrome</strong><span>Системне вікно відкриється після натискання зеленої кнопки під інструкцією.</span></div>
             <div class="install-coach-android-menu" data-install-highlight="1" data-install-stage="install-menu-action">
               <small>Нова вкладка</small><small>Історія</small><strong>Встановити додаток</strong>
             </div>
             <div class="install-coach-native-card" data-install-highlight="2" data-install-stage="native-prompt">
               <img src="{% static 'miniapp/icon-192.png' %}?v={{ miniapp_asset_version }}" width="44" height="44" alt="">
-              <span><strong>Vydno</strong><small>Встановити застосунок?</small></span><button type="button" tabindex="-1">Встановити</button>
+              <span><strong>Vydno.Capital</strong><small>Установити додаток</small></span><button type="button" tabindex="-1">Установити</button>
+            </div>
+            <div class="install-coach-installing" data-install-highlight="2" data-install-stage="installing">
+              <span aria-hidden="true"></span><div><strong>Vydno.Capital</strong><small>Установлення…</small></div>
             </div>
             <div class="install-coach-home" data-install-highlight="3" data-install-stage="installed-icon">
               <img src="{% static 'miniapp/icon-192.png' %}?v={{ miniapp_asset_version }}" width="48" height="48" alt="">
@@ -1694,6 +1697,7 @@
       let installPromptBusy = false;
       let installPromptFallbackShown = false;
       let nativePromptRunner = null;
+      let installNativeStatus = "idle";
       let installCoachStep = 0;
       let installCoachHelpOpen = false;
       let installFunnelSessionPromise = null;
@@ -8056,6 +8060,7 @@
           browser: coach ? coach.detectBrowser(window.navigator) : "other",
           telegram: isTelegramHost(),
           canPrompt: Boolean(deferredInstallPrompt || installPromptBusy),
+          nativeStatus: installNativeStatus,
           step: installCoachStep,
           helpOpen: installCoachHelpOpen,
           outcome: String(options.outcome || "")
@@ -8077,6 +8082,15 @@
         hideInstallNudge();
       }
 
+      function closeInstallNudgeSecondary() {
+        if (installNativeStatus !== "idle") {
+          recordInstallFunnelEvent("install_cta_click", "native-guidance-closed");
+          hideInstallNudge();
+          return;
+        }
+        skipInstallNudge();
+      }
+
       function renderInstallNudge(payload) {
         const modal = document.getElementById("installNudgeModal");
         if (!modal || !window.VydnoInstallCoach) return false;
@@ -8085,7 +8099,7 @@
         installPromptFallbackShown = false;
         const model = refreshInstallCoach();
         if (!model) return false;
-        openAccessibleModal(modal, skipInstallNudge, "installNudgePrimary");
+        openAccessibleModal(modal, closeInstallNudgeSecondary, "installNudgePrimary");
         activationModalOpen = true;
         recordInstallFunnelEvent("install_education_view", model.mode);
         if (model.mode === "manual" || model.mode === "open-safari") {
@@ -8166,6 +8180,7 @@
       function transitionToNativePromptFallback(reason) {
         if (installPromptFallbackShown) return;
         installPromptFallbackShown = true;
+        installNativeStatus = "idle";
         setInstallPromptBusy(false);
         installCoachStep = 0;
         installCoachHelpOpen = reason === "error";
@@ -8179,7 +8194,12 @@
           onBusy: setInstallPromptBusy,
           onAccepted: function () {
             recordInstallFunnelEvent("install_prompt_accepted", "accepted");
-            hideInstallNudge();
+            if (installNativeStatus !== "installed") {
+              installNativeStatus = "accepted";
+              installCoachStep = 2;
+              installCoachHelpOpen = false;
+              refreshInstallCoach({ outcome: "accepted" });
+            }
           },
           onDismissed: function () {
             recordInstallFunnelEvent("install_prompt_dismissed", "dismissed");
@@ -8198,6 +8218,11 @@
         const coach = window.VydnoInstallCoach;
         if (!coach) return;
         const model = coach.buildModel(installCoachOptions());
+        if (model.mode === "native" && model.nativeStatus !== "idle") {
+          recordInstallFunnelEvent("install_cta_click", "native-guidance-acknowledged");
+          hideInstallNudge();
+          return;
+        }
         if (model.mode === "handoff" && installNudgePayload && installNudgePayload.browser_login_url) {
           recordInstallFunnelEvent("install_cta_click", "browser-handoff");
           openInstallBrowserUrl(installNudgePayload.browser_login_url, model.platform);
@@ -8249,7 +8274,7 @@
           refreshInstallCoach();
           if (installCoachHelpOpen) recordInstallFunnelEvent("install_manual_steps_view", "help-opened");
         });
-        if (installLater) installLater.addEventListener("click", skipInstallNudge);
+        if (installLater) installLater.addEventListener("click", closeInstallNudgeSecondary);
       }
 
       function updateNetworkStatus() {
@@ -8273,6 +8298,7 @@
         window.addEventListener("beforeinstallprompt", function (event) {
           event.preventDefault();
           deferredInstallPrompt = event;
+          installNativeStatus = "idle";
           nativePromptRunner = null;
           installPromptFallbackShown = false;
           revealInstallAvailability();
@@ -8284,10 +8310,13 @@
 
         window.addEventListener("appinstalled", function () {
           deferredInstallPrompt = null;
+          installNativeStatus = "installed";
+          installCoachStep = 3;
           setInstallPromptBusy(false);
           installBtn.hidden = true;
-          hideInstallNudge();
           recordInstallNudge("installed");
+          const modal = document.getElementById("installNudgeModal");
+          if (modal && !modal.hidden) refreshInstallCoach({ outcome: "installed" });
         });
       }
 

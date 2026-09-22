@@ -6,6 +6,7 @@ const vm = require("node:vm");
 
 const coach = require("./static/miniapp/install-coach.js");
 const templateSource = fs.readFileSync(path.join(__dirname, "templates", "miniapp", "index.html"), "utf8");
+const cssSource = fs.readFileSync(path.join(__dirname, "static", "miniapp", "app.css"), "utf8");
 
 function loadInlineFunction(name, context) {
   const marker = "function " + name + "(";
@@ -52,7 +53,7 @@ test("builds a four-step iOS coach with exact actions and an explicit completion
 test("uses the native Android prompt only when a real prompt is available", () => {
   const native = coach.buildModel({ locale: "uk", platform: "android", browser: "chrome", canPrompt: true });
   assert.equal(native.mode, "native");
-  assert.equal(native.steps.length, 2);
+  assert.equal(native.steps.length, 4);
   assert.match(native.steps[0], /Встановити Vydno/i);
   assert.doesNotMatch(native.steps[0], /системн/i);
   assert.match(native.steps[1], /системному вікні|системне вікно/i);
@@ -64,6 +65,75 @@ test("uses the native Android prompt only when a real prompt is available", () =
   assert.match(manual.steps[0], /правому верхньому/iu);
   assert.match(manual.steps[1], /Встановити додаток/iu);
   assert.match(manual.primaryLabel, /Далі/);
+});
+
+test("native Android coach exposes one product action before opening Chrome's prompt", () => {
+  const native = coach.buildModel({ locale: "uk", platform: "android", browser: "chrome", canPrompt: true });
+  assert.equal(native.showHelpAction, false);
+  assert.equal(native.showSkipAction, true);
+  assert.doesNotMatch(
+    templateSource,
+    /<button class="install-coach-browser-install"[^>]*>Встановити Vydno<\/button>/u,
+  );
+  assert.match(templateSource, /class="install-coach-native-ready"/u);
+  assert.match(cssSource, /#installNudgeHelp\[hidden\]/u);
+  assert.match(cssSource, /data-install-mode="native"[^}]+#installNudgePrimary::before/su);
+});
+
+test("native Android coach matches the Ukrainian Chrome dialog seen on device", () => {
+  const native = coach.buildModel({ locale: "uk", platform: "android", browser: "chrome", canPrompt: true, step: 1 });
+  assert.equal(native.command, "У системному вікні Chrome натисніть «Установити».");
+  assert.match(native.hint, /«Установити додаток»/u);
+  assert.match(native.hint, /«Vydno\.Capital»/u);
+  assert.match(
+    templateSource,
+    /<span><strong>Vydno\.Capital<\/strong><small>Установити додаток<\/small><\/span><button[^>]*>Установити<\/button>/u,
+  );
+});
+
+test("native Android keeps an honest installation-pending scene after prompt acceptance", () => {
+  const accepted = coach.buildModel({
+    locale: "uk",
+    platform: "android",
+    browser: "chrome",
+    canPrompt: false,
+    nativeStatus: "accepted",
+  });
+  assert.equal(accepted.mode, "native");
+  assert.equal(accepted.nativeStatus, "accepted");
+  assert.equal(accepted.step, 2);
+  assert.equal(accepted.title, "Vydno встановлюється");
+  assert.match(accepted.command, /Дочекайтеся/iu);
+  assert.match(accepted.hint, /Chrome|сповіщення/iu);
+  assert.equal(accepted.primaryLabel, "Зрозуміло");
+  assert.equal(accepted.skipLabel, "Закрити підказку");
+  assert.equal(accepted.showHelpAction, false);
+  assert.equal(accepted.showSkipAction, false);
+  assert.match(templateSource, /class="install-coach-installing"/u);
+  assert.match(
+    cssSource,
+    /data-install-mode="native"\]\[data-install-step="2"\] \.install-coach-native-card\s*\{[^}]*opacity:\s*0/su,
+  );
+});
+
+test("native Android shows the installed icon scene only after appinstalled", () => {
+  const installed = coach.buildModel({
+    locale: "uk",
+    platform: "android",
+    browser: "chrome",
+    canPrompt: false,
+    nativeStatus: "installed",
+  });
+  assert.equal(installed.mode, "native");
+  assert.equal(installed.nativeStatus, "installed");
+  assert.equal(installed.step, 3);
+  assert.equal(installed.title, "Vydno встановлено");
+  assert.match(installed.command, /головн.+екран/iu);
+  assert.match(installed.command, /іконк/iu);
+  assert.equal(installed.primaryLabel, "Готово");
+  assert.equal(installed.skipLabel, "Закрити підказку");
+  assert.equal(installed.showSkipAction, false);
+  assert.match(cssSource, /#installNudgeLater\[hidden\]\s*\{[^}]*display:\s*none/su);
 });
 
 test("does not pretend alternate iOS browsers can show the Safari install action", () => {

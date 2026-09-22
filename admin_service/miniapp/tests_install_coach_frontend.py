@@ -107,6 +107,45 @@ class InstallCoachFrontendContractTests(SimpleTestCase):
         self.assertIn("return promptEvent.userChoice;", self.module)
         self.assertIn(".catch(function (error)", self.module)
 
+    def test_native_acceptance_keeps_guidance_open_until_install_completion(self) -> None:
+        callbacks = self.source.split("function ensureNativePromptRunner()", 1)[1].split(
+            "function startInstallFromCoach", 1
+        )[0]
+        accepted = callbacks.split("onAccepted: function ()", 1)[1].split("onDismissed", 1)[0]
+        self.assertIn('installNativeStatus = "accepted"', accepted)
+        self.assertIn("installCoachStep = 2", accepted)
+        self.assertIn('refreshInstallCoach({ outcome: "accepted" })', accepted)
+        self.assertNotIn("hideInstallNudge()", accepted)
+
+        installed = self.source.split('window.addEventListener("appinstalled"', 1)[1]
+        self.assertIn('installNativeStatus = "installed"', installed)
+        self.assertIn("installCoachStep = 3", installed)
+        self.assertIn('refreshInstallCoach({ outcome: "installed" })', installed)
+        self.assertIn('recordInstallNudge("installed")', installed)
+
+        start = self.source.split("function startInstallFromCoach()", 1)[1].split(
+            "function setupActivationNudges", 1
+        )[0]
+        self.assertIn('model.nativeStatus !== "idle"', start)
+        self.assertIn('recordInstallFunnelEvent("install_cta_click", "native-guidance-acknowledged")', start)
+
+        self.assertIn("function closeInstallNudgeSecondary()", self.source)
+        secondary = self.source.split("function closeInstallNudgeSecondary()", 1)[1].split(
+            "function renderInstallNudge", 1
+        )[0]
+        self.assertIn('installNativeStatus !== "idle"', secondary)
+        self.assertIn("hideInstallNudge()", secondary)
+        self.assertIn("skipInstallNudge()", secondary)
+        listener = self.source.split("function setupActivationNudges()", 1)[1].split(
+            "function updateNetworkStatus", 1
+        )[0]
+        self.assertIn('installLater.addEventListener("click", closeInstallNudgeSecondary)', listener)
+        render = self.source.split("function renderInstallNudge", 1)[1].split(
+            "function maybeShowInstallNudge", 1
+        )[0]
+        self.assertIn('openAccessibleModal(modal, closeInstallNudgeSecondary, "installNudgePrimary")', render)
+        self.assertNotIn('installNativeStatus = "idle"', render)
+
     def test_telegram_browser_login_handoff_uses_platform_specific_external_browser(self) -> None:
         handler = self.source.split("function startInstallFromCoach()", 1)[1].split(
             "function setupActivationNudges", 1

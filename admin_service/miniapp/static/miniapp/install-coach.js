@@ -18,14 +18,18 @@
       iosTelegramMessage: "Перейдіть через захищений вхід у Safari. Там ми покажемо встановлення для iPhone.",
       safariTitle: "Спочатку відкрийте сторінку в Safari",
       safariMessage: "На iPhone встановлення PWA доступне через меню Safari.",
-      androidNativeMessage: "Натисніть кнопку нижче — Chrome відкриє системне вікно встановлення.",
+      androidNativeMessage: "Натисніть зелену кнопку нижче — Chrome відкриє системне вікно «Установити додаток».",
       androidNativeSteps: [
-        "Натисніть кнопку «Встановити Vydno» нижче.",
-        "У системному вікні Chrome натисніть «Встановити».",
+        "Натисніть зелену кнопку «Встановити Vydno» під інструкцією.",
+        "У системному вікні Chrome натисніть «Установити».",
+        "Дочекайтеся завершення встановлення в Chrome.",
+        "Поверніться на головний екран і відкрийте нову іконку «Vydno».",
       ],
       androidNativeHints: [
-        "Ця кнопка належить Vydno й лише просить Chrome відкрити встановлення.",
-        "Системним вікном керує Chrome; Vydno не може натиснути кнопку замість вас.",
+        "Це єдина кнопка, яка запускає встановлення; меню Chrome відкривати не потрібно.",
+        "Вікно має заголовок «Установити додаток» і показує назву «Vydno.Capital».",
+        "Після завершення Chrome покаже системне сповіщення.",
+        "Запуск із нової іконки підтвердить, що Vydno відкривається як окремий застосунок.",
       ],
       iosSteps: [
         "У Safari натисніть кнопку «Поділитися» — квадрат зі стрілкою вгору.",
@@ -42,7 +46,7 @@
       androidSteps: [
         "У Chrome натисніть меню ⋮ у правому верхньому куті.",
         "У меню виберіть «Встановити додаток». Якщо такого пункту немає — «Додати на головний екран».",
-        "У системному вікні Chrome натисніть «Встановити».",
+        "У системному вікні Chrome натисніть «Установити».",
         "На головному екрані знайдіть нову іконку Vydno та відкрийте її.",
       ],
       androidHints: [
@@ -59,6 +63,11 @@
       safariHints: ["На iPhone встановлення Vydno гарантовано доступне через Safari."],
       next: "Далі",
       complete: "Готово — Vydno відкрито",
+      acknowledge: "Зрозуміло",
+      installedDone: "Готово",
+      closeGuidance: "Закрити підказку",
+      installingTitle: "Vydno встановлюється",
+      installedTitle: "Vydno встановлено",
       install: "Встановити Vydno",
       openBrowser: "Відкрити у Safari / Chrome",
       openSafariBrowser: "Відкрити у Safari",
@@ -87,10 +96,14 @@
       androidNativeSteps: [
         "Tap the Install Vydno button below.",
         "Tap Install in Chrome's system dialog.",
+        "Wait for Chrome to finish installing Vydno.",
+        "Return to the Home Screen and open the new Vydno icon.",
       ],
       androidNativeHints: [
         "This button belongs to Vydno and only asks Chrome to open installation.",
         "Chrome controls the system dialog; Vydno cannot press its button for you.",
+        "Chrome will show a system notification when installation finishes.",
+        "Launching from the new icon confirms that Vydno opens as a standalone app.",
       ],
       iosSteps: [
         "In Safari, tap Share — the square with an upward arrow.",
@@ -124,6 +137,11 @@
       safariHints: ["On iPhone, Vydno installation is reliably available through Safari."],
       next: "Next",
       complete: "Done — Vydno is open",
+      acknowledge: "Got it",
+      installedDone: "Done",
+      closeGuidance: "Close guide",
+      installingTitle: "Vydno is installing",
+      installedTitle: "Vydno is installed",
       install: "Install Vydno",
       openBrowser: "Open in Safari / Chrome",
       openSafariBrowser: "Open in Safari",
@@ -165,6 +183,9 @@
     const browser = String(settings.browser || "other");
     const telegram = Boolean(settings.telegram);
     const canPrompt = Boolean(settings.canPrompt);
+    const nativeStatus = settings.nativeStatus === "accepted" || settings.nativeStatus === "installed"
+      ? settings.nativeStatus
+      : "idle";
     let mode = "unsupported";
     let steps = platform === "ios" ? copy.iosSteps : copy.androidSteps;
     let hints = platform === "ios" ? copy.iosHints : copy.androidHints;
@@ -185,7 +206,7 @@
       hints = copy.safariHints;
       title = copy.safariTitle;
       message = copy.safariMessage;
-    } else if ((platform === "android" || platform === "desktop") && canPrompt) {
+    } else if ((platform === "android" || platform === "desktop") && (canPrompt || nativeStatus !== "idle")) {
       mode = "native";
       message = copy.androidNativeMessage;
       steps = copy.androidNativeSteps;
@@ -194,12 +215,19 @@
       mode = "manual";
     }
 
-    const step = Math.min(Math.max(Number(settings.step || 0), 0), Math.max(steps.length - 1, 0));
+    let requestedStep = Number(settings.step || 0);
+    if (mode === "native" && nativeStatus === "accepted") requestedStep = 2;
+    if (mode === "native" && nativeStatus === "installed") requestedStep = 3;
+    const step = Math.min(Math.max(requestedStep, 0), Math.max(steps.length - 1, 0));
     let primaryLabel = copy.next;
     if (mode === "handoff") primaryLabel = platform === "ios" ? copy.openSafariBrowser : copy.openBrowser;
+    else if (mode === "native" && nativeStatus === "accepted") primaryLabel = copy.acknowledge;
+    else if (mode === "native" && nativeStatus === "installed") primaryLabel = copy.installedDone;
     else if (mode === "native") primaryLabel = copy.install;
     else if (mode === "open-safari" || mode === "unsupported") primaryLabel = copy.openSafari;
     else if (step >= steps.length - 1) primaryLabel = copy.complete;
+    if (mode === "native" && nativeStatus === "accepted") title = copy.installingTitle;
+    if (mode === "native" && nativeStatus === "installed") title = copy.installedTitle;
 
     let helpText = copy.helpAndroid;
     if (telegram) helpText = platform === "ios" ? copy.helpTelegramIos : copy.helpTelegram;
@@ -211,6 +239,7 @@
       platform: platform,
       browser: browser,
       mode: mode,
+      nativeStatus: nativeStatus,
       step: step,
       steps: steps.slice(),
       hints: hints.slice(),
@@ -222,9 +251,11 @@
       progressLabel: copy.step(step + 1, steps.length),
       primaryLabel: primaryLabel,
       helpLabel: copy.help,
-      skipLabel: copy.skip,
+      skipLabel: mode === "native" && nativeStatus !== "idle" ? copy.closeGuidance : copy.skip,
       helpText: helpText,
       footnote: copy.footnote,
+      showHelpAction: mode !== "native",
+      showSkipAction: !(mode === "native" && nativeStatus !== "idle"),
       complete: mode === "manual" && step >= steps.length - 1,
     };
   }
@@ -277,6 +308,14 @@
     text(modal, "installNudgeFootnote", model.footnote);
     text(modal, "installCoachHelp", model.helpText);
     renderSteps(modal, model);
+
+    const helpAction = byId(modal, "installNudgeHelp");
+    if (helpAction) {
+      helpAction.hidden = !model.showHelpAction;
+      if (!model.showHelpAction) helpAction.setAttribute("aria-expanded", "false");
+    }
+    const skipAction = byId(modal, "installNudgeLater");
+    if (skipAction) skipAction.hidden = !model.showSkipAction;
 
     const visual = byId(modal, "installCoachVisual");
     if (visual) {
