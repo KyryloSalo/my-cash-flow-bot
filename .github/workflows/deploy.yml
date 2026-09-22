@@ -45,8 +45,24 @@ jobs:
           python -m pip install --require-hashes -r admin_service/build-requirements.lock
           python -m pip install --require-hashes --no-build-isolation -r admin_service/requirements.lock -r bot/requirements.lock
           python -m pip check
-      - name: Required tests, fresh schema, repeat bootstrap and migrations
-        run: bash ops/validate_release.sh
+      - name: Release policy tests
+        run: python -m unittest discover -s ops/tests -v
+      - name: Bot tests
+        run: python -m unittest discover -s bot/tests -v
+      - name: Fresh schema and repeat migrations
+        run: |
+          cd admin_service
+          python manage.py migrate --noinput
+          python manage.py migrate --noinput
+          python manage.py migrate --check
+      - name: Django deployment checks
+        run: |
+          cd admin_service
+          python manage.py check --deploy --fail-level WARNING
+      - name: Django tests
+        run: |
+          cd admin_service
+          DJANGO_DEBUG=true python manage.py test --noinput
       - name: Build exact release images and test their installed distributions
         run: |
           docker build --pull -t "mcf-bot:$GITHUB_SHA" -f bot/Dockerfile .
