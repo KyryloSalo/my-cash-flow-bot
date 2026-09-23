@@ -35,13 +35,11 @@
         "У Safari натисніть кнопку «Поділитися» — квадрат зі стрілкою вгору.",
         "У меню «Поділитися» прокрутіть список і виберіть «На початковий екран».",
         "Залиште «Відкрити як вебдодаток» увімкненим і натисніть «Додати» у правому верхньому куті.",
-        "На головному екрані знайдіть нову іконку Vydno та відкрийте її.",
       ],
       iosHints: [
         "Кнопка розташована в панелі Safari — зверху або знизу залежно від налаштувань браузера.",
         "Якщо пункту не видно, прокрутіть список дій униз.",
         "Після натискання Safari створить окрему іконку Vydno.",
-        "Саме запуск з нової іконки підтверджує, що Vydno відкривається як застосунок.",
       ],
       androidSteps: [
         "У Chrome натисніть меню ⋮ у правому верхньому куті.",
@@ -61,6 +59,8 @@
       iosHandoffHints: ["Вбудований браузер Telegram не може встановити PWA. У Safari ця підказка відкриється автоматично."],
       safariSteps: ["Відкрийте цю сторінку в Safari, а потім поверніться до підказки встановлення."],
       safariHints: ["На iPhone встановлення Vydno гарантовано доступне через Safari."],
+      manualCommand: function (total) { return "Виконайте всі " + total + " дії по черзі"; },
+      manualHint: "Після додавання відкрийте нову іконку Vydno. На iPhone застосунок попросить увійти через Telegram окремо від Safari.",
       next: "Далі",
       complete: "Готово — Vydno відкрито",
       acknowledge: "Зрозуміло",
@@ -109,13 +109,11 @@
         "In Safari, tap Share — the square with an upward arrow.",
         "In the Share menu, scroll and choose Add to Home Screen.",
         "Keep Open as Web App enabled and tap Add in the top-right corner.",
-        "Find the new Vydno icon on the Home Screen and open it.",
       ],
       iosHints: [
         "The button is in Safari's toolbar at the top or bottom, depending on your settings.",
         "If the action is not visible, scroll down the actions list.",
         "Safari will create a separate Vydno icon.",
-        "Launching from the new icon confirms that Vydno opens as an app.",
       ],
       androidSteps: [
         "In Chrome, tap the ⋮ menu in the top-right corner.",
@@ -135,6 +133,8 @@
       iosHandoffHints: ["Telegram's embedded browser cannot install a PWA. This guide will reopen automatically in Safari."],
       safariSteps: ["Open this page in Safari, then return to the installation guide."],
       safariHints: ["On iPhone, Vydno installation is reliably available through Safari."],
+      manualCommand: function (total) { return "Follow all " + total + " steps in order"; },
+      manualHint: "Then open the new Vydno icon. On iPhone, the app will ask you to sign in with Telegram separately from Safari.",
       next: "Next",
       complete: "Done — Vydno is open",
       acknowledge: "Got it",
@@ -219,12 +219,14 @@
     if (mode === "native" && nativeStatus === "accepted") requestedStep = 2;
     if (mode === "native" && nativeStatus === "installed") requestedStep = 3;
     const step = Math.min(Math.max(requestedStep, 0), Math.max(steps.length - 1, 0));
+    const overview = mode === "manual";
     let primaryLabel = copy.next;
     if (mode === "handoff") primaryLabel = platform === "ios" ? copy.openSafariBrowser : copy.openBrowser;
     else if (mode === "native" && nativeStatus === "accepted") primaryLabel = copy.acknowledge;
     else if (mode === "native" && nativeStatus === "installed") primaryLabel = copy.installedDone;
     else if (mode === "native") primaryLabel = copy.install;
     else if (mode === "open-safari" || mode === "unsupported") primaryLabel = copy.openSafari;
+    else if (overview) primaryLabel = copy.acknowledge;
     else if (step >= steps.length - 1) primaryLabel = copy.complete;
     if (mode === "native" && nativeStatus === "accepted") title = copy.installingTitle;
     if (mode === "native" && nativeStatus === "installed") title = copy.installedTitle;
@@ -240,11 +242,12 @@
       browser: browser,
       mode: mode,
       nativeStatus: nativeStatus,
+      overview: mode === "manual",
       step: step,
       steps: steps.slice(),
       hints: hints.slice(),
-      command: steps[step] || message,
-      hint: hints[step] || "",
+      command: overview ? copy.manualCommand(steps.length) : steps[step] || message,
+      hint: overview ? copy.manualHint : hints[step] || "",
       eyebrow: copy.eyebrow,
       title: title,
       message: message,
@@ -256,7 +259,7 @@
       footnote: copy.footnote,
       showHelpAction: mode !== "native",
       showSkipAction: !(mode === "native" && nativeStatus !== "idle"),
-      complete: mode === "manual" && step >= steps.length - 1,
+      complete: false,
     };
   }
 
@@ -284,7 +287,7 @@
       item.appendChild(number);
       item.appendChild(copy);
       item.dataset.installStep = String(index);
-      if (index === model.step) item.setAttribute("aria-current", "step");
+      if (!model.overview && index === model.step) item.setAttribute("aria-current", "step");
       list.appendChild(item);
     });
   }
@@ -295,6 +298,7 @@
     modal.dataset.installPlatform = model.platform;
     modal.dataset.installMode = model.mode;
     modal.dataset.installStep = String(model.step);
+    modal.dataset.installOverview = model.overview ? "true" : "false";
     modal.dataset.installOutcome = String((options && options.outcome) || "");
     text(modal, "installNudgeEyebrow", model.eyebrow);
     text(modal, "installNudgeTitle", model.title);

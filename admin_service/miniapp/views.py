@@ -793,13 +793,14 @@ def browser_login_handoff(request: HttpRequest, token: str) -> HttpResponse:
     )
     if is_ios_handoff:
         handoff_intro = (
-            "Відкрий цю сторінку в Safari, потім натисни кнопку входу. "
-            "Так сесія збережеться для іконки на робочому столі."
+            "Відкрий цю сторінку в Safari, натисни кнопку входу та встанови Vydno. "
+            "Після першого запуску з іконки увійди через Telegram ще раз прямо в застосунку — "
+            "iPhone зберігає цю сесію окремо від Safari."
         )
         handoff_note = "Кнопка входу з’явиться після відкриття цієї сторінки в Safari."
         handoff_guidance = (
             "На iPhone у Telegram натисни компас унизу праворуч. "
-            "Уже в Safari натисни кнопку входу."
+            "Якщо іконка Vydno вже є, не встановлюй її повторно: відкрий іконку та увійди через Telegram там."
         )
     else:
         handoff_intro = (

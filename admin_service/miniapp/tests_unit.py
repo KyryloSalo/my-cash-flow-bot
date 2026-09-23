@@ -1352,16 +1352,19 @@ class MiniAppViewUnitTests(unittest.TestCase):
         )
 
     @override_settings(DEBUG=True)
-    def test_index_exposes_standalone_browser_login_recovery(self) -> None:
+    def test_index_exposes_standalone_oidc_recovery_with_bot_fallback(self) -> None:
         request = self.factory.get("/app/")
         request.session = FakeSession()
 
         response = views.index(request)
         body = response.content.decode("utf-8")
 
+        self.assertIn('id="telegramOidcRecovery"', body)
+        self.assertIn('/app/auth/telegram/start', body)
         self.assertIn('id="browserLoginRecovery"', body)
         self.assertIn("browser_login_required", body)
         self.assertIn("https://t.me/vydnocapital_bot?start=app_login", body)
+        self.assertIn("Перевстановлювати Vydno не потрібно", body)
 
     @override_settings(DEBUG=True)
     def test_index_ignores_stale_v_query_and_renders_same_template(self) -> None:
@@ -1519,6 +1522,8 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertIn("Safari", handoff_copy)
         self.assertNotIn("Chrome", handoff_copy)
         self.assertIn("натисни компас", handoff_copy)
+        self.assertIn("окрем", handoff_copy)
+        self.assertNotIn("Так сесія збережеться для іконки", handoff_copy)
         self.assertIn("isKnownEmbedded", body)
         self.assertIn("embedded-browser", body)
         self.assertIn("ios-embedded-browser", body)

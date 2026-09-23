@@ -109,6 +109,7 @@
   data-default-locale="{{ default_locale|default:'en' }}"
   data-privacy-policy-url="{{ privacy_policy_url }}"
   data-browser-login-recovery-url="{{ browser_login_recovery_url }}"
+  data-telegram-oidc-recovery-url="{% url 'miniapp:telegram-oidc-start' %}"
 >
   <div class="network-status" id="networkStatus" role="status" hidden></div>
   <div class="onboarding-shell" id="onboardingShell" hidden>
@@ -234,7 +235,7 @@
         <strong id="installCoachCommand">У Safari натисніть кнопку «Поділитися» — квадрат зі стрілкою вгору.</strong>
         <p id="installCoachHint">Кнопка розташована в панелі Safari — зверху або знизу залежно від налаштувань браузера.</p>
       </div>
-      <ol class="install-coach-steps" id="installNudgeSteps" aria-label="Прогрес встановлення"></ol>
+      <ol class="install-coach-steps" id="installNudgeSteps" aria-label="Інструкція встановлення"></ol>
       <p class="install-coach-help" id="installCoachHelp" role="status" aria-live="polite" hidden></p>
       <div class="activation-actions install-coach-actions">
         <button class="primary-action" id="installNudgePrimary" type="button">Далі</button>
@@ -387,7 +388,11 @@
         <p class="eyebrow">Mini App</p>
         <h2 id="errorTitle">Щось пішло не так</h2>
         <p id="errorMessage">Спробуйте оновити дані ще раз.</p>
-        <a class="primary-action browser-login-recovery" id="browserLoginRecovery" href="https://t.me/vydnocapital_bot?start=app_login" hidden>Отримати нове посилання в Telegram</a>
+        <div class="browser-login-recovery-actions" id="browserLoginRecoveryActions" hidden>
+          <a class="primary-action browser-login-recovery" id="telegramOidcRecovery" href="{% url 'miniapp:telegram-oidc-start' %}">Увійти через Telegram</a>
+          <a class="ghost-action browser-login-recovery browser-login-recovery--fallback" id="browserLoginRecovery" href="https://t.me/vydnocapital_bot?start=app_login">Резервний вхід через бота</a>
+          <p class="browser-login-recovery-hint" id="browserLoginRecoveryHint">Перевстановлювати Vydno не потрібно.</p>
+        </div>
       </div>
     </section>
 
@@ -1687,6 +1692,7 @@
       const defaultPeriodLabel = root.dataset.defaultPeriodLabel || "Цей місяць";
       const privacyPolicyUrl = root.dataset.privacyPolicyUrl || "https://vydno.capital/privacy.html";
       const browserLoginRecoveryUrl = root.dataset.browserLoginRecoveryUrl || "https://t.me/vydnocapital_bot?start=app_login";
+      const telegramOidcRecoveryUrl = root.dataset.telegramOidcRecoveryUrl || "/app/auth/telegram/start";
       const previewRequested = new URLSearchParams(window.location.search).get("preview") === "1";
       const installRequested = new URLSearchParams(window.location.search).get("install") === "1";
       let deferredInstallPrompt = null;
@@ -1733,8 +1739,13 @@
           periodThisMonth: "Цей місяць",
           periodThisYear: "Цей рік",
           noComparison: "Без порівняння",
-          openFromTelegram: "Щоб увійти в Safari, отримайте нове захищене посилання в Telegram.",
-          browserLoginRecovery: "Отримати нове посилання в Telegram",
+          openFromTelegram: "Увійдіть через Telegram, щоб відкрити Vydno.",
+          standaloneLoginRequired: "На iPhone встановлений Vydno має окрему сесію від Safari. Увійдіть через Telegram прямо в застосунку — перевстановлювати його або створювати нові посилання не потрібно.",
+          browserLoginRequired: "Увійдіть через Telegram, щоб відкрити Vydno у цьому браузері.",
+          loginRequiredTitle: "Увійдіть у Vydno",
+          telegramOidcRecovery: "Увійти через Telegram",
+          browserLoginRecovery: "Резервний вхід через бота",
+          browserLoginRecoveryHint: "Перевстановлювати Vydno не потрібно. Вхід у встановленому застосунку зберігається окремо від Safari.",
           miniappUnavailable: "Mini App недоступний",
           miniappLoadFailed: "Не вдалося завантажити dashboard. Спробуйте оновити сторінку.",
           offlineStatus: "Немає з'єднання. Нові зміни не буде збережено до відновлення мережі.",
@@ -2018,8 +2029,13 @@
           periodThisMonth: "This month",
           periodThisYear: "This year",
           noComparison: "No comparison",
-          openFromTelegram: "To sign in with Safari, request a new secure link in Telegram.",
-          browserLoginRecovery: "Get a new link in Telegram",
+          openFromTelegram: "Sign in with Telegram to open Vydno.",
+          standaloneLoginRequired: "On iPhone, the installed Vydno app has a session separate from Safari. Sign in with Telegram inside the app — you do not need to reinstall it or request another link.",
+          browserLoginRequired: "Sign in with Telegram to open Vydno in this browser.",
+          loginRequiredTitle: "Sign in to Vydno",
+          telegramOidcRecovery: "Sign in with Telegram",
+          browserLoginRecovery: "Backup sign-in through the bot",
+          browserLoginRecoveryHint: "You do not need to reinstall Vydno. The installed app keeps a session separate from Safari.",
           miniappUnavailable: "Mini App unavailable",
           miniappLoadFailed: "Couldn't load the dashboard. Try refreshing the page.",
           offlineStatus: "You are offline. New changes cannot be saved until the connection is restored.",
@@ -5651,14 +5667,39 @@
         $("#loadingState").hidden = true;
         $("#errorState").hidden = false;
         $("#dashboardApp").hidden = true;
-        setText("errorTitle", title || tr("errorTitle"));
+        setText("errorTitle", browserLoginRequired ? tr("loginRequiredTitle") : title || tr("errorTitle"));
         setText("errorMessage", message || tr("errorText"));
+        const recoveryActions = $("#browserLoginRecoveryActions");
+        if (recoveryActions) recoveryActions.hidden = !browserLoginRequired;
+        const oidcRecovery = $("#telegramOidcRecovery");
+        if (oidcRecovery) {
+          oidcRecovery.href = telegramOidcRecoveryUrl;
+          oidcRecovery.textContent = tr("telegramOidcRecovery");
+        }
         const recoveryLink = $("#browserLoginRecovery");
         if (recoveryLink) {
-          recoveryLink.hidden = !browserLoginRequired;
+          recoveryLink.hidden = !browserLoginRequired || isStandaloneMode();
           recoveryLink.href = browserLoginRecoveryUrl;
           recoveryLink.textContent = tr("browserLoginRecovery");
         }
+        setText("browserLoginRecoveryHint", tr("browserLoginRecoveryHint"));
+      }
+
+      function openTelegramOidcRecovery(event) {
+        if (event && typeof event.preventDefault === "function") event.preventDefault();
+        if (isStandaloneMode()) {
+          const authWindow = window.open(telegramOidcRecoveryUrl, "vydnoTelegramLogin");
+          if (authWindow) {
+            try { authWindow.opener = null; } catch (_error) {}
+            return;
+          }
+        }
+        window.location.assign(telegramOidcRecoveryUrl);
+      }
+
+      function setupBrowserLoginRecovery() {
+        const oidcRecovery = $("#telegramOidcRecovery");
+        if (oidcRecovery) oidcRecovery.addEventListener("click", openTelegramOidcRecovery);
       }
 
       function showDashboard() {
@@ -5677,7 +5718,12 @@
             const error = payload && payload.error || {};
             if (error.code !== "session_required") throw payload;
             if (devAuthEnabled) return postJson(devAuthUrl, {});
-            throw { error: { code: "browser_login_required", message: tr("openFromTelegram") } };
+            throw {
+              error: {
+                code: "browser_login_required",
+                message: isStandaloneMode() ? tr("standaloneLoginRequired") : tr("browserLoginRequired")
+              }
+            };
           });
         }
         const request = sessionEstablished
@@ -8157,15 +8203,10 @@
         const coach = window.VydnoInstallCoach;
         if (!coach) return;
         const model = coach.buildModel(installCoachOptions());
-        if (model.complete) {
-          recordInstallFunnelEvent("install_cta_click", "manual-confirmed");
-          recordInstallNudge("confirmed").then(hideInstallNudge);
-          return;
+        if (model.overview) {
+          recordInstallFunnelEvent("install_cta_click", "manual-instructions-acknowledged");
+          recordInstallNudge("dismissed").then(hideInstallNudge);
         }
-        installCoachStep = coach.nextStep(installCoachStep, model.steps.length);
-        installCoachHelpOpen = false;
-        refreshInstallCoach();
-        recordInstallFunnelEvent("install_cta_click", "next-step");
       }
 
       function setInstallPromptBusy(value) {
@@ -8705,6 +8746,7 @@
         setupInstallPrompt();
         setupActivationNudges();
         initTelegramWebApp();
+        setupBrowserLoginRecovery();
         setLocale(getTelegramLocale());
         setupNavigation();
         setupPeriodSelector();

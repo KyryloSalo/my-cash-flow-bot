@@ -59,6 +59,21 @@ class InstallCoachFrontendContractTests(SimpleTestCase):
         self.assertIn("Продовжити без встановлення", self.source)
         self.assertIn('aria-live="polite"', self.source)
 
+    def test_manual_install_instruction_is_an_all_steps_overview(self) -> None:
+        self.assertIn('overview: mode === "manual"', self.module)
+        self.assertIn('modal.dataset.installOverview = model.overview ? "true" : "false"', self.module)
+        self.assertIn('#installNudgeModal[data-install-overview="true"] .install-coach-progress-row', self.css)
+        self.assertIn('#installNudgeModal[data-install-overview="true"] .install-coach-visual', self.css)
+        self.assertIn('#installNudgeModal[data-install-overview="true"] .install-coach-steps li', self.css)
+
+        handler = self.source.split("function advanceInstallCoach()", 1)[1].split(
+            "function setInstallPromptBusy", 1
+        )[0]
+        self.assertIn("if (model.overview)", handler)
+        self.assertIn('recordInstallFunnelEvent("install_cta_click", "manual-instructions-acknowledged")', handler)
+        self.assertIn('recordInstallNudge("dismissed").then(hideInstallNudge)', handler)
+        self.assertNotIn('recordInstallNudge("confirmed")', handler)
+
     def test_install_coach_module_and_privacy_safe_funnel_endpoints_are_loaded(self) -> None:
         self.assertIn("{% static 'miniapp/install-coach.js' %}", self.source)
         self.assertIn('data-funnel-session-url="{% url \'miniapp:funnel-session\' %}"', self.source)
@@ -88,7 +103,8 @@ class InstallCoachFrontendContractTests(SimpleTestCase):
         manual_handler = self.source.split("function advanceInstallCoach()", 1)[1].split(
             "function startInstallFromCoach", 1
         )[0]
-        self.assertIn('recordInstallNudge("confirmed")', manual_handler)
+        self.assertIn('recordInstallNudge("dismissed")', manual_handler)
+        self.assertNotIn('recordInstallNudge("confirmed")', manual_handler)
         self.assertNotIn('recordInstallNudge("installed")', manual_handler)
         self.assertIn('recordInstallNudge("installed")', self.source.split('window.addEventListener("appinstalled"', 1)[1])
 
@@ -164,6 +180,24 @@ class InstallCoachFrontendContractTests(SimpleTestCase):
         self.assertIn('platform === "ios" ? "safari" : "chrome"', opener)
         self.assertIn("window.Telegram.WebApp.openLink(target, { try_browser: tryBrowser })", opener)
         self.assertNotIn("window.Telegram.WebApp.openLink(target);", opener)
+
+    def test_standalone_session_recovery_uses_oidc_inside_the_installed_app(self) -> None:
+        self.assertIn('data-telegram-oidc-recovery-url="{% url \'miniapp:telegram-oidc-start\' %}"', self.source)
+        self.assertIn('id="telegramOidcRecovery"', self.source)
+        self.assertIn('id="browserLoginRecovery"', self.source)
+        self.assertIn("Увійти через Telegram", self.source)
+        self.assertIn("Перевстановлювати Vydno не потрібно", self.source)
+
+        opener = self.source.split("function openTelegramOidcRecovery(event)", 1)[1].split(
+            "function showDashboard", 1
+        )[0]
+        self.assertIn("isStandaloneMode()", opener)
+        self.assertIn('window.open(telegramOidcRecoveryUrl, "vydnoTelegramLogin")', opener)
+        self.assertIn("window.location.assign(telegramOidcRecoveryUrl)", opener)
+        self.assertIn('recoveryLink.hidden = !browserLoginRequired || isStandaloneMode()', self.source)
+
+        session = self.source.split("function ensureSession()", 1)[1].split("function buildQuery", 1)[0]
+        self.assertIn('isStandaloneMode() ? tr("standaloneLoginRequired") : tr("browserLoginRequired")', session)
 
     def test_prompt_availability_waits_for_server_eligibility_and_is_telemetred_once(self) -> None:
         before_prompt = self.source.split('window.addEventListener("beforeinstallprompt"', 1)[1].split("});", 1)[0]

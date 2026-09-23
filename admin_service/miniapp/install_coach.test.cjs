@@ -31,23 +31,24 @@ test("detects Safari, iOS alternate browsers, and Android Chrome", () => {
   assert.equal(coach.detectBrowser({ userAgent: "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/128.0 Mobile Safari/537.36" }), "chrome");
 });
 
-test("builds a four-step iOS coach with exact actions and an explicit completion", () => {
+test("shows the complete three-step iOS install instruction at once", () => {
   const first = coach.buildModel({ locale: "uk", platform: "ios", browser: "safari", step: 0 });
   assert.equal(first.mode, "manual");
-  assert.equal(first.steps.length, 4);
+  assert.equal(first.overview, true);
+  assert.equal(first.steps.length, 3);
   assert.equal(first.step, 0);
-  assert.match(first.command, /Поділитися/);
-  assert.match(first.hint, /панелі Safari/iu);
-  assert.match(first.primaryLabel, /Далі/);
-
-  const add = coach.buildModel({ locale: "uk", platform: "ios", browser: "safari", step: 2 });
-  assert.match(add.command, /Додати/);
-  assert.match(add.command, /правому верхньому/iu);
-
-  const last = coach.buildModel({ locale: "uk", platform: "ios", browser: "safari", step: 3 });
-  assert.equal(last.step, 3);
-  assert.match(last.primaryLabel, /Vydno|Готово/iu);
-  assert.match(last.skipLabel, /без встановлення/iu);
+  assert.match(first.command, /усі 3 дії|всі 3 дії/iu);
+  assert.match(first.steps[0], /Поділитися/iu);
+  assert.match(first.steps[1], /На початковий екран/iu);
+  assert.match(first.steps[2], /Додати/iu);
+  assert.match(first.hint, /іконк.+Vydno/iu);
+  assert.equal(first.primaryLabel, "Зрозуміло");
+  assert.equal(first.complete, false);
+  assert.match(first.skipLabel, /без встановлення/iu);
+  assert.match(
+    cssSource,
+    /data-install-overview="true"[^}]+\.install-coach-step-label[^}]+position:\s*static/su,
+  );
 });
 
 test("uses the native Android prompt only when a real prompt is available", () => {
@@ -61,10 +62,11 @@ test("uses the native Android prompt only when a real prompt is available", () =
 
   const manual = coach.buildModel({ locale: "uk", platform: "android", browser: "chrome", canPrompt: false });
   assert.equal(manual.mode, "manual");
+  assert.equal(manual.overview, true);
   assert.equal(manual.steps.length, 4);
   assert.match(manual.steps[0], /правому верхньому/iu);
   assert.match(manual.steps[1], /Встановити додаток/iu);
-  assert.match(manual.primaryLabel, /Далі/);
+  assert.equal(manual.primaryLabel, "Зрозуміло");
 });
 
 test("native Android coach exposes one product action before opening Chrome's prompt", () => {
