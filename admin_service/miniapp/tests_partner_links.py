@@ -435,4 +435,4 @@ class PartnerLinkAdminTests(SimpleTestCase):
         }
 
         self.assertEqual(menu_items["miniapp.PartnerLink"], "Партнерські посилання")
-        self.assertEqual(ADMIN_PAGE_METADATA["miniapp.PartnerLink"]["section"], "Залучення")
+        self.assertEqual(ADMIN_PAGE_METADATA["miniapp.PartnerLink"]["section"], "Користувачі")
