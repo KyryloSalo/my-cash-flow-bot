@@ -10,41 +10,35 @@ class AdminMenuSection:
     items: tuple[tuple[str, str], ...]
 
 
-SECTION_OVERVIEW = "Огляд"
+SECTION_WORKSPACE = "Робочий стіл"
 SECTION_USERS = "Користувачі"
-SECTION_ACQUISITION = "Залучення"
-SECTION_VYDNO_SUBSCRIPTIONS = "Підписки Vydno"
+SECTION_MONETIZATION = "Монетизація"
 SECTION_COMMUNICATIONS = "Комунікації"
-SECTION_SUPPORT = "Підтримка"
 SECTION_SYSTEM = "Система"
-SECTION_MANAGEMENT = "Керування"
 SECTION_TECHNICAL = "Технічне"
 
 
 PRIMARY_MENU_SECTIONS = (
-    AdminMenuSection("overview", SECTION_OVERVIEW, (("dashboard", "Огляд"),)),
+    AdminMenuSection("workspace", SECTION_WORKSPACE, (("dashboard", "Щоденний контроль"),)),
     AdminMenuSection(
         "users",
         SECTION_USERS,
         (
             ("users.TelegramUser", "Усі користувачі"),
             ("users.Tag", "Теги користувачів"),
+            ("miniapp.PartnerLink", "Партнерські посилання"),
         ),
     ),
     AdminMenuSection(
-        "acquisition",
-        SECTION_ACQUISITION,
-        (("miniapp.PartnerLink", "Партнерські посилання"),),
-    ),
-    AdminMenuSection(
-        "vydno_subscriptions",
-        SECTION_VYDNO_SUBSCRIPTIONS,
+        "monetization",
+        SECTION_MONETIZATION,
         (
             ("subscriptions.Subscription", "Підписки користувачів"),
-            ("subscriptions.Payment", "Оплати за Vydno"),
-            ("subscriptions.BillingProfile", "Картки автоплатежів"),
+            ("subscriptions.Payment", "Оплати Vydno"),
+            ("subscriptions.BillingProfile", "Картки та автосписання"),
             ("subscriptions.Plan", "Тарифи"),
-            ("subscriptions.PromoOffer", "Промокоди й акції"),
+            ("subscriptions.PromoOffer", "Промокоди та акції"),
+            ("subscriptions.TrialRecoveryCampaign", "Recovery trial-користувачів"),
         ),
     ),
     AdminMenuSection(
@@ -54,36 +48,23 @@ PRIMARY_MENU_SECTIONS = (
             ("custom:manual_message", "Написати користувачу"),
             ("broadcasts.Broadcast", "Розсилки"),
             ("polls.PollCampaign", "Опитування"),
-            ("subscriptions.TrialRecoveryCampaign", "Recovery 90 днів за 1 грн"),
-            ("users.PushTopic", "Теми push-сповіщень"),
-            ("broadcasts.AdminMessageLog", "Історія повідомлень"),
-        ),
-    ),
-    AdminMenuSection(
-        "support",
-        SECTION_SUPPORT,
-        (
             ("support.SupportCase", "Звернення користувачів"),
             ("feedback.FeedbackItem", "Відгуки користувачів"),
+            ("users.PushTopic", "Теми push-сповіщень"),
+            ("broadcasts.AdminMessageLog", "Історія повідомлень"),
         ),
     ),
     AdminMenuSection(
         "system",
         SECTION_SYSTEM,
         (
-            ("custom:healthcheck", "Стан сервісів"),
+            ("custom:healthcheck", "Стан системи"),
             ("custom:bot_errors", "Помилки бота"),
-            ("bot_events.BotEvent", "Події бота"),
-            ("audit_log.AdminAuditLog", "Журнал дій адміністраторів"),
-        ),
-    ),
-    AdminMenuSection(
-        "management",
-        SECTION_MANAGEMENT,
-        (
             ("bot_settings.BotSetting", "Налаштування бота"),
+            ("custom:admin_notifications", "Сповіщення адміністраторів"),
+            ("bot_events.BotEvent", "Події бота"),
+            ("audit_log.AdminAuditLog", "Журнал дій"),
             ("auth.User", "Адміністратори"),
-            ("custom:admin_notifications", "Сповіщення для адміністраторів"),
         ),
     ),
 )

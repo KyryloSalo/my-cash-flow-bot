@@ -331,6 +331,12 @@ fieldset.module > h2,
   color: var(--op-green) !important;
 }
 
+.op-row-action--primary {
+  border-color: rgba(94, 230, 173, .38);
+  background: rgba(94, 230, 173, .11);
+  color: var(--op-green) !important;
+}
+
 .payment-confirmation-shell { display: grid; max-width: 1050px; gap: 16px; }
 .payment-confirmation-card { overflow: hidden; border: 1px solid var(--op-border); border-radius: 16px; background: var(--op-surface); }
 .payment-confirmation-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 17px; border-bottom: 1px solid var(--op-border); }
@@ -368,6 +374,87 @@ fieldset.module > h2,
   padding: 34px 16px !important;
   color: var(--op-muted) !important;
   text-align: center !important;
+}
+
+/* Shared shell for custom operational pages. Some older templates still
+   declare local light-theme styles; these rules keep every page in the same
+   dark operator workspace until those templates are fully componentized. */
+#content-main > h1 {
+  margin: 0 0 18px;
+  color: var(--op-text);
+  font-size: clamp(25px, 3vw, 34px);
+  line-height: 1.12;
+}
+
+#content-main .ops-card,
+#content-main .health-card,
+#content-main .qa-card {
+  overflow-x: auto;
+  border: 1px solid var(--op-border) !important;
+  border-radius: 16px !important;
+  background: linear-gradient(180deg, var(--op-surface-strong), var(--op-surface)) !important;
+  color: var(--op-copy) !important;
+  box-shadow: 0 18px 40px rgba(2, 6, 23, .16);
+}
+
+#content-main .ops-card h2,
+#content-main .qa-card h2,
+#content-main .health-card h2 {
+  color: var(--op-text);
+}
+
+#content-main .ops-card p,
+#content-main .qa-card p,
+#content-main .health-card p {
+  color: var(--op-copy);
+}
+
+#content-main .ops-table,
+#content-main .health-table,
+#content-main .qa-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--op-copy);
+}
+
+#content-main .ops-table th,
+#content-main .ops-table td,
+#content-main .health-table th,
+#content-main .health-table td,
+#content-main .qa-table th,
+#content-main .qa-table td {
+  padding: 10px 12px !important;
+  border-color: rgba(148, 163, 184, .12) !important;
+  text-align: left;
+  vertical-align: top;
+}
+
+#content-main .ops-table th,
+#content-main .health-table th,
+#content-main .qa-table th {
+  color: var(--op-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.status-ok { color: var(--op-green) !important; font-weight: 800; }
+.status-warning { color: var(--op-amber) !important; font-weight: 800; }
+.status-failed { color: var(--op-red) !important; font-weight: 800; }
+
+#content-main form > p { margin-bottom: 14px; }
+#content-main form > p > label { display: block; margin-bottom: 6px; color: var(--op-copy); font-weight: 700; }
+#content-main pre {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--op-border);
+  border-radius: 12px;
+  background: var(--op-surface-soft);
+  color: var(--op-copy);
+  padding: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 @media (max-width: 900px) {
@@ -424,9 +511,29 @@ fieldset.module > h2,
     text-transform: uppercase;
   }
 
-  #result_list.op-responsive-table .action-checkbox,
   #result_list.op-responsive-table .action-checkbox-column {
     display: none;
+  }
+
+  #result_list.op-responsive-table .op-row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  #result_list.op-responsive-table .field-quick_actions {
+    grid-template-columns: 1fr;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #result_list.op-responsive-table .field-quick_actions::before {
+    text-align: left;
+  }
+
+  #result_list.op-responsive-table .op-row-action {
+    justify-content: center;
+    text-align: center;
   }
 
   .submit-row {

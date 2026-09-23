@@ -99,6 +99,50 @@
   .dashboard-scope-toggle { color: var(--dash-green); font-weight: 750; text-decoration: none; }
   .dashboard-compare { color: var(--dash-muted); }
   .dashboard-error { margin: 0; color: #fecdd3; font-size: 13px; }
+  .dashboard-command {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid var(--dash-border);
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(94, 230, 173, .1), rgba(96, 165, 250, .06));
+  }
+  .dashboard-command form { display: grid; width: min(100%, 720px); gap: 7px; }
+  .dashboard-command label { color: var(--dash-text); font-size: 13px; font-weight: 800; }
+  .dashboard-command-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .dashboard-command input {
+    width: 100%;
+    min-height: 44px;
+    padding: 9px 12px;
+    border: 1px solid var(--dash-border);
+    border-radius: 11px;
+    background: #0b1424;
+    color: var(--dash-text);
+  }
+  .dashboard-command-hint { color: var(--dash-muted); font-size: 12px; white-space: nowrap; }
+  .dashboard-command-hint kbd {
+    display: inline-grid;
+    min-width: 25px;
+    min-height: 25px;
+    place-items: center;
+    margin-right: 5px;
+    border: 1px solid var(--dash-border);
+    border-radius: 7px;
+    background: var(--dash-surface);
+    color: var(--dash-text);
+    font: inherit;
+  }
+  .dashboard-alert {
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px solid rgba(251, 191, 36, .28);
+    border-radius: 12px;
+    background: rgba(120, 53, 15, .16);
+    color: #fde68a;
+    font-size: 13px;
+  }
   .dashboard-section { display: grid; gap: 12px; }
   .dashboard-section-header { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
   .dashboard-section-header h2,
@@ -125,6 +169,7 @@
   .dashboard-attention--ok strong { color: var(--dash-green); }
   .dashboard-attention--unknown strong { color: var(--dash-amber); }
   .dashboard-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
+  .dashboard-kpis--daily { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .dashboard-kpi {
     display: grid;
     min-height: 142px;
@@ -224,17 +269,49 @@
   .dashboard-chip--success { background: rgba(52, 211, 153, .12); color: #6ee7b7; }
   .dashboard-link { color: var(--dash-green); font-size: 13px; font-weight: 750; text-decoration: none; }
   .dashboard-empty { padding: 26px; color: var(--dash-muted); text-align: center; }
+  .dashboard-activity-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .dashboard-activity-grid .dashboard-table { min-width: 620px; }
+  .dashboard-disclosure {
+    overflow: hidden;
+    border: 1px solid var(--dash-border);
+    border-radius: 16px;
+    background: var(--dash-surface);
+  }
+  .dashboard-disclosure > summary {
+    display: flex;
+    min-height: 66px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 17px;
+    cursor: pointer;
+    list-style: none;
+  }
+  .dashboard-disclosure > summary::-webkit-details-marker { display: none; }
+  .dashboard-disclosure > summary:hover { background: rgba(94, 230, 173, .035); }
+  .dashboard-disclosure-title { display: grid; gap: 3px; }
+  .dashboard-disclosure-title strong { color: var(--dash-text); font-size: 16px; }
+  .dashboard-disclosure-title span { color: var(--dash-muted); font-size: 12px; }
+  .dashboard-disclosure-action { color: var(--dash-green); font-size: 12px; font-weight: 800; white-space: nowrap; }
+  .dashboard-disclosure-action::after { content: "Розгорнути"; }
+  .dashboard-disclosure[open] .dashboard-disclosure-action::after { content: "Згорнути"; }
+  .dashboard-disclosure-content { display: grid; gap: 16px; padding: 0 16px 16px; }
+  .dashboard-disclosure-content > .dashboard-panel { padding: 0; border: 0; box-shadow: none; }
   @media (max-width: 1180px) {
     .dashboard-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .dashboard-kpis--daily { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .dashboard-attention-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width: 900px) {
     .dashboard-topbar { display: grid; }
     .dashboard-actions { justify-content: flex-start; }
     .dashboard-layout { grid-template-columns: 1fr; }
+    .dashboard-activity-grid { grid-template-columns: 1fr; }
   }
   @media (max-width: 680px) {
     .dashboard-shell { gap: 14px; }
+    .dashboard-command { display: grid; align-items: stretch; }
+    .dashboard-command-hint { display: none; }
     .dashboard-filter-row { align-items: flex-start; }
     .dashboard-custom-period { width: 100%; }
     .dashboard-field { flex: 1; }
@@ -247,15 +324,18 @@
   @media (max-width: 430px) {
     .dashboard-kpis { grid-template-columns: 1fr; }
     .dashboard-action { flex: 1; }
+    .dashboard-command-control { grid-template-columns: 1fr; }
+    .dashboard-command-control button { width: 100%; }
+    .dashboard-disclosure > summary { align-items: flex-start; }
   }
 </style>
 
 <div id="content-main" class="dashboard-shell">
   <header class="dashboard-topbar">
     <div>
-      <p class="dashboard-eyebrow">Аналітика продукту</p>
-      <h1>Панель керування</h1>
-      <p class="dashboard-topbar-copy">{{ period.label }} · порівнюємо з {{ period.previous_label }}</p>
+      <p class="dashboard-eyebrow">Робочий стіл</p>
+      <h1>Щоденний контроль</h1>
+      <p class="dashboard-topbar-copy">Ризики, користувачі та гроші без технічного шуму · {{ period.label }}</p>
     </div>
     <div class="dashboard-actions">
       {% for action in quick_actions %}
@@ -264,6 +344,36 @@
     </div>
   </header>
 
+  <section class="dashboard-command" aria-label="Швидкий пошук користувача">
+    <form method="get" action="{{ user_search_url }}" data-admin-global-search>
+      <label for="dashboard-user-search">Знайти користувача</label>
+      <div class="dashboard-command-control">
+        <input
+          id="dashboard-user-search"
+          name="q"
+          type="search"
+          placeholder="Telegram ID, @username або ім'я"
+          autocomplete="off"
+        >
+        <button class="dashboard-filter-button" type="submit">Відкрити пошук</button>
+      </div>
+    </form>
+    <span class="dashboard-command-hint"><kbd>/</kbd> фокус на пошук</span>
+  </section>
+
+  {% if data_quality.degraded %}
+    <p class="dashboard-alert" role="alert">Частина даних недоступна або неповна. Невідомі значення не є нулями. {{ data_quality.reason }}</p>
+  {% endif %}
+
+  <details class="dashboard-disclosure">
+    <summary>
+      <span class="dashboard-disclosure-title">
+        <strong>Період і склад даних</strong>
+        <span>{{ period.label }} · {{ data_scope_label }} · порівняння з {{ period.previous_label }}</span>
+      </span>
+      <span class="dashboard-disclosure-action" aria-hidden="true"></span>
+    </summary>
+    <div class="dashboard-disclosure-content">
   <section class="dashboard-filter" aria-label="Фільтр періоду">
     <div class="dashboard-filter-row">
       <nav class="dashboard-presets" aria-label="Швидкий вибір періоду">
@@ -298,10 +408,9 @@
     </div>
     {% if period.error %}<p class="dashboard-error">{{ period.error }}</p>{% endif %}
     <p class="dashboard-compare">Зібрано: {{ data_quality.retrieved_at|date:"d.m.Y H:i T" }}. Це час запиту, не гарантія актуальності джерел.</p>
-    {% if data_quality.degraded %}
-      <p class="dashboard-error" role="alert">Частина даних недоступна або неповна. Невідомі значення не є нулями; порівняння й діаграми для них вимкнено. {{ data_quality.reason }}</p>
-    {% endif %}
   </section>
+    </div>
+  </details>
 
   <section class="dashboard-section">
     <div class="dashboard-section-header">
@@ -323,12 +432,12 @@
   <section class="dashboard-section">
     <div class="dashboard-section-header">
       <div>
-        <h2>Ключові метрики</h2>
-        <p>Реєстрації та оплати — за датами подій. Поточні стани підписані окремо; відсутня історія не замінюється нулями.</p>
+        <h2>Головне за період</h2>
+        <p>Чотири показники для щоденної перевірки. Детальна фінансова й продуктова аналітика збережена нижче.</p>
       </div>
     </div>
-    <div class="dashboard-kpis">
-      {% for card in kpi_cards %}
+    <div class="dashboard-kpis dashboard-kpis--daily">
+      {% for card in daily_kpis %}
         <a class="dashboard-kpi" href="{{ card.url }}">
           <div>
             <span class="dashboard-kpi-label">{{ card.label }}</span>
@@ -343,6 +452,58 @@
       {% endfor %}
     </div>
   </section>
+
+  <details class="dashboard-disclosure">
+    <summary>
+      <span class="dashboard-disclosure-title">
+        <strong>Фінанси та платежі</strong>
+        <span>Renewal/retry, bind, валові надходження, повернення та ручні підтвердження</span>
+      </span>
+      <span class="dashboard-disclosure-action" aria-hidden="true"></span>
+    </summary>
+    <div class="dashboard-disclosure-content">
+      <div class="dashboard-kpis">
+        {% for card in finance_kpis %}
+          <a class="dashboard-kpi" href="{{ card.url }}">
+            <div>
+              <span class="dashboard-kpi-label">{{ card.label }}</span>
+              <strong class="dashboard-kpi-value">{{ card.value|default_if_none:"Недоступно" }}</strong>
+            </div>
+            <div class="dashboard-kpi-footer">
+              <span class="dashboard-delta dashboard-delta--{{ card.delta_tone }}">{{ card.delta }}</span>
+              <span class="dashboard-kpi-detail">{{ card.detail }}</span>
+              {% if card.reason %}<span class="dashboard-kpi-detail">{{ card.reason }}</span>{% endif %}
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  </details>
+
+  <details class="dashboard-disclosure">
+    <summary>
+      <span class="dashboard-disclosure-title">
+        <strong>Продуктова аналітика</strong>
+        <span>Когорти, онбординг, PWA-воронка та поточний розподіл підписок</span>
+      </span>
+      <span class="dashboard-disclosure-action" aria-hidden="true"></span>
+    </summary>
+    <div class="dashboard-disclosure-content">
+      <div class="dashboard-kpis">
+        {% for card in product_kpis %}
+          <a class="dashboard-kpi" href="{{ card.url }}">
+            <div>
+              <span class="dashboard-kpi-label">{{ card.label }}</span>
+              <strong class="dashboard-kpi-value">{{ card.value|default_if_none:"Недоступно" }}</strong>
+            </div>
+            <div class="dashboard-kpi-footer">
+              <span class="dashboard-delta dashboard-delta--{{ card.delta_tone }}">{{ card.delta }}</span>
+              <span class="dashboard-kpi-detail">{{ card.detail }}</span>
+              {% if card.reason %}<span class="dashboard-kpi-detail">{{ card.reason }}</span>{% endif %}
+            </div>
+          </a>
+        {% endfor %}
+      </div>
 
   <section class="dashboard-layout">
     <article class="dashboard-panel">
@@ -428,7 +589,6 @@
     {% endif %}
   </section>
 
-  <section class="dashboard-layout">
     <article class="dashboard-panel">
       <div class="dashboard-panel-heading">
         <div>
@@ -453,8 +613,10 @@
         </div>
       </div>
     </article>
+    </div>
+  </details>
 
-    <article class="dashboard-panel">
+  <section class="dashboard-panel">
       <div class="dashboard-panel-heading">
         <div>
           <h2>Стан системи</h2>
@@ -471,10 +633,26 @@
           </div>
         {% endfor %}
       </div>
-    </article>
   </section>
 
-  <section class="dashboard-panel">
+  <details class="dashboard-disclosure">
+    <summary>
+      <span class="dashboard-disclosure-title">
+        <strong>Остання активність</strong>
+        <span>Нові користувачі та підтверджені надходження за вибраний період</span>
+      </span>
+      <span class="dashboard-disclosure-action" aria-hidden="true"></span>
+    </summary>
+    <div class="dashboard-disclosure-content">
+  <section class="dashboard-section">
+    <div class="dashboard-section-header">
+      <div>
+        <h2>Користувачі та платежі</h2>
+        <p>Два детальні журнали для перевірки подій протягом дня.</p>
+      </div>
+    </div>
+    <div class="dashboard-activity-grid">
+  <article class="dashboard-panel">
     <div class="dashboard-panel-heading">
       <div>
         <h2>Останні користувачі</h2>
@@ -503,9 +681,9 @@
         </tbody>
       </table>
     </div>
-  </section>
+  </article>
 
-  <section class="dashboard-panel">
+  <article class="dashboard-panel">
     <div class="dashboard-panel-heading">
       <div>
         <h2>Останні оплати за датою надходження</h2>
@@ -531,6 +709,10 @@
         </tbody>
       </table>
     </div>
+  </article>
+    </div>
   </section>
+    </div>
+  </details>
 </div>
 {% endblock %}

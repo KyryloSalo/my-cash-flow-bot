@@ -657,20 +657,22 @@ class TelegramUserAdmin(AuditedModelAdmin):
         latest_refundable_payment = get_latest_refundable_monobank_payment(user_id=obj.tg_user_id)
         billing_profile = BillingProfile.objects.filter(user_id=obj.tg_user_id).first()
 
-        main_actions = [
+        daily_actions = [
             {
                 "label": "Написати користувачу",
                 "url": f"{reverse('admin:manual_message')}?user_lookup={obj.tg_user_id}",
                 "variant": "primary",
             },
             {
-                "label": "Скинути онбординг",
-                "url": reverse("admin:users_telegramuser_reset_onboarding", args=[obj.pk]),
-                "variant": "secondary",
-            },
-            {
                 "label": "Додати нотатку",
                 "url": reverse("admin:users_telegramuser_add_note", args=[obj.pk]),
+                "variant": "secondary",
+            },
+        ]
+        onboarding_actions = [
+            {
+                "label": "Скинути онбординг",
+                "url": reverse("admin:users_telegramuser_reset_onboarding", args=[obj.pk]),
                 "variant": "secondary",
             },
             {
@@ -763,17 +765,9 @@ class TelegramUserAdmin(AuditedModelAdmin):
             },
         ]
 
-        if is_hard_delete_candidate:
-            main_actions.append(
-                {
-                    "label": "Стерти дані користувача",
-                    "url": reverse("admin:users_telegramuser_erase_user_data", args=[obj.pk]),
-                    "variant": "danger",
-                }
-            )
-
         groups = [
-            {"title": "Швидкі дії", "items": main_actions},
+            {"title": "Щоденні дії", "items": daily_actions},
+            {"title": "Онбординг", "items": onboarding_actions},
             {"title": "Підписка", "items": subscription_actions},
             {"title": "Статус", "items": status_actions},
         ]
@@ -783,6 +777,11 @@ class TelegramUserAdmin(AuditedModelAdmin):
                 {
                     "title": "Danger zone",
                     "items": [
+                        {
+                            "label": "Стерти дані користувача",
+                            "url": reverse("admin:users_telegramuser_erase_user_data", args=[obj.pk]),
+                            "variant": "danger",
+                        },
                         {
                             "label": "Хардово видалити",
                             "url": reverse("admin:users_telegramuser_hard_delete", args=[obj.pk]),
@@ -920,7 +919,7 @@ class TelegramUserAdmin(AuditedModelAdmin):
         names = [link.tag.name for link in links if getattr(link, "tag", None)]
         return ", ".join(names) if names else "-"
 
-    @admin.display(description="РЎС‚Р°С‚СѓСЃ")
+    @admin.display(description="Статус")
     def user_status(self, obj: TelegramUser):
         state = getattr(obj, "admin_state", None)
         status = state.status if state else UserAdminState.Status.ACTIVE
@@ -1129,11 +1128,11 @@ class TelegramUserAdmin(AuditedModelAdmin):
         subscription_url = f"{reverse('admin:subscriptions_subscription_changelist')}?q={obj.tg_user_id}"
         reset_url = reverse("admin:users_telegramuser_reset_onboarding", args=[obj.pk])
         return format_html(
-            '<div style="display:flex; gap:8px; flex-wrap:wrap;">'
-            '<a class="button" href="{}">Відкрити</a>'
-            '<a class="button" href="{}">Написати</a>'
-            '<a class="button" href="{}">Підписка</a>'
-            '<a class="button" href="{}">Скинути онбординг</a>'
+            '<div class="op-row-actions">'
+            '<a class="op-row-action op-row-action--primary" href="{}">Відкрити</a>'
+            '<a class="op-row-action" href="{}">Написати</a>'
+            '<a class="op-row-action" href="{}">Підписка</a>'
+            '<a class="op-row-action" href="{}">Скинути онбординг</a>'
             "</div>",
             open_url,
             send_url,
@@ -1144,11 +1143,12 @@ class TelegramUserAdmin(AuditedModelAdmin):
     @admin.display(description="Швидкі дії")
     def admin_actions_panel(self, obj: TelegramUser):
         items = [item for group in self._crm_action_groups(obj) for item in group["items"]]
-        return format_html_join(
+        links = format_html_join(
             "",
-            '<a class="button" href="{}" style="margin:0 8px 8px 0;">{}</a>',
+            '<a class="op-row-action" href="{}">{}</a>',
             ((item["url"], item["label"]) for item in items),
         )
+        return format_html('<div class="op-row-actions">{}</div>', links)
 
     @admin_action_permission("message_send")
     def send_message_view(self, request, object_id):

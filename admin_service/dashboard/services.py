@@ -980,10 +980,24 @@ def build_dashboard_context(request) -> dict:
             item["tone"] = "unknown"
             item["reason"] = "Не вдалося отримати дані; це не нуль проблем."
 
+    daily_indexes = {0, 5, 8, 11}
+    finance_indexes = {6, 7, 9, 10, 12}
+    for index, card in enumerate(context["kpi_cards"]):
+        if index in daily_indexes:
+            card["group"] = "daily"
+        elif index in finance_indexes:
+            card["group"] = "finance"
+        else:
+            card["group"] = "product"
+
+    context["daily_kpis"] = [card for card in context["kpi_cards"] if card["group"] == "daily"]
+    context["finance_kpis"] = [card for card in context["kpi_cards"] if card["group"] == "finance"]
+    context["product_kpis"] = [card for card in context["kpi_cards"] if card["group"] == "product"]
+    context["user_search_url"] = reverse("admin:users_telegramuser_changelist")
     context["quick_actions"] = [
-        {"label": "Знайти користувача", "url": reverse("admin:users_telegramuser_changelist"), "tone": "primary"},
-        {"label": "Написати користувачу", "url": reverse("admin:manual_message"), "tone": "secondary"},
-        {"label": "Створити розсилку", "url": reverse("admin:broadcasts_broadcast_add"), "tone": "secondary"},
-        {"label": "Перевірити систему", "url": reverse("admin:system_health"), "tone": "secondary"},
+        {"label": "Написати", "url": reverse("admin:manual_message"), "tone": "primary"},
+        {"label": "Нова розсилка", "url": reverse("admin:broadcasts_broadcast_add"), "tone": "secondary"},
+        {"label": "Звернення", "url": reverse("admin:support_supportcase_changelist"), "tone": "secondary"},
+        {"label": "Стан системи", "url": reverse("admin:system_health"), "tone": "secondary"},
     ]
     return context

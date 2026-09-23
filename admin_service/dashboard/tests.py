@@ -84,12 +84,16 @@ class DashboardPeriodHelpersTests(SimpleTestCase):
         context = {
             "period": {"label": "1–10 сер", "previous_label": "22–31 лип", "preset_links": [], "error": ""},
             "quick_actions": [],
+            "user_search_url": "/admin/users/telegramuser/",
             "include_test_users": False,
             "custom_period_url": "/admin/",
             "data_scope_label": "Тільки реальні користувачі",
             "toggle_include_test_url": "/admin/?include_test_users=1",
             "attention_items": [],
             "kpi_cards": [],
+            "daily_kpis": [],
+            "finance_kpis": [],
+            "product_kpis": [],
             "user_segment_series": [
                 {
                     "title": "Тест",
@@ -109,6 +113,7 @@ class DashboardPeriodHelpersTests(SimpleTestCase):
             "health_items": [],
             "recent_users": [],
             "latest_payments": [],
+            "data_quality": {"degraded": False, "retrieved_at": timezone.now(), "reason": ""},
         }
 
         with override("uk"):
@@ -208,6 +213,17 @@ class DashboardAnalyticsTests(TestCase):
         self.assertEqual(context["subscription_total"], 1)
         self.assertEqual(sum(item["trial"] for item in context["user_segment_series"]), 1)
         self.assertIn("include_test_users=1", context["toggle_include_test_url"])
+        self.assertEqual(
+            [len(context["daily_kpis"]), len(context["finance_kpis"]), len(context["product_kpis"])],
+            [4, 5, 4],
+        )
+        grouped_labels = [
+            card["label"]
+            for group in (context["daily_kpis"], context["finance_kpis"], context["product_kpis"])
+            for card in group
+        ]
+        self.assertCountEqual(grouped_labels, [card["label"] for card in context["kpi_cards"]])
+        self.assertEqual(context["user_search_url"], "/users/telegramuser/")
 
     def test_dashboard_can_include_test_users(self):
         request = self.factory.get("/admin/?include_test_users=1")

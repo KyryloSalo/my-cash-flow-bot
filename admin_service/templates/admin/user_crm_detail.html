@@ -88,7 +88,40 @@
   }
   .crm-actions {
     display: grid;
-    gap: 14px;
+    gap: 10px;
+  }
+  .crm-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 9px;
+  }
+  .crm-action-disclosure {
+    overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 13px;
+    background: rgba(15, 23, 42, 0.4);
+  }
+  .crm-action-disclosure summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    list-style: none;
+    color: #d7e1f2;
+    font-weight: 700;
+  }
+  .crm-action-disclosure summary::-webkit-details-marker { display: none; }
+  .crm-action-disclosure summary::after {
+    content: "Розгорнути";
+    color: #8fb4ff;
+    font-size: 11px;
+  }
+  .crm-action-disclosure[open] summary::after { content: "Згорнути"; }
+  .crm-action-disclosure .crm-action-row {
+    padding: 0 12px 12px;
   }
   .crm-action-group {
     display: grid;
@@ -204,6 +237,7 @@
       padding: 18px;
       flex-direction: column;
     }
+    .crm-hero-actions { width: 100%; justify-content: flex-start; }
     .crm-summary {
       grid-template-columns: 1fr;
     }
@@ -232,7 +266,10 @@
         <span class="crm-chip">{{ crm.summary_cards.1.value }}</span>
       </div>
     </div>
-    <a class="crm-action crm-action--primary" href="{{ crm.links.send_message }}">Написати користувачу</a>
+    <div class="crm-hero-actions">
+      <a class="crm-action crm-action--primary" href="{{ crm.links.send_message }}">Написати</a>
+      <a class="crm-action crm-action--secondary" href="{% url 'admin:users_telegramuser_add_note' crm.user.pk %}">Додати нотатку</a>
+    </div>
   </section>
 
   <section class="crm-summary">
@@ -247,18 +284,19 @@
   <section class="crm-grid">
     <div class="crm-stack">
       <article class="crm-card">
-        <h2>Швидкі дії</h2>
+        <h2>Дії з користувачем</h2>
+        <p class="crm-note">Щоденні дії винесені у шапку. Тут збережені онбординг, підписка, статус і небезпечні операції з підтвердженням.</p>
         <div class="crm-actions">
           {% for group in crm.action_groups %}
             {% if group.items %}
-              <div class="crm-action-group">
-                <h3>{{ group.title }}</h3>
+              <details class="crm-action-disclosure">
+                <summary>{{ group.title }}</summary>
                 <div class="crm-action-row">
                   {% for item in group.items %}
                     <a class="crm-action crm-action--{{ item.variant|default:'secondary' }}" href="{{ item.url }}">{{ item.label }}</a>
                   {% endfor %}
                 </div>
-              </div>
+              </details>
             {% endif %}
           {% endfor %}
         </div>

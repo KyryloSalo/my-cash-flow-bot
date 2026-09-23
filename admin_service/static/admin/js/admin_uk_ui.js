@@ -145,7 +145,7 @@
       const labels = Array.from(table.querySelectorAll("thead th")).map((cell) => normalize(cell.textContent));
       table.querySelectorAll("tbody tr").forEach((row) => {
         Array.from(row.children).forEach((cell, index) => {
-          cell.dataset.label = labels[index] || "";
+          cell.dataset.label = cell.classList.contains("action-checkbox") ? "Обрати" : (labels[index] || "");
         });
       });
 
@@ -173,9 +173,24 @@
     });
   }
 
+  function enableKeyboardShortcuts() {
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey) return;
+      const active = document.activeElement;
+      if (active?.matches?.("input, textarea, select, [contenteditable='true']")) return;
+
+      const search = document.querySelector("[data-admin-global-search] input[type='search']");
+      if (!search) return;
+      event.preventDefault();
+      search.focus();
+      search.select();
+    });
+  }
+
   function start() {
     translate(document);
     enhanceResultTables(document);
+    enableKeyboardShortcuts();
 
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {

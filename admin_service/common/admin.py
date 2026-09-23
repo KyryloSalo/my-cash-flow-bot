@@ -9,7 +9,7 @@ from .audit import create_audit_log, serialize_instance
 
 ADMIN_PAGE_METADATA = {
     "auth.User": {
-        "section": "Керування",
+        "section": "Система",
         "description": "Адміністратори, які мають доступ до Vydno Control. Перевіряйте активність, роль і дату останнього входу перед зміною прав.",
         "ordering": ("username",),
     },
@@ -29,7 +29,7 @@ ADMIN_PAGE_METADATA = {
         "ordering": ("-is_active", "name"),
     },
     "miniapp.PartnerLink": {
-        "section": "Залучення",
+        "section": "Користувачі",
         "description": "Керовані посилання для каналів трафіку з переходами, реєстраціями та наступними funnel-конверсіями.",
         "ordering": ("-created_at",),
     },
@@ -69,27 +69,27 @@ ADMIN_PAGE_METADATA = {
         "ordering": ("type", "sort_order", "name"),
     },
     "subscriptions.Subscription": {
-        "section": "Підписки Vydno",
+        "section": "Монетизація",
         "description": "Поточний доступ користувачів: тариф, статус, джерело, строк дії та наступні billing-події.",
         "ordering": ("-updated_at",),
     },
     "subscriptions.Payment": {
-        "section": "Підписки Vydno",
+        "section": "Монетизація",
         "description": "Оплати й повернення з provider-статусами, сумами та безпечним переглядом технічної відповіді.",
         "ordering": ("-created_at",),
     },
     "subscriptions.BillingProfile": {
-        "section": "Підписки Vydno",
+        "section": "Монетизація",
         "description": "Стан прив'язаної картки та автоподовження без показу секретного card token.",
         "ordering": ("-updated_at",),
     },
     "subscriptions.Plan": {
-        "section": "Підписки Vydno",
+        "section": "Монетизація",
         "description": "Тарифні плани, ціни, тривалість і видимість пропозицій.",
         "ordering": ("display_order", "name"),
     },
     "subscriptions.PromoOffer": {
-        "section": "Підписки Vydno",
+        "section": "Монетизація",
         "description": "Промопропозиції, строки дії, ліміти використання та джерела залучення.",
         "ordering": ("-is_active", "-created_at"),
     },
@@ -104,7 +104,7 @@ ADMIN_PAGE_METADATA = {
         "ordering": ("-created_at",),
     },
     "subscriptions.TrialRecoveryCampaign": {
-        "section": "Комунікації",
+        "section": "Монетизація",
         "description": "Зрозумілий контроль recovery-кампанії: прогрес за сьогодні, охоплення, відповіді, контакти, причини відмови, доставки та відновлені користувачі.",
         "ordering": ("-created_at",),
     },
@@ -154,7 +154,7 @@ ADMIN_PAGE_METADATA = {
         "ordering": ("-created_at",),
     },
     "support.SupportCase": {
-        "section": "Підтримка",
+        "section": "Комунікації",
         "description": "Звернення користувачів, пріоритет, відповідальний адміністратор і вся історія діалогу.",
         "ordering": ("-updated_at",),
     },
@@ -164,7 +164,7 @@ ADMIN_PAGE_METADATA = {
         "ordering": ("-created_at",),
     },
     "feedback.FeedbackItem": {
-        "section": "Підтримка",
+        "section": "Комунікації",
         "description": "Оцінки й текстові відгуки користувачів із можливістю перетворення на звернення.",
         "ordering": ("-created_at",),
     },
@@ -184,7 +184,7 @@ ADMIN_PAGE_METADATA = {
         "ordering": ("-created_at",),
     },
     "bot_settings.BotSetting": {
-        "section": "Керування",
+        "section": "Система",
         "description": "Операційні параметри, тексти й посилання бота. Ключі та типи захищені від випадкової зміни.",
         "ordering": ("key",),
     },

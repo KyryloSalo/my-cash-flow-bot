@@ -4,25 +4,35 @@
 {{ block.super }}
 <style>
   .bulk-tag-shell {
-    display: grid;
-    gap: 14px;
+    display: block;
     margin: 0 0 16px;
     padding: 16px 18px;
     border: 1px solid rgba(148, 163, 184, 0.18);
     border-radius: 18px;
     background: rgba(15, 23, 42, 0.82);
   }
-  .bulk-tag-head {
+  .bulk-tag-summary {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     flex-wrap: wrap;
+    cursor: pointer;
+    list-style: none;
   }
-  .bulk-tag-head strong {
+  .bulk-tag-summary::-webkit-details-marker { display: none; }
+  .bulk-tag-summary strong {
     color: #f8fafc;
     font-size: 15px;
   }
+  .bulk-tag-summary::after {
+    content: "Розгорнути";
+    color: #5ee6ad;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  .bulk-tag-shell[open] .bulk-tag-summary { margin-bottom: 14px; }
+  .bulk-tag-shell[open] .bulk-tag-summary::after { content: "Згорнути"; }
   .bulk-tag-hint {
     color: #94a3b8;
     font-size: 13px;
@@ -209,15 +219,20 @@
   @media (max-width: 520px) {
     .tag-picker-actions { grid-template-columns: 1fr; }
   }
+  @media (max-width: 680px) {
+    #changelist #result_list.op-responsive-table {
+      min-width: 0;
+    }
+  }
 </style>
 {% endblock %}
 
 {% block result_list %}
-  <div class="bulk-tag-shell">
-    <div class="bulk-tag-head">
+  <details class="bulk-tag-shell">
+    <summary class="bulk-tag-summary">
       <strong>Масові теги</strong>
       <span class="bulk-tag-hint">Оберіть користувачів галочками, потім знайдіть або створіть тег.</span>
-    </div>
+    </summary>
 
     <div class="bulk-tag-workspace">
       <div class="tag-picker" id="tag-picker">
@@ -260,7 +275,7 @@
         <a class="button" href="{{ bulk_tags_url }}">Керувати тегами</a>
       </div>
     </div>
-  </div>
+  </details>
 
   {{ block.super }}
 
