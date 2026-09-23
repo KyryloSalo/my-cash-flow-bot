@@ -54,18 +54,26 @@ test("shows the complete three-step iOS install instruction at once", () => {
 test("uses the native Android prompt only when a real prompt is available", () => {
   const native = coach.buildModel({ locale: "uk", platform: "android", browser: "chrome", canPrompt: true });
   assert.equal(native.mode, "native");
-  assert.equal(native.steps.length, 4);
+  assert.equal(native.overview, true);
+  assert.equal(native.steps.length, 3);
   assert.match(native.steps[0], /Встановити Vydno/i);
   assert.doesNotMatch(native.steps[0], /системн/i);
   assert.match(native.steps[1], /системному вікні|системне вікно/i);
+  assert.match(native.steps[1], /Установити додаток.+Установити/iu);
+  assert.match(native.steps[2], /іконк.+Vydno/i);
+  assert.match(native.command, /3 дії/iu);
   assert.match(native.primaryLabel, /Встановити/);
 
   const manual = coach.buildModel({ locale: "uk", platform: "android", browser: "chrome", canPrompt: false });
   assert.equal(manual.mode, "manual");
   assert.equal(manual.overview, true);
-  assert.equal(manual.steps.length, 4);
-  assert.match(manual.steps[0], /правому верхньому/iu);
-  assert.match(manual.steps[1], /Встановити додаток/iu);
+  assert.equal(manual.steps.length, 3);
+  assert.match(manual.steps[0], /угорі праворуч/iu);
+  assert.match(manual.steps[1], /Додати на головний екран.+Установити додаток/iu);
+  assert.match(manual.steps[2], /Vydno\.Capital.+Установити/iu);
+  assert.match(manual.command, /3 дії/iu);
+  assert.match(manual.hint, /іконк.+Vydno/iu);
+  assert.doesNotMatch(manual.hint, /iPhone|Safari/iu);
   assert.equal(manual.primaryLabel, "Зрозуміло");
 });
 
@@ -84,9 +92,11 @@ test("native Android coach exposes one product action before opening Chrome's pr
 
 test("native Android coach matches the Ukrainian Chrome dialog seen on device", () => {
   const native = coach.buildModel({ locale: "uk", platform: "android", browser: "chrome", canPrompt: true, step: 1 });
-  assert.equal(native.command, "У системному вікні Chrome натисніть «Установити».");
-  assert.match(native.hint, /«Установити додаток»/u);
-  assert.match(native.hint, /«Vydno\.Capital»/u);
+  assert.equal(native.steps[1], "Chrome відкриє системне вікно «Установити додаток» із назвою «Vydno.Capital». Натисніть «Установити» й дочекайтеся завершення.");
+  assert.match(native.steps.join(" "), /Установити додаток.+Vydno\.Capital.+Установити/iu);
+  assert.equal(native.overview, true);
+  assert.match(native.hints[1], /«Установити додаток»/u);
+  assert.match(native.hints[1], /«Vydno\.Capital»/u);
   assert.match(
     templateSource,
     /<span><strong>Vydno\.Capital<\/strong><small>Установити додаток<\/small><\/span><button[^>]*>Установити<\/button>/u,
@@ -103,7 +113,8 @@ test("native Android keeps an honest installation-pending scene after prompt acc
   });
   assert.equal(accepted.mode, "native");
   assert.equal(accepted.nativeStatus, "accepted");
-  assert.equal(accepted.step, 2);
+  assert.equal(accepted.overview, false);
+  assert.equal(accepted.step, 1);
   assert.equal(accepted.title, "Vydno встановлюється");
   assert.match(accepted.command, /Дочекайтеся/iu);
   assert.match(accepted.hint, /Chrome|сповіщення/iu);
@@ -114,7 +125,7 @@ test("native Android keeps an honest installation-pending scene after prompt acc
   assert.match(templateSource, /class="install-coach-installing"/u);
   assert.match(
     cssSource,
-    /data-install-mode="native"\]\[data-install-step="2"\] \.install-coach-native-card\s*\{[^}]*opacity:\s*0/su,
+    /data-install-mode="native"\]\[data-install-step="1"\] \.install-coach-native-card\s*\{[^}]*opacity:\s*0/su,
   );
 });
 
@@ -128,7 +139,7 @@ test("native Android shows the installed icon scene only after appinstalled", ()
   });
   assert.equal(installed.mode, "native");
   assert.equal(installed.nativeStatus, "installed");
-  assert.equal(installed.step, 3);
+  assert.equal(installed.step, 2);
   assert.equal(installed.title, "Vydno встановлено");
   assert.match(installed.command, /головн.+екран/iu);
   assert.match(installed.command, /іконк/iu);

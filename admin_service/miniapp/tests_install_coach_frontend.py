@@ -59,8 +59,9 @@ class InstallCoachFrontendContractTests(SimpleTestCase):
         self.assertIn("Продовжити без встановлення", self.source)
         self.assertIn('aria-live="polite"', self.source)
 
-    def test_manual_install_instruction_is_an_all_steps_overview(self) -> None:
-        self.assertIn('overview: mode === "manual"', self.module)
+    def test_initial_ios_and_android_install_instructions_are_all_steps_overviews(self) -> None:
+        self.assertIn('const overview = mode === "manual" || (mode === "native" && nativeStatus === "idle")', self.module)
+        self.assertIn("overview: overview", self.module)
         self.assertIn('modal.dataset.installOverview = model.overview ? "true" : "false"', self.module)
         self.assertIn('#installNudgeModal[data-install-overview="true"] .install-coach-progress-row', self.css)
         self.assertIn('#installNudgeModal[data-install-overview="true"] .install-coach-visual', self.css)
@@ -129,13 +130,13 @@ class InstallCoachFrontendContractTests(SimpleTestCase):
         )[0]
         accepted = callbacks.split("onAccepted: function ()", 1)[1].split("onDismissed", 1)[0]
         self.assertIn('installNativeStatus = "accepted"', accepted)
-        self.assertIn("installCoachStep = 2", accepted)
+        self.assertIn("installCoachStep = 1", accepted)
         self.assertIn('refreshInstallCoach({ outcome: "accepted" })', accepted)
         self.assertNotIn("hideInstallNudge()", accepted)
 
         installed = self.source.split('window.addEventListener("appinstalled"', 1)[1]
         self.assertIn('installNativeStatus = "installed"', installed)
-        self.assertIn("installCoachStep = 3", installed)
+        self.assertIn("installCoachStep = 2", installed)
         self.assertIn('refreshInstallCoach({ outcome: "installed" })', installed)
         self.assertIn('recordInstallNudge("installed")', installed)
 

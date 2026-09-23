@@ -177,7 +177,7 @@
             <div class="install-coach-browser-bar"><strong>vydno.capital</strong><span class="install-coach-menu-button" data-install-highlight="0" data-install-stage="browser-menu">⋮</span></div>
             <div class="install-coach-native-ready" data-install-stage="native-ready"><strong>Chrome</strong><span>Системне вікно відкриється після натискання зеленої кнопки під інструкцією.</span></div>
             <div class="install-coach-android-menu" data-install-highlight="1" data-install-stage="install-menu-action">
-              <small>Нова вкладка</small><small>Історія</small><strong>Встановити додаток</strong>
+              <small>Нова вкладка</small><small>Історія</small><strong>Додати на головний екран</strong>
             </div>
             <div class="install-coach-native-card" data-install-highlight="2" data-install-stage="native-prompt">
               <img src="{% static 'miniapp/icon-192.png' %}?v={{ miniapp_asset_version }}" width="44" height="44" alt="">
@@ -8237,7 +8237,7 @@
             recordInstallFunnelEvent("install_prompt_accepted", "accepted");
             if (installNativeStatus !== "installed") {
               installNativeStatus = "accepted";
-              installCoachStep = 2;
+              installCoachStep = 1;
               installCoachHelpOpen = false;
               refreshInstallCoach({ outcome: "accepted" });
             }
@@ -8352,7 +8352,7 @@
         window.addEventListener("appinstalled", function () {
           deferredInstallPrompt = null;
           installNativeStatus = "installed";
-          installCoachStep = 3;
+          installCoachStep = 2;
           setInstallPromptBusy(false);
           installBtn.hidden = true;
           recordInstallNudge("installed");

@@ -18,19 +18,19 @@
       iosTelegramMessage: "Перейдіть через захищений вхід у Safari. Там ми покажемо встановлення для iPhone.",
       safariTitle: "Спочатку відкрийте сторінку в Safari",
       safariMessage: "На iPhone встановлення PWA доступне через меню Safari.",
-      androidNativeMessage: "Натисніть зелену кнопку нижче — Chrome відкриє системне вікно «Установити додаток».",
+      androidNativeMessage: "Усі 3 дії видно одразу. Почніть із зеленої кнопки — Chrome відкриє системне вікно встановлення.",
       androidNativeSteps: [
         "Натисніть зелену кнопку «Встановити Vydno» під інструкцією.",
-        "У системному вікні Chrome натисніть «Установити».",
-        "Дочекайтеся завершення встановлення в Chrome.",
-        "Поверніться на головний екран і відкрийте нову іконку «Vydno».",
+        "Chrome відкриє системне вікно «Установити додаток» із назвою «Vydno.Capital». Натисніть «Установити» й дочекайтеся завершення.",
+        "На головному екрані відкрийте нову іконку Vydno.",
       ],
       androidNativeHints: [
         "Це єдина кнопка, яка запускає встановлення; меню Chrome відкривати не потрібно.",
         "Вікно має заголовок «Установити додаток» і показує назву «Vydno.Capital».",
-        "Після завершення Chrome покаже системне сповіщення.",
         "Запуск із нової іконки підтвердить, що Vydno відкривається як окремий застосунок.",
       ],
+      androidNativePendingCommand: "Дочекайтеся завершення встановлення в Chrome.",
+      androidNativePendingHint: "Після завершення Chrome покаже системне сповіщення.",
       iosSteps: [
         "У Safari натисніть кнопку «Поділитися» — квадрат зі стрілкою вгору.",
         "У меню «Поділитися» прокрутіть список і виберіть «На початковий екран».",
@@ -42,16 +42,14 @@
         "Після натискання Safari створить окрему іконку Vydno.",
       ],
       androidSteps: [
-        "У Chrome натисніть меню ⋮ у правому верхньому куті.",
-        "У меню виберіть «Встановити додаток». Якщо такого пункту немає — «Додати на головний екран».",
-        "У системному вікні Chrome натисніть «Установити».",
-        "На головному екрані знайдіть нову іконку Vydno та відкрийте її.",
+        "У Chrome натисніть меню ⋮ угорі праворуч.",
+        "Натисніть «Додати на головний екран», потім «Установити додаток». Якщо Chrome одразу показує «Установити додаток», виберіть його.",
+        "У вікні підтвердження перевірте назву «Vydno.Capital» і натисніть «Установити».",
       ],
       androidHints: [
         "Шукайте три вертикальні крапки поруч з адресним рядком Chrome.",
-        "Назва залежить від версії Chrome — обидва варіанти правильні.",
-        "Chrome додасть Vydno на головний екран телефона.",
-        "Після запуску з іконки Vydno працюватиме без панелі браузера.",
+        "Актуальний шлях Chrome: меню ⋮ → «Додати на головний екран» → «Установити додаток».",
+        "Після завершення знайдіть нову іконку Vydno на головному екрані та відкрийте її.",
       ],
       handoffSteps: ["У меню Telegram натисніть «Відкрити у Safari» або «Відкрити у Chrome»."],
       handoffHints: ["Вбудований браузер Telegram не може встановити PWA. У звичайному браузері ця підказка відкриється автоматично."],
@@ -60,7 +58,8 @@
       safariSteps: ["Відкрийте цю сторінку в Safari, а потім поверніться до підказки встановлення."],
       safariHints: ["На iPhone встановлення Vydno гарантовано доступне через Safari."],
       manualCommand: function (total) { return "Виконайте всі " + total + " дії по черзі"; },
-      manualHint: "Після додавання відкрийте нову іконку Vydno. На iPhone застосунок попросить увійти через Telegram окремо від Safari.",
+      manualHintIos: "Після додавання відкрийте нову іконку Vydno. На iPhone застосунок попросить увійти через Telegram окремо від Safari.",
+      manualHintAndroid: "Після встановлення відкрийте нову іконку Vydno на головному екрані.",
       next: "Далі",
       complete: "Готово — Vydno відкрито",
       acknowledge: "Зрозуміло",
@@ -77,7 +76,7 @@
       step: function (current, total) { return "Крок " + current + " із " + total; },
       helpIos: "Якщо пункту немає, переконайтеся, що сторінка відкрита саме в Safari. Прокрутіть список дій униз і натисніть «Редагувати дії», щоб додати «На початковий екран».",
       helpIosBrowser: "Скопіюйте адресу цієї сторінки, відкрийте Safari та вставте її в адресний рядок. Встановлення з Chrome або вбудованого браузера на iPhone може бути недоступним.",
-      helpAndroid: "У Chrome відкрийте меню ⋮. Залежно від версії браузера пункт може називатися «Встановити додаток» або «Додати на головний екран».",
+      helpAndroid: "У Chrome відкрийте меню ⋮. Актуальний шлях: «Додати на головний екран» → «Установити додаток». У деяких версіях «Установити додаток» видно відразу в меню.",
       helpTelegram: "Вбудований браузер Telegram не встановлює PWA. Відкрийте захищене посилання у звичайному Safari або Chrome.",
       helpTelegramIos: "Вбудований браузер Telegram не встановлює PWA. Відкрийте захищене посилання у Safari.",
       footnote: "Встановлення не є обов’язковим і не блокує доступ до Vydno.",
@@ -92,19 +91,19 @@
       iosTelegramMessage: "Continue through the secure login in Safari. We will show the iPhone install steps there.",
       safariTitle: "Open this page in Safari first",
       safariMessage: "On iPhone, PWA installation is available from Safari's menu.",
-      androidNativeMessage: "Tap the button below and Chrome will open the system install prompt.",
+      androidNativeMessage: "All 3 actions are visible at once. Start with the button below and Chrome will open the system install prompt.",
       androidNativeSteps: [
         "Tap the Install Vydno button below.",
-        "Tap Install in Chrome's system dialog.",
-        "Wait for Chrome to finish installing Vydno.",
-        "Return to the Home Screen and open the new Vydno icon.",
+        "Chrome will open the Install app system dialog showing Vydno.Capital. Tap Install and wait for installation to finish.",
+        "Open the new Vydno icon on the Home Screen.",
       ],
       androidNativeHints: [
         "This button belongs to Vydno and only asks Chrome to open installation.",
-        "Chrome controls the system dialog; Vydno cannot press its button for you.",
-        "Chrome will show a system notification when installation finishes.",
+        "The dialog is titled Install app and shows the name Vydno.Capital.",
         "Launching from the new icon confirms that Vydno opens as a standalone app.",
       ],
+      androidNativePendingCommand: "Wait for Chrome to finish installing Vydno.",
+      androidNativePendingHint: "Chrome will show a system notification when installation finishes.",
       iosSteps: [
         "In Safari, tap Share — the square with an upward arrow.",
         "In the Share menu, scroll and choose Add to Home Screen.",
@@ -117,15 +116,13 @@
       ],
       androidSteps: [
         "In Chrome, tap the ⋮ menu in the top-right corner.",
-        "Choose Install app. If it is missing, choose Add to Home screen.",
-        "Tap Install in Chrome's system dialog.",
-        "Find the new Vydno icon on the Home Screen and open it.",
+        "Tap Add to Home screen, then Install app. If Chrome shows Install app directly, choose it.",
+        "Confirm the name Vydno.Capital, then tap Install.",
       ],
       androidHints: [
         "Look for three vertical dots next to Chrome's address bar.",
-        "The label depends on your Chrome version; both options are correct.",
-        "Chrome will add Vydno to your phone's Home Screen.",
-        "After launching from the icon, Vydno will open without browser controls.",
+        "Chrome's current path is ⋮ → Add to Home screen → Install app.",
+        "When installation finishes, find the new Vydno icon on the Home Screen and open it.",
       ],
       handoffSteps: ["In Telegram's menu, tap Open in Safari or Open in Chrome."],
       handoffHints: ["Telegram's embedded browser cannot install a PWA. This guide will reopen automatically in a regular browser."],
@@ -134,7 +131,8 @@
       safariSteps: ["Open this page in Safari, then return to the installation guide."],
       safariHints: ["On iPhone, Vydno installation is reliably available through Safari."],
       manualCommand: function (total) { return "Follow all " + total + " steps in order"; },
-      manualHint: "Then open the new Vydno icon. On iPhone, the app will ask you to sign in with Telegram separately from Safari.",
+      manualHintIos: "Then open the new Vydno icon. On iPhone, the app will ask you to sign in with Telegram separately from Safari.",
+      manualHintAndroid: "After installation, open the new Vydno icon on the Home Screen.",
       next: "Next",
       complete: "Done — Vydno is open",
       acknowledge: "Got it",
@@ -151,7 +149,7 @@
       step: function (current, total) { return "Step " + current + " of " + total; },
       helpIos: "If the action is missing, make sure this page is open in Safari. Scroll down the action list and choose Edit Actions to add Add to Home Screen.",
       helpIosBrowser: "Copy this page address, open Safari, and paste it into the address bar. Installation may be unavailable in Chrome or an embedded browser on iPhone.",
-      helpAndroid: "Open Chrome's ⋮ menu. Depending on the browser version, the action may be called Install app or Add to Home screen.",
+      helpAndroid: "Open Chrome's ⋮ menu. The current path is Add to Home screen → Install app. Some Chrome versions show Install app directly in the menu.",
       helpTelegram: "Telegram's embedded browser cannot install a PWA. Open the secure link in regular Safari or Chrome.",
       helpTelegramIos: "Telegram's embedded browser cannot install a PWA. Open the secure link in Safari.",
       footnote: "Installation is optional and never blocks access to Vydno.",
@@ -216,10 +214,10 @@
     }
 
     let requestedStep = Number(settings.step || 0);
-    if (mode === "native" && nativeStatus === "accepted") requestedStep = 2;
-    if (mode === "native" && nativeStatus === "installed") requestedStep = 3;
+    if (mode === "native" && nativeStatus === "accepted") requestedStep = 1;
+    if (mode === "native" && nativeStatus === "installed") requestedStep = 2;
     const step = Math.min(Math.max(requestedStep, 0), Math.max(steps.length - 1, 0));
-    const overview = mode === "manual";
+    const overview = mode === "manual" || (mode === "native" && nativeStatus === "idle");
     let primaryLabel = copy.next;
     if (mode === "handoff") primaryLabel = platform === "ios" ? copy.openSafariBrowser : copy.openBrowser;
     else if (mode === "native" && nativeStatus === "accepted") primaryLabel = copy.acknowledge;
@@ -236,18 +234,27 @@
     else if (platform === "ios" && browser !== "safari") helpText = copy.helpIosBrowser;
     else if (platform === "ios") helpText = copy.helpIos;
 
+    let command = overview ? copy.manualCommand(steps.length) : steps[step] || message;
+    let hint = overview
+      ? (platform === "ios" ? copy.manualHintIos : copy.manualHintAndroid)
+      : hints[step] || "";
+    if (mode === "native" && nativeStatus === "accepted") {
+      command = copy.androidNativePendingCommand;
+      hint = copy.androidNativePendingHint;
+    }
+
     return {
       locale: locale,
       platform: platform,
       browser: browser,
       mode: mode,
       nativeStatus: nativeStatus,
-      overview: mode === "manual",
+      overview: overview,
       step: step,
       steps: steps.slice(),
       hints: hints.slice(),
-      command: overview ? copy.manualCommand(steps.length) : steps[step] || message,
-      hint: overview ? copy.manualHint : hints[step] || "",
+      command: command,
+      hint: hint,
       eyebrow: copy.eyebrow,
       title: title,
       message: message,
