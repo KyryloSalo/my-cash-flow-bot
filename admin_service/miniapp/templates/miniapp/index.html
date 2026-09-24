@@ -19,10 +19,8 @@
   <link rel="apple-touch-icon" href="{% static 'miniapp/apple-touch-icon.png' %}?v={{ miniapp_asset_version }}">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="{% static 'miniapp/app.css' %}?v={{ miniapp_asset_version }}">
-  <link rel="stylesheet" href="{% static 'miniapp/achievements-ui.css' %}?v={{ miniapp_asset_version }}">
   <script defer src="{% static 'miniapp/install-coach.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/push.js' %}?v={{ miniapp_asset_version }}"></script>
-  <script defer src="{% static 'miniapp/achievements.js' %}?v={{ miniapp_asset_version }}"></script>
 </head>
 <body class="calm-fintech-v2"
   data-auth-url="{% url 'miniapp:auth-telegram' %}"
@@ -104,12 +102,6 @@
   data-logout-url="{% url 'miniapp:auth-logout' %}"
   data-account-deletion-preflight-url="{% url 'miniapp:account-deletion-preflight' %}"
   data-account-deletion-confirm-url="{% url 'miniapp:account-deletion-confirm' %}"
-  data-achievements-overview-url="{% url 'miniapp:gamification:overview' %}"
-  data-achievements-preferences-url="{% url 'miniapp:gamification:preferences' %}"
-  data-achievements-no-expenses-url="{% url 'miniapp:gamification:no-expenses' %}"
-  data-achievements-pins-url="{% url 'miniapp:gamification:pins' %}"
-  data-achievements-notification-claim-url="{% url 'miniapp:gamification:notification-claim' %}"
-  data-achievements-notification-ack-url="{% url 'miniapp:gamification:notification-ack' %}"
   data-service-worker-url="{% url 'miniapp:service-worker' %}?v={{ miniapp_asset_version }}"
   data-dev-auth-enabled="{% if dev_auth_enabled %}true{% else %}false{% endif %}"
   data-preview-enabled="{% if preview_enabled %}true{% else %}false{% endif %}"
@@ -413,17 +405,6 @@
         </div>
 
         <div class="stack calm-overview-stack">
-          <article class="card card-pad achievement-overview" id="achievementsOverviewWidget" hidden>
-            <button class="achievement-overview-link" id="achievementsOverviewOpen" type="button">
-              <img id="achievementsOverviewMascot" width="72" height="72" alt="" loading="lazy">
-              <span class="achievement-overview-copy">
-                <small>Серія активних днів</small>
-                <strong><span id="achievementsOverviewStreak">0</span> днів</strong>
-                <span id="achievementsOverviewLatest">Відкрийте перше досягнення</span>
-              </span>
-              <span class="achievement-overview-arrow" aria-hidden="true">→</span>
-            </button>
-          </article>
           <article class="card hero-card card-pad calm-balance-card">
             <div class="label">На рахунках зараз</div>
             <div class="big-number" id="totalBalance">0 грн</div>
@@ -459,6 +440,21 @@
               <div class="tx-meta" id="expenseCaption">за період</div>
             </article>
           </div>
+
+          <article class="card calm-goals-card" id="overviewGoalsCard">
+            <div class="section-head overview-goals-head">
+              <div>
+                <h2 data-money-i18n="overviewGoalsTitle">Фінансові цілі</h2>
+                <p data-money-i18n="overviewGoalsSubtitle">Прогрес накопичень у вашому активному бюджеті.</p>
+              </div>
+              <button class="overview-goals-link" id="overviewGoalsOpenAll" type="button" data-money-i18n="overviewGoalsAll">Усі цілі</button>
+            </div>
+            <div class="overview-goals-list" id="overviewGoalsList" aria-live="polite"></div>
+            <div class="overview-goals-empty" id="overviewGoalsEmpty" hidden>
+              <strong data-money-i18n="overviewGoalsEmpty">Створіть першу ціль і відстежуйте прогрес тут.</strong>
+              <button class="primary-action" id="overviewGoalsCreate" type="button" data-money-i18n="overviewGoalsAdd">Створити ціль</button>
+            </div>
+          </article>
 
           <article class="card card-pad calm-activity-card">
             <div class="section-head">
@@ -1249,12 +1245,7 @@
           <p>Рахунки, кредитний режим, цілі, заощадження та інвестиції.</p>
         </div>
 
-        <div class="achievement-status-tabs" role="tablist" aria-label="Розділ статусу">
-          <button class="achievement-status-tab is-active" id="statusFinanceTab" type="button" role="tab" aria-selected="true" aria-controls="statusFinancePane">Фінанси</button>
-          <button class="achievement-status-tab" id="statusAchievementsTab" type="button" role="tab" aria-selected="false" aria-controls="achievementsStatusPane">Досягнення</button>
-        </div>
-
-        <div class="stack" id="statusFinancePane" role="tabpanel" aria-labelledby="statusFinanceTab">
+        <div class="stack">
           <article class="card card-pad">
             <div class="section-head">
               <div>
@@ -1358,25 +1349,6 @@
             </div>
           </article>
         </div>
-        <section class="achievement-status-pane" id="achievementsStatusPane" role="tabpanel" aria-labelledby="statusAchievementsTab" hidden>
-          <article class="card card-pad achievement-hero">
-            <img id="achievementHeroMascot" width="128" height="128" alt="Ваш талісман" loading="lazy">
-            <div>
-              <p class="eyebrow">Ваш ритм</p>
-              <h2><span id="achievementCurrentStreak">0</span> днів поспіль</h2>
-              <p id="achievementHeroSummary">Зробіть підтверджений запис або відмітьте день без витрат.</p>
-              <div class="achievement-stat-row">
-                <span>Рекорд <strong id="achievementBestStreak">0</strong></span>
-                <span>Щити <strong id="achievementShieldBalance">0</strong>/2</span>
-                <span>Активних днів <strong id="achievementLifetimeDays">0</strong></span>
-              </div>
-              <button class="secondary-action" id="achievementNoExpensesBtn" type="button">Сьогодні без витрат</button>
-            </div>
-          </article>
-          <div class="achievement-category-chips" id="achievementCategoryChips" role="list" aria-label="Категорії досягнень"></div>
-          <div class="achievement-grid" id="achievementGrid" aria-live="polite"></div>
-          <p class="form-status" id="achievementStatusMessage" hidden aria-live="polite"></p>
-        </section>
       </section>
       <section class="screen" data-screen="settings">
         <div class="screen-title">
@@ -1386,36 +1358,6 @@
         </div>
 
         <div class="stack">
-          <article class="card card-pad" id="achievementsSettingsCard">
-            <div class="section-head">
-              <div>
-                <h2>Досягнення</h2>
-                <p>Талісман, анімації та часовий пояс серії.</p>
-              </div>
-            </div>
-            <div class="achievement-mascot-options" role="radiogroup" aria-label="Талісман">
-              <button class="achievement-mascot-option" type="button" data-achievement-mascot="bob" role="radio" aria-checked="false">Боб</button>
-              <button class="achievement-mascot-option" type="button" data-achievement-mascot="capi" role="radio" aria-checked="false">Капі</button>
-            </div>
-            <label class="settings-toggle">
-              <input id="achievementMotionSetting" type="checkbox">
-              <span>Анімації досягнень</span>
-            </label>
-            <label class="form-field">
-              <span>Часовий пояс IANA</span>
-              <input id="achievementTimezoneSetting" type="text" list="achievementTimezoneOptions" maxlength="64" autocomplete="off" placeholder="Europe/Kyiv">
-              <datalist id="achievementTimezoneOptions">
-                <option value="Europe/Kyiv"></option>
-                <option value="Europe/Istanbul"></option>
-                <option value="Europe/Warsaw"></option>
-                <option value="Europe/London"></option>
-                <option value="America/New_York"></option>
-              </datalist>
-            </label>
-            <button class="primary-action" id="achievementSettingsSave" type="button">Зберегти</button>
-            <p class="form-status" id="achievementSettingsStatus" hidden aria-live="polite"></p>
-          </article>
-
           <article class="card card-pad" id="notificationSettingsCard">
             <div class="section-head">
               <div>
@@ -1631,24 +1573,6 @@
       </section>
     </div>
   </main>
-  <div class="activation-modal achievement-mascot-modal" id="achievementsMascotModal" role="dialog" aria-modal="true" aria-labelledby="achievementsMascotTitle" hidden>
-    <section class="activation-card achievement-mascot-card" tabindex="-1">
-      <p class="eyebrow">Ваш провідник</p>
-      <h2 id="achievementsMascotTitle">Оберіть талісман</h2>
-      <p class="activation-lead">Він супроводжуватиме серію та святкуватиме досягнення. Змінити вибір можна в Налаштуваннях.</p>
-      <div class="achievement-mascot-picker">
-        <button type="button" data-achievement-first-mascot="bob">
-          <img src="{% static 'miniapp/achievements/assets/bob/01-welcome.png' %}" width="132" height="132" alt="Боб">
-          <strong>Боб</strong>
-        </button>
-        <button type="button" data-achievement-first-mascot="capi">
-          <img src="{% static 'miniapp/achievements/assets/capi/01-welcome.png' %}" width="132" height="132" alt="Капі">
-          <strong>Капі</strong>
-        </button>
-      </div>
-      <p class="form-status" id="achievementMascotStatus" hidden aria-live="polite"></p>
-    </section>
-  </div>
   <div class="notification-drawer" id="notificationDrawer" role="dialog" aria-modal="true" aria-labelledby="notificationDrawerTitle" hidden>
     <button class="notification-drawer-backdrop" id="notificationDrawerBackdrop" type="button" aria-label="Закрити"></button>
     <section class="notification-drawer-panel">
@@ -2014,6 +1938,14 @@
           goalsListSubtitle: "Оберіть рахунок, щоб налаштувати або оновити його ціль.",
           goalsNoItems: "Немає рахунків для накопичень або інвестицій.",
           goalsConfigure: "Налаштувати ціль",
+          overviewGoalsTitle: "Фінансові цілі",
+          overviewGoalsSubtitle: "Прогрес накопичень у вашому активному бюджеті.",
+          overviewGoalsAll: "Усі цілі",
+          overviewGoalsEmpty: "Створіть першу ціль і відстежуйте прогрес тут.",
+          overviewGoalsAdd: "Створити ціль",
+          goalPersonal: "Моя ціль",
+          goalFamily: "Сімейна ціль",
+          goalProgress: "Прогрес",
           familyPersonalTitle: "Сімейний бюджет",
           familyPersonalSubtitle: "Створіть спільний простір або приєднайтесь за кодом.",
           familyNameLabel: "Назва сім'ї",
@@ -2304,6 +2236,14 @@
           goalsListSubtitle: "Choose an account to configure or update its goal.",
           goalsNoItems: "No savings or investment accounts yet.",
           goalsConfigure: "Configure goal",
+          overviewGoalsTitle: "Financial goals",
+          overviewGoalsSubtitle: "Savings progress in your active budget.",
+          overviewGoalsAll: "All goals",
+          overviewGoalsEmpty: "Create your first goal and track its progress here.",
+          overviewGoalsAdd: "Create goal",
+          goalPersonal: "My goal",
+          goalFamily: "Family goal",
+          goalProgress: "Progress",
           familyPersonalTitle: "Family budget",
           familyPersonalSubtitle: "Create a shared space or join with an invite code.",
           familyNameLabel: "Family name",
@@ -4173,7 +4113,11 @@
           debtConfirmButton: document.getElementById("debtConfirmBtn"),
           debtCancelButton: document.getElementById("debtCancelBtn"),
           debtList: document.getElementById("moneyDebtList"),
-          goalsList: document.getElementById("moneyGoalsList")
+          goalsList: document.getElementById("moneyGoalsList"),
+          overviewGoalsList: document.getElementById("overviewGoalsList"),
+          overviewGoalsEmpty: document.getElementById("overviewGoalsEmpty"),
+          overviewGoalsOpenAll: document.getElementById("overviewGoalsOpenAll"),
+          overviewGoalsCreate: document.getElementById("overviewGoalsCreate")
         };
       }
 
@@ -4223,7 +4167,6 @@
         const el = moneyElements();
         const action = el.accountAction ? el.accountAction.value : "create";
         const selected = selectedMoneyAccount();
-        const selectedType = selected && (selected.non_negative_account_type || selected.account_type);
         const creatingGoalAccount = (el.accountType && ["savings", "deposit", "investment"].indexOf(el.accountType.value) !== -1);
         const customCurrency = action === "create" && el.accountCurrency && el.accountCurrency.value === "__custom__";
         document.querySelectorAll("[data-account-field]").forEach(function (field) {
@@ -4251,7 +4194,7 @@
         const action = el.accountAction ? el.accountAction.value : "create";
         const selected = selectedMoneyAccount();
         if (!selected || action === "create") return;
-        const selectedType = selected.non_negative_account_type || selected.account_type || "main";
+        const selectedType = goalAccountType(selected) || "main";
         if (el.accountCurrency) el.accountCurrency.value = selected.currency || "";
         if (el.accountType) el.accountType.value = selectedType;
         if (action === "rename" && el.accountLabel) el.accountLabel.value = selected.label || "";
@@ -4368,56 +4311,142 @@
         return row;
       }
 
+      function normalizedGoalAccountType(value) {
+        const type = String(value || "").trim().toLowerCase();
+        if (type === "crypto") return "investment";
+        if (type === "card" || type === "bank") return "main";
+        return type;
+      }
+
+      function goalEscapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, function (char) {
+          return ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#039;",
+          })[char];
+        });
+      }
+
+      function goalAccountType(account) {
+        const current = normalizedGoalAccountType(account && account.account_type);
+        if (!current || current === "credit") {
+          return normalizedGoalAccountType(account && account.non_negative_account_type) || current;
+        }
+        return current;
+      }
+
       function renderGoals() {
         const el = moneyElements();
-        if (!el.goalsList) return;
-        const accounts = (moneyState.options && moneyState.options.accounts || []).filter(function (account) {
-          const type = account.non_negative_account_type || account.account_type;
+        const goalAccounts = (moneyState.options && moneyState.options.accounts || []).filter(function (account) {
+          const type = goalAccountType(account);
           return ["savings", "deposit", "investment"].indexOf(type) !== -1;
         });
-        el.goalsList.replaceChildren();
-        if (!accounts.length) {
-          const empty = document.createElement("div");
-          empty.className = "empty-subtle";
-          empty.textContent = tr("goalsNoItems");
-          el.goalsList.appendChild(empty);
-          return;
+        if (el.goalsList) {
+          el.goalsList.replaceChildren();
+          if (!goalAccounts.length) {
+            const empty = document.createElement("div");
+            empty.className = "empty-subtle";
+            empty.textContent = tr("goalsNoItems");
+            el.goalsList.appendChild(empty);
+          } else {
+            goalAccounts.forEach(function (account) {
+              el.goalsList.appendChild(createGoalCard(account, false));
+            });
+          }
         }
-        accounts.forEach(function (account) {
-          const row = document.createElement("button");
-          row.type = "button";
-          row.className = "account-row money-goal-row";
-          row.dataset.accountId = String(account.id);
-          const icon = document.createElement("div");
-          icon.className = "account-icon";
-          icon.textContent = "G";
-          const main = document.createElement("div");
-          const name = document.createElement("div");
-          name.className = "account-name";
-          name.textContent = account.goal_name || account.label || tr("goalsConfigure");
-          const meta = document.createElement("div");
-          meta.className = "account-currency";
-          const goalDisplay = account.goal_amount && account.goal_amount.display;
-          meta.textContent = [account.label, goalDisplay, account.goal_date ? shortDate(account.goal_date) : null].filter(Boolean).join(" - ");
-          const amount = document.createElement("div");
-          amount.className = "account-amount";
-          amount.textContent = account.balance && account.balance.display || tr("goalsConfigure");
-          main.appendChild(name);
-          main.appendChild(meta);
-          row.appendChild(icon);
-          row.appendChild(main);
-          row.appendChild(amount);
-          row.addEventListener("click", function () {
-            const accountForm = moneyElements();
-            setMoneyMode("accounts");
-            if (accountForm.accountAction) accountForm.accountAction.value = "goal_update";
-            if (accountForm.accountTarget) accountForm.accountTarget.value = String(account.id);
-            if (accountForm.accountGoalName) accountForm.accountGoalName.value = "";
-            if (accountForm.accountGoalAmount) accountForm.accountGoalAmount.value = "";
-            if (accountForm.accountGoalDate) accountForm.accountGoalDate.value = "";
-            updateAccountActionFields();
-          });
-          el.goalsList.appendChild(row);
+        renderOverviewGoals();
+      }
+
+      function goalMoneyValue(payload) {
+        if (!payload || payload.value === null || payload.value === undefined) return 0;
+        const value = Number(String(payload.value).replace(",", "."));
+        return Number.isFinite(value) ? value : 0;
+      }
+
+      function goalProgress(account) {
+        const target = goalMoneyValue(account.goal_amount);
+        if (target <= 0) return 0;
+        return Math.max(0, Math.min(100, Math.round((goalMoneyValue(account.balance) / target) * 100)));
+      }
+
+      function goalScopeLabel() {
+        const scope = moneyState.options && moneyState.options.scope;
+        return scope && scope.type === "family" ? tr("goalFamily") : tr("goalPersonal");
+      }
+
+      function createGoalCard(account, compact) {
+        const row = document.createElement("button");
+        const progress = goalProgress(account);
+        const currentAmount = account.balance && account.balance.display ? account.balance.display : "0";
+        const goalAmount = account.goal_amount && account.goal_amount.display ? account.goal_amount.display : "—";
+        row.type = "button";
+        row.className = compact ? "overview-goal-item" : "money-goal-row";
+        row.dataset.accountId = String(account.id);
+        row.innerHTML =
+          "<span class=\"goal-card-head\"><span><strong>" + goalEscapeHtml(account.goal_name || account.label || tr("goalsConfigure")) + "</strong><small>" + goalEscapeHtml(account.label || "") + "</small></span><span class=\"goal-scope-badge\">" + goalEscapeHtml(goalScopeLabel()) + "</span></span>" +
+          "<span class=\"goal-amount-row\"><strong>" + goalEscapeHtml(currentAmount) + "</strong><small>" + goalEscapeHtml(tr("goalAmountJoiner") + " " + goalAmount) + "</small><b>" + String(progress) + "%</b></span>" +
+          "<span class=\"goal-progress-track\" role=\"progressbar\" aria-label=\"" + goalEscapeHtml(tr("goalProgress")) + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"" + String(progress) + "\"><span style=\"width:" + String(progress) + "%\"></span></span>" +
+          (account.goal_date ? "<small class=\"goal-date\">" + goalEscapeHtml(shortDate(account.goal_date)) + "</small>" : "");
+        row.addEventListener("click", function () { openGoalEditor(account); });
+        return row;
+      }
+
+      function renderOverviewGoals() {
+        const el = moneyElements();
+        if (!el.overviewGoalsList || !el.overviewGoalsEmpty) return;
+        const activeGoals = (moneyState.options && moneyState.options.accounts || []).filter(function (account) {
+          const type = goalAccountType(account);
+          return ["savings", "deposit", "investment"].indexOf(type) !== -1 && goalMoneyValue(account.goal_amount) > 0;
+        }).sort(function (left, right) {
+          return goalProgress(right) - goalProgress(left);
+        });
+        el.overviewGoalsList.replaceChildren();
+        activeGoals.slice(0, 3).forEach(function (account) {
+          el.overviewGoalsList.appendChild(createGoalCard(account, true));
+        });
+        el.overviewGoalsList.hidden = !activeGoals.length;
+        el.overviewGoalsEmpty.hidden = Boolean(activeGoals.length);
+      }
+
+      function openGoalEditor(account) {
+        return showScreen("money").then(function () {
+          const el = moneyElements();
+          setMoneyMode("accounts");
+          if (el.accountAction) el.accountAction.value = "goal_update";
+          if (el.accountTarget) el.accountTarget.value = String(account.id);
+          resetAccountDraft();
+          updateAccountActionFields();
+          if (el.accountGoalName) el.accountGoalName.value = account.goal_name || "";
+          if (el.accountGoalAmount) el.accountGoalAmount.value = account.goal_amount && account.goal_amount.value ? account.goal_amount.value : "";
+          if (el.accountGoalDate) el.accountGoalDate.value = account.goal_date || "";
+          if (el.accountGoalName) el.accountGoalName.focus();
+        });
+      }
+
+      function openGoalsPanel() {
+        return showScreen("money").then(function () {
+          setMoneyMode("goals");
+        });
+      }
+
+      function openGoalCreate() {
+        const accounts = (moneyState.options && moneyState.options.accounts) || [];
+        const target = accounts.find(function (account) {
+          const type = goalAccountType(account);
+          return ["savings", "deposit", "investment"].indexOf(type) !== -1 && goalMoneyValue(account.goal_amount) <= 0;
+        });
+        if (target) return openGoalEditor(target);
+        return showScreen("money").then(function () {
+          const el = moneyElements();
+          setMoneyMode("accounts");
+          if (el.accountAction) el.accountAction.value = "create";
+          if (el.accountType) el.accountType.value = "savings";
+          resetAccountDraft();
+          updateAccountActionFields();
+          if (el.accountLabel) el.accountLabel.focus();
         });
       }
 
@@ -4535,7 +4564,8 @@
           setMoneyStatus("account", tr("openFromTelegram"), "error");
           return Promise.resolve(null);
         }
-        if (moneyState.options && !force) {
+        if (moneyState.options && moneyState.debtOptions && !force) {
+          renderMoneyOptions();
           return Promise.resolve(moneyState.options);
         }
         if (!accountOptionsUrl || !transferOptionsUrl || !debtOptionsUrl) return Promise.resolve(null);
@@ -4556,6 +4586,25 @@
             setMoneyStatus("transfer", transactionErrorMessage(errorPayload), "error");
             setMoneyStatus("debt", transactionErrorMessage(errorPayload), "error");
             throw errorPayload;
+          });
+      }
+
+      function loadGoalOptions(force) {
+        if (previewEnabled && previewRequested) {
+          renderOverviewGoals();
+          return Promise.resolve(null);
+        }
+        if (moneyState.options && !force) {
+          renderOverviewGoals();
+          return Promise.resolve(moneyState.options);
+        }
+        if (!accountOptionsUrl) return Promise.resolve(null);
+        return ensureSession()
+          .then(function () { return getJson(accountOptionsUrl); })
+          .then(function (options) {
+            moneyState.options = options;
+            renderOverviewGoals();
+            return options;
           });
       }
 
@@ -5462,6 +5511,8 @@
         if (el.debtAccount) el.debtAccount.addEventListener("change", updateDebtActionFields);
         if (el.debtConfirmButton) el.debtConfirmButton.addEventListener("click", confirmDebtDraft);
         if (el.debtCancelButton) el.debtCancelButton.addEventListener("click", cancelDebtDraft);
+        if (el.overviewGoalsOpenAll) el.overviewGoalsOpenAll.addEventListener("click", openGoalsPanel);
+        if (el.overviewGoalsCreate) el.overviewGoalsCreate.addEventListener("click", openGoalCreate);
         document.querySelectorAll("[data-money-mode]").forEach(function (button) {
           button.addEventListener("click", function () { setMoneyMode(button.dataset.moneyMode); });
         });
@@ -7963,6 +8014,7 @@
         const topbarContext = document.getElementById("topbarContext");
         if (topbarContext) topbarContext.hidden = !["overview", "analytics"].includes(target);
         const requests = [];
+        if (target === "overview") requests.push(loadGoalOptions(false));
         if (target === "add") requests.push(loadTransactionOptions(true));
         if (target === "money") {
           requests.push(loadMoneyOptions(false), loadFamily(false), loadSavingTasks(false));
@@ -8778,6 +8830,7 @@
             renderData(mapBootstrapToDashboardData(bootstrap, []));
             showDashboard();
             signalAppReady();
+            loadGoalOptions(false).catch(function () { renderOverviewGoals(); });
             const addScreen = document.querySelector('[data-screen="add"]');
             if (addScreen && addScreen.classList.contains("is-active")) loadTransactionOptions(true).catch(function () {});
 

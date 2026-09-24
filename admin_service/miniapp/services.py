@@ -1036,6 +1036,16 @@ def _default_non_negative_account_type(value: object) -> str:
     return normalized
 
 
+def _goal_account_type(account: Account) -> str:
+    current_raw = str(account.account_type or "").strip()
+    if not current_raw:
+        return _normalize_account_type(account.non_negative_account_type)
+    current = _normalize_account_type(current_raw)
+    if current == CREDIT_ACCOUNT_TYPE:
+        return _normalize_account_type(account.non_negative_account_type or "main")
+    return current
+
+
 def _resolve_runtime_account_type(
     *,
     balance: Decimal,
@@ -1723,11 +1733,17 @@ def _account_type_options(locale: str) -> list[dict[str, str]]:
 def build_account_options(user: TelegramUser) -> dict[str, object]:
     locale = locale_for_user(user)
     base_currency = _base_currency(user)
+    scope = _resolve_finance_scope(user)
     currencies = []
     for currency in (base_currency, "UAH", "USD", "EUR", "TRY", "USDT"):
         if currency not in currencies:
             currencies.append(currency)
     return {
+        "scope": {
+            "type": scope.type,
+            "family_id": scope.family_id,
+            "role": scope.role,
+        },
         "accounts": [
             _account_payload(account, locale=locale)
             for account in _scoped_accounts_qs(user).filter(is_active=True).order_by("label", "id")[:100]
@@ -1857,7 +1873,7 @@ def build_account_draft(user: TelegramUser, payload: dict[str, object], *, draft
             ),
         }
 
-    if _normalize_account_type(account.non_negative_account_type or account.account_type) not in GOAL_TYPES:
+    if _goal_account_type(account) not in GOAL_TYPES:
         raise MiniAppTransactionError("goal_not_supported", "Goals are available for savings, deposit, and investment accounts.")
     goal_name = str(payload.get("goal_name") or account.goal_name or account.label or "").strip()[:120]
     goal_amount = _parse_signed_transaction_amount(payload.get("goal_amount"), default=ZERO)

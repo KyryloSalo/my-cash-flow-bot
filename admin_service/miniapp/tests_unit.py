@@ -44,6 +44,16 @@ class InternalRouteSecuritySettingsTests(SimpleTestCase):
 
 
 class MiniAppMoneyAggregationUnitTests(SimpleTestCase):
+    def test_goal_account_type_prefers_current_investment_over_stale_default(self) -> None:
+        account = SimpleNamespace(account_type="investment", non_negative_account_type="main")
+
+        self.assertEqual(services._goal_account_type(account), "investment")
+
+    def test_goal_account_type_recovers_original_type_for_runtime_credit(self) -> None:
+        account = SimpleNamespace(account_type="credit", non_negative_account_type="savings")
+
+        self.assertEqual(services._goal_account_type(account), "savings")
+
     def test_credit_limit_parser_uses_money_precision_and_database_range(self) -> None:
         value = services._parse_optional_credit_limit("9999999999999999.99")
         self.assertEqual(str(value), "9999999999999999.99")
@@ -58,6 +68,25 @@ class MiniAppMoneyAggregationUnitTests(SimpleTestCase):
 
         self.assertEqual(combined["value"], "90250.00")
         self.assertEqual(combined["display"], "90 250 грн")
+
+    def test_account_options_expose_active_family_scope_for_goal_labels(self) -> None:
+        user = SimpleNamespace(tg_user_id=1001, base_currency="UAH", lang="uk")
+        account = SimpleNamespace(id=17)
+        queryset = MagicMock()
+        queryset.filter.return_value.order_by.return_value.__getitem__.return_value = [account]
+        scope = services.MiniAppFinanceScope(type="family", user_id=1001, family_id=44, role="member")
+
+        with (
+            patch.object(services, "_scoped_accounts_qs", return_value=queryset),
+            patch.object(services, "_resolve_finance_scope", return_value=scope),
+            patch.object(services, "_account_payload", return_value={"id": 17, "label": "Подорож"}),
+        ):
+            payload = services.build_account_options(user)
+
+        self.assertEqual(
+            payload["scope"],
+            {"type": "family", "family_id": 44, "role": "member"},
+        )
 
 
 class MiniAppImageUploadUnitTests(unittest.TestCase):
@@ -1350,6 +1379,41 @@ class MiniAppViewUnitTests(unittest.TestCase):
             render_mock.call_args.args[2]["browser_login_recovery_url"],
             "https://t.me/vydnocapital_bot?start=app_login",
         )
+
+    @override_settings(DEBUG=True)
+    def test_index_exposes_native_goal_progress_on_overview(self) -> None:
+        request = self.factory.get("/app/")
+        request.session = FakeSession()
+
+        response = views.index(request)
+        body = response.content.decode("utf-8")
+
+        self.assertIn('id="overviewGoalsCard"', body)
+        self.assertIn('id="overviewGoalsList"', body)
+        self.assertIn('id="overviewGoalsEmpty"', body)
+        self.assertIn('id="overviewGoalsOpenAll"', body)
+        self.assertIn("function renderOverviewGoals()", body)
+        self.assertIn("goal-progress-track", body)
+        self.assertIn("function goalAccountType(account)", body)
+        self.assertIn("function goalEscapeHtml(value)", body)
+        self.assertNotIn("escapeHtml(account.goal_name", body)
+        self.assertEqual(body.count("const type = goalAccountType(account);"), 3)
+        self.assertIn("const selectedType = goalAccountType(selected) || \"main\";", body)
+        goal_editor_source = body[
+            body.index("function openGoalEditor(account)") : body.index("function openGoalsPanel()")
+        ]
+        goals_panel_source = body[
+            body.index("function openGoalsPanel()") : body.index("function openGoalCreate()")
+        ]
+        goal_create_source = body[
+            body.index("function openGoalCreate()") : body.index("function updateDebtActionFields()")
+        ]
+        self.assertNotIn("if (!ready)", goal_editor_source)
+        self.assertNotIn("if (ready)", goals_panel_source)
+        self.assertNotIn("if (!ready)", goal_create_source)
+        self.assertIn('target === "overview"', body)
+        self.assertIn("loadGoalOptions(false)", body)
+        self.assertIn("moneyState.options && moneyState.debtOptions && !force", body)
 
     @override_settings(DEBUG=True)
     def test_index_exposes_standalone_oidc_recovery_with_bot_fallback(self) -> None:
