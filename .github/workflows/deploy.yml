@@ -67,7 +67,7 @@ jobs:
           status=${PIPESTATUS[0]}
           set -e
           if [ "$status" -ne 0 ]; then
-            python -c 'from pathlib import Path; text=" || ".join(Path("django-tests.log").read_text(errors="replace").splitlines()[-60:]); print("::error file=admin_service::" + text)'
+            python -c 'from pathlib import Path; lines=Path("django-tests.log").read_text(errors="replace").splitlines()[-80:]; text=" || ".join(line[:400] for line in lines); print("::error file=admin_service::" + text[-3500:])'
             exit "$status"
           fi
       - name: Build exact release images and test their installed distributions
