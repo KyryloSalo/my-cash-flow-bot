@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
 
-from common.readiness import _billing_lag
+from common.readiness import _billing_lag, readiness_status
 
 
 class BillingReadinessTests(SimpleTestCase):
@@ -33,3 +33,22 @@ class BillingReadinessTests(SimpleTestCase):
         self.assertEqual(filters["user__billing_profile__provider"], "monobank")
         self.assertIs(filters["user__billing_profile__auto_renew_enabled"], True)
         self.assertEqual(filters["user__billing_profile__card_token__gt"], "")
+
+    def test_billing_backlog_does_not_block_runtime_readiness(self):
+        billing_probe = Mock(return_value=False)
+        always_ready = Mock(return_value=True)
+
+        with patch.multiple(
+            "common.readiness",
+            _database=always_ready,
+            _redis=always_ready,
+            _worker=always_ready,
+            _beat=always_ready,
+            _queue_lag=always_ready,
+            _billing_lag=billing_probe,
+        ):
+            result = readiness_status()
+
+        self.assertTrue(result["ready"])
+        self.assertNotIn("billing_lag", result["checks"])
+        billing_probe.assert_not_called()

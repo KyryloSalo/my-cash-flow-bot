@@ -72,7 +72,10 @@ def _billing_lag():
 def readiness_status(*, checks=None):
     checks = checks if checks is not None else {
         'database': _database, 'redis': _redis, 'worker': _worker,
-        'beat': _beat, 'queue_lag': _queue_lag, 'billing_lag': _billing_lag,
+        # Provider-pending charges are valid business state and can remain
+        # pending after a successful reconciliation.  Runtime readiness is
+        # guarded by worker, beat and queue progress instead.
+        'beat': _beat, 'queue_lag': _queue_lag,
     }
     results = {}
     for name, check in checks.items():
