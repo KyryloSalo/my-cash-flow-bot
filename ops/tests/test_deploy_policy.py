@@ -21,6 +21,10 @@ class DeployPolicyTests(unittest.TestCase):
         self.assertIn('[string]$BackupReceiptPath', text)
         self.assertIn('off_host_verified', text)
         self.assertIn('backup-receipt.json', text)
+        self.assertIn('$previousErrorActionPreference = $ErrorActionPreference', text)
+        self.assertIn('$rolloutExitCode = $LASTEXITCODE', text)
+        self.assertIn('$ErrorActionPreference = $previousErrorActionPreference', text)
+        self.assertIn('if ($rolloutExitCode -ne 0)', text)
 
     def test_rollout_requires_immutable_images_and_readiness(self):
         text=(CODE/'deploy_v0_on_vps.sh').read_text(encoding='utf-8')

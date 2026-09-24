@@ -80,6 +80,15 @@ if ($BackupReceiptPath) {
 }
 $sourceSha = $evidence.source_sha256
 $remoteCommand = "set -eu; python3 '$remote/release_artifact.py' install --archive '$remote/release.zip' --sha256 '$sourceSha' --target '$remote/stage'; bash '$remote/stage/deploy_v0_on_vps.sh' --confirm-production '$remote' --source-sha256 '$sourceSha'$backupRemoteArgument"
-& $sshClient @transportArgs $destination $remoteCommand
-if ($LASTEXITCODE -ne 0) { throw "Rollout failed: serving/writers are stopped; inspect approved incident runbook. No automatic database downgrade." }
+$previousErrorActionPreference = $ErrorActionPreference
+try {
+    # OpenSSH writes normal remote progress to stderr. Judge the rollout by its
+    # native exit code instead of converting progress output into an exception.
+    $ErrorActionPreference = "Continue"
+    & $sshClient @transportArgs $destination $remoteCommand
+    $rolloutExitCode = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+}
+if ($rolloutExitCode -ne 0) { throw "Rollout failed: serving/writers are stopped; inspect approved incident runbook. No automatic database downgrade." }
 Write-Host "Validated release ready. Record real deployment evidence and version under release policy."
