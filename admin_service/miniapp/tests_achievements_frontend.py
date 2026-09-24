@@ -43,6 +43,13 @@ class AchievementsFrontendContractTests(SimpleTestCase):
             self.assertIn(marker, javascript)
         self.assertIn("min-height: 44px", css)
         self.assertIn(".gamification-ready", css)
+        self.assertIn("height: 100dvh", css)
+        self.assertIn("box-sizing: border-box", css)
+        self.assertIn("overflow-wrap: anywhere", css)
+        self.assertIn(".achievement-notification-card.is-single", css)
+        self.assertIn("#d7ebe5", css)
+        self.assertIn("achievement-notification-open", javascript)
+        self.assertIn("achievement-notification-list", javascript)
 
         assets_dir = static_dir / "achievements"
         for relative_path in (
@@ -52,3 +59,7 @@ class AchievementsFrontendContractTests(SimpleTestCase):
             "previews/capi-motion-poster.png",
         ):
             self.assertTrue((assets_dir / relative_path).is_file(), relative_path)
+
+        bob_asset = (assets_dir / "assets" / "bob" / "01-welcome.png").read_bytes()
+        self.assertEqual(bob_asset[:8], bytes.fromhex("89504e470d0a1a0a"))
+        self.assertEqual(bob_asset[25], 6, "Bob asset must use RGBA PNG without an opaque background")

@@ -358,10 +358,12 @@
     shell.setAttribute("role", "dialog");
     shell.setAttribute("aria-modal", "true");
     const card = document.createElement("section");
-    card.className = "achievement-notification-card";
+    card.className = `achievement-notification-card${grants.length === 1 ? " is-single" : ""}`;
     const title = document.createElement("h2");
     title.textContent = grants.length > 1 ? "Нові досягнення" : "Нове досягнення";
     card.appendChild(title);
+    const list = document.createElement("div");
+    list.className = "achievement-notification-list";
     grants.forEach((grant) => {
       const row = document.createElement("div");
       row.className = "achievement-notification-grant";
@@ -375,18 +377,21 @@
       description.textContent = grant.description || grant.hint || "";
       copy.append(name, description);
       row.append(image, copy);
-      card.appendChild(row);
+      list.appendChild(row);
     });
+    card.appendChild(list);
     const close = document.createElement("button");
     close.type = "button";
     close.className = "primary-action";
     close.textContent = "Готово";
     close.addEventListener("click", function () {
       shell.remove();
+      root.classList.remove("achievement-notification-open");
       onClose();
     });
     card.appendChild(close);
     shell.appendChild(card);
+    root.classList.add("achievement-notification-open");
     document.body.appendChild(shell);
     close.focus();
   }

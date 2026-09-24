@@ -324,67 +324,148 @@
   object-fit: contain;
 }
 
+body.achievement-notification-open {
+  overflow: hidden;
+}
+
 .achievement-notification {
   position: fixed;
   inset: 0;
   z-index: 1800;
-  display: grid;
-  align-items: end;
-  padding: 16px max(16px, var(--safe-right)) calc(16px + var(--safe-bottom)) max(16px, var(--safe-left));
-  background: rgba(0, 10, 9, 0.72);
-  backdrop-filter: blur(10px);
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  color: #f7fffc;
+  background:
+    radial-gradient(circle at 50% 24%, rgba(121, 231, 196, 0.19), transparent 42%),
+    linear-gradient(180deg, #073a32 0%, #041f1c 100%);
+  overscroll-behavior: contain;
+}
+
+.achievement-notification,
+.achievement-notification * {
+  box-sizing: border-box;
 }
 
 .achievement-notification-card {
-  width: min(100%, 430px);
-  max-height: min(82vh, 720px);
-  margin: 0 auto;
-  padding: 20px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 20px;
+  width: 100%;
+  min-height: 100%;
+  height: 100vh;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding:
+    max(26px, calc(18px + var(--safe-top)))
+    max(22px, calc(18px + var(--safe-right)))
+    max(22px, calc(16px + var(--safe-bottom)))
+    max(22px, calc(18px + var(--safe-left)));
   overflow-y: auto;
-  border: 1px solid rgba(121, 231, 196, 0.24);
-  border-radius: 24px;
-  background:
-    radial-gradient(circle at 12% 0, rgba(121, 231, 196, 0.15), transparent 38%),
-    #06231f;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.44);
+  border: 0;
+  border-radius: 0;
+  color: #f7fffc;
+  background: transparent;
+  box-shadow: none;
 }
 
 .achievement-notification-card h2 {
-  margin: 0 0 14px;
-  font-size: 24px;
+  margin: 0;
+  max-width: 100%;
+  color: #ffffff;
+  font-size: clamp(30px, 8vw, 44px);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  text-align: center;
+  text-wrap: balance;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.achievement-notification-list {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow-y: auto;
+}
+
+.achievement-notification-card.is-single .achievement-notification-list {
+  justify-content: center;
 }
 
 .achievement-notification-grant {
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
+  grid-template-columns: 104px minmax(0, 1fr);
   align-items: center;
-  gap: 13px;
-  padding: 12px 0;
-  border-top: 1px solid var(--border);
+  gap: 16px;
+  padding: 18px 0;
+  border-top: 1px solid rgba(199, 239, 227, 0.2);
 }
 
 .achievement-notification-grant img {
-  width: 92px;
-  height: 92px;
+  width: 104px;
+  height: 104px;
   object-fit: contain;
+  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.24));
 }
 
 .achievement-notification-grant strong {
   display: block;
-  margin-bottom: 5px;
+  max-width: 100%;
+  margin-bottom: 7px;
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .achievement-notification-grant p {
   margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.4;
+  max-width: 100%;
+  color: #d7ebe5;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.achievement-notification-card.is-single .achievement-notification-grant {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 18px;
+  padding: 0;
+  border-top: 0;
+  text-align: center;
+}
+
+.achievement-notification-card.is-single .achievement-notification-grant img {
+  width: min(72vw, 320px);
+  height: min(42dvh, 320px);
+}
+
+.achievement-notification-card.is-single .achievement-notification-grant strong {
+  font-size: clamp(24px, 6.5vw, 32px);
+}
+
+.achievement-notification-card.is-single .achievement-notification-grant p {
+  max-width: 460px;
+  font-size: clamp(16px, 4.2vw, 19px);
 }
 
 .achievement-notification-card > .primary-action {
   width: 100%;
-  min-height: 48px;
-  margin-top: 14px;
+  min-height: 54px;
+  margin-top: 0;
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #03231d;
+  background: linear-gradient(135deg, #8df2d0, #45d9ae);
+  font-size: 17px;
+  font-weight: 900;
+  box-shadow: 0 12px 28px rgba(38, 201, 154, 0.22);
 }
 
 .gamification-ready #achievementsSettingsCard,
