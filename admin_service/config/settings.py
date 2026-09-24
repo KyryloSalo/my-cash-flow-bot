@@ -124,6 +124,7 @@ INSTALLED_APPS = [
     "bot_settings",
     "bot_events",
     "miniapp",
+    "gamification.apps.GamificationConfig",
     "audit_log.apps.AuditLogConfig",
     "admin_notifications",
 ]
@@ -222,9 +223,19 @@ CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_BROKER_CONNECTION_TIMEOUT = 2
 CELERY_BROKER_TRANSPORT_OPTIONS = {"socket_connect_timeout": 2, "socket_timeout": 2}
 CELERY_BEAT_SCHEDULER = "common.scheduler:HeartbeatScheduler"
-CELERY_IMPORTS = ("common.tasks",)
+CELERY_IMPORTS = ("common.tasks", "gamification.tasks")
 CELERY_BEAT_SCHEDULE = {
     "scheduler-probe": {"task": "common.scheduler_probe", "schedule": 30.0, "options": {"expires": 60}},
+    "gamification-process-events": {
+        "task": "gamification.process_events",
+        "schedule": 5.0,
+        "options": {"expires": 10},
+    },
+    "gamification-finalize-due-profiles": {
+        "task": "gamification.finalize_due_profiles",
+        "schedule": 300.0,
+        "options": {"expires": 300},
+    },
     "subscriptions-reconcile-pending-monobank-charges": {
         "task": "subscriptions.reconcile_pending_monobank_charges",
         "schedule": crontab(minute="*/2"),
@@ -316,6 +327,8 @@ MINIAPP_BROWSER_LOGIN_SECRET = env("MINIAPP_BROWSER_LOGIN_SECRET", "")
 MINIAPP_BROWSER_LOGIN_TOKEN_TTL_SECONDS = int(env("MINIAPP_BROWSER_LOGIN_TOKEN_TTL_SECONDS", "900") or "900")
 MINIAPP_BROWSER_SESSION_AGE_SECONDS = int(env("MINIAPP_BROWSER_SESSION_AGE_SECONDS", str(180 * 24 * 60 * 60)) or str(180 * 24 * 60 * 60))
 MINIAPP_DEV_TG_USER_ID = env_int("MINIAPP_DEV_TG_USER_ID")
+GAMIFICATION_UI_ENABLED = env_bool("GAMIFICATION_UI_ENABLED", False)
+GAMIFICATION_PROCESSING_ENABLED = env_bool("GAMIFICATION_PROCESSING_ENABLED", False)
 ADMIN_TELEGRAM_IDS = [int(item) for item in env_list("ADMIN_TELEGRAM_IDS") if item.isdigit()]
 PRIMARY_ADMIN_TELEGRAM_ID = env_int("PRIMARY_ADMIN_TELEGRAM_ID", ADMIN_TELEGRAM_IDS[0] if ADMIN_TELEGRAM_IDS else None)
 MINIAPP_OPERATOR_TELEGRAM_IDS = [

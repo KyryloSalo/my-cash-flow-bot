@@ -1,10 +1,11 @@
-from django.urls import path
+from django.urls import include, path
 
 from miniapp import account_deletion_views, funnel_views, views
 
 
 urlpatterns = [
     path("", views.index, name="index"),
+    path("api/gamification/", include(("gamification.urls", "gamification"), namespace="gamification")),
     path("r/<slug:code>", funnel_views.partner_link_redirect, name="partner-link-redirect"),
     path("operator/", views.operator_index, name="operator-index"),
     path("browser-login/<str:token>/", views.browser_login_handoff, name="browser-login-handoff"),

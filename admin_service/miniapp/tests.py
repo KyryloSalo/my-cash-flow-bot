@@ -15,6 +15,7 @@ from django.utils import timezone
 from accounts.models import Account
 from categories.models import Category, CategoryTemplate
 from common.test_helpers import ensure_runtime_finance_tables, ensure_telegram_user_table
+from gamification.models import GamificationEventOutbox
 from miniapp import auth as miniapp_auth
 from miniapp import views as miniapp_views
 import miniapp.fx as miniapp_fx
@@ -721,9 +722,15 @@ class MiniAppTests(TestCase):
         self.assertEqual(Transaction.objects.count(), 1)
         self.assertEqual(WriteReceipt.objects.count(), 1)
         tx = Transaction.objects.get()
+        event = GamificationEventOutbox.objects.get()
         self.assertEqual(tx.source, "miniapp_manual")
         self.assertEqual(tx.flow_kind, "normal")
         self.assertEqual(tx.category_name_snapshot, "Food")
+        self.assertEqual(event.actor_user_id, self.user.tg_user_id)
+        self.assertEqual(event.entity_id, str(tx.id))
+        self.assertEqual(event.input_method, "manual")
+        self.assertEqual(event.payload["transaction_type"], "expense")
+        self.assertEqual(event.status, GamificationEventOutbox.Status.PENDING)
         account.refresh_from_db()
         self.assertEqual(account.balance, Decimal("874.50"))
 

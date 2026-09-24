@@ -5,6 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 import logging
 from typing import Literal
+from uuid import NAMESPACE_URL, uuid5
 
 import asyncpg
 
@@ -26,6 +27,23 @@ id, tg_user_id, family_id, created_by_user_id, label, currency, account_type,
 starting_balance, balance, is_active, created_at, updated_at,
 credit_limit, monthly_interest_rate, non_negative_account_type
 """
+
+GAMIFICATION_INPUT_METHODS = {
+    "manual": "manual",
+    "miniapp_manual": "manual",
+    "text": "text",
+    "ai_text": "text",
+    "voice": "voice",
+    "ai_voice": "voice",
+    "screenshot": "screenshot",
+    "ai_screenshot": "screenshot",
+    "image": "screenshot",
+    "photo": "screenshot",
+}
+
+
+def normalize_gamification_input_method(source: str | None) -> str:
+    return GAMIFICATION_INPUT_METHODS.get(str(source or "").strip().lower(), "manual")
 
 
 @dataclass(frozen=True)
@@ -257,6 +275,33 @@ class TransactionService:
                 account_id,
                 category_id,
                 category_label,
+            )
+            await self.conn.execute(
+                """
+                INSERT INTO gamification_event_outbox (
+                  event_id, event_type, actor_user_id, space_id,
+                  entity_type, entity_id, accepted_at, input_method,
+                  payload, status, attempts, available_at, created_at, last_error_code
+                )
+                VALUES (
+                  $4, 'transaction.created', $2, $3,
+                  'transaction', $1::text, now(), $5,
+                  jsonb_build_object(
+                    'transaction_type', $6::text,
+                    'amount', $7::text,
+                    'flow_kind', 'normal'
+                  ),
+                  'pending', 0, now(), now(), ''
+                )
+                ON CONFLICT (event_type, entity_type, entity_id) DO NOTHING
+                """,
+                int(transaction_id),
+                tg_user_id,
+                scope.family_id,
+                uuid5(NAMESPACE_URL, f"vydno:transaction.created:{int(transaction_id)}"),
+                normalize_gamification_input_method(normalized_source),
+                normalized_kind,
+                f"{normalized_amount:.2f}",
             )
             if scope.is_family:
                 await self.conn.execute(

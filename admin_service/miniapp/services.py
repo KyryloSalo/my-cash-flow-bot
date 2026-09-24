@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from accounts.models import Account
 from categories.models import Category
+from gamification.producers import enqueue_transaction_created
 from miniapp.fx import get_latest_rates
 from miniapp.image_uploads import detect_heif_mime
 from miniapp.models import AiTransactionDraft, SavingPromptSetting
@@ -1608,6 +1609,16 @@ def commit_transaction_draft(user: TelegramUser, draft: dict[str, object]) -> di
             category_name_snapshot=category.name,
             flow_kind="normal",
             created_at=timezone.now(),
+        )
+        enqueue_transaction_created(
+            actor_user_id=user.tg_user_id,
+            space_id=scope.family_id if scope.is_family else None,
+            transaction_id=tx.id,
+            accepted_at=tx.created_at,
+            source=source,
+            transaction_type=kind,
+            amount=amount,
+            flow_kind="normal",
         )
         account.balance = new_balance
         account.account_type = new_account_type

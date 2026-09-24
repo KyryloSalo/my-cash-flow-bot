@@ -1,0 +1,23 @@
+/* Vydno micro-motion. Use .award-visual with data-effect and toggle .is-locked.
+   Assets use an opaque ivory background; glows are intentionally around the medal/card.
+   Animation is presentational only and must never grant achievements. */
+.award-visual{width:100%;max-width:216px;aspect-ratio:1;position:relative;isolation:isolate;display:grid;place-items:center}
+.award-visual::before{content:"";position:absolute;inset:9%;border-radius:38%;background:radial-gradient(ellipse,#bfe8bd44 8%,#cbead62e 45%,transparent 72%);box-shadow:0 0 24px #68b98910;animation:vydno-aura 3s ease-in-out infinite;z-index:-1}
+.award-visual img{display:block;width:92%;height:92%;object-fit:contain;border-radius:18%;mix-blend-mode:multiply;animation:vydno-float 3s ease-in-out infinite;transform-origin:50% 82%;will-change:transform}
+.award-visual .spark{position:absolute;width:5px;height:5px;border-radius:50%;background:#d7aa50;opacity:0;animation:vydno-spark 3s ease-in-out infinite;pointer-events:none}
+.award-visual .spark:nth-of-type(1){left:14%;top:25%;animation-delay:-.35s}.award-visual .spark:nth-of-type(2){right:12%;top:18%;animation-delay:-1.1s;width:4px;height:4px}.award-visual .spark:nth-of-type(3){right:18%;bottom:22%;animation-delay:-1.85s;width:3px;height:3px}
+.award-visual .shine{position:absolute;inset:5%;overflow:hidden;border-radius:28%;pointer-events:none;opacity:.45}.award-visual .shine::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 40%,#fff9d950 48%,#fffbe090 50%,transparent 58%);transform:translateX(-150%);animation:vydno-shine 3s ease-in-out infinite}
+.award-visual[data-effect=voice] img{animation-name:vydno-voice}.award-visual[data-effect=scan] .shine::after{background:linear-gradient(0deg,transparent 46%,#78cda775 50%,transparent 54%);animation-name:vydno-scan}.award-visual[data-effect=shield]::before{background:radial-gradient(ellipse,#90caca50,transparent 70%)}.award-visual[data-effect=celebrate]::before{background:radial-gradient(ellipse,#e9c77535,#d7e9b923,transparent 72%)}.award-visual[data-effect=family] img{animation-name:vydno-sway}.award-visual[data-effect=goal] img{animation-name:vydno-goal}
+.award-visual.is-locked img{animation:none;transform:none}.award-visual.is-locked::before,.award-visual.is-locked .spark,.award-visual.is-locked .shine{display:none}
+.motion-off .award-visual *,.motion-off .award-visual::before,.motion-off .award-visual .shine::after{animation:none!important;transform:none!important}.motion-off .award-visual .spark,.motion-off .award-visual .shine{display:none}
+@keyframes vydno-float{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-3px) scale(1.012)}}
+@keyframes vydno-voice{0%,100%{transform:rotate(0)}30%{transform:rotate(-.8deg)}65%{transform:rotate(.8deg)}}
+@keyframes vydno-sway{0%,100%{transform:rotate(-.4deg)}50%{transform:rotate(.8deg) translateY(-2px)}}
+@keyframes vydno-goal{0%,100%{transform:scale(1)}40%{transform:scale(1.022)}65%{transform:scale(1.006)}}
+@keyframes vydno-aura{0%,100%{opacity:.36;transform:scale(.94)}50%{opacity:.9;transform:scale(1.06)}}
+@keyframes vydno-spark{0%,25%,100%{opacity:0;transform:scale(.4) translateY(3px)}50%{opacity:.8;transform:scale(1) translateY(-3px)}75%{opacity:0;transform:scale(.3) translateY(-7px)}}
+@keyframes vydno-shine{0%,18%{transform:translateX(-150%)}60%,100%{transform:translateX(150%)}}
+@keyframes vydno-scan{0%,15%{transform:translateY(-130%)}65%,100%{transform:translateY(130%)}}
+@media(prefers-reduced-motion:reduce){.award-visual *,.award-visual::before,.award-visual .shine::after{animation:none!important;transform:none!important}.award-visual .spark,.award-visual .shine{display:none}}
+
+.is-paused .award-visual *,.is-paused .award-visual::before,.is-paused .shine::after,.page-hidden .award-visual *,.page-hidden .award-visual::before,.page-hidden .shine::after{animation-play-state:paused!important}

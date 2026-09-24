@@ -147,7 +147,7 @@ class TransactionServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.currency, "UAH")
         self.assertEqual(result.account["label"], "Main")
         self.assertEqual(conn.accounts_by_id[11]["balance"], Decimal("125.00"))
-        self.assertEqual(len(conn.execute_calls), 2)
+        self.assertEqual(len(conn.execute_calls), 3)
         insert_query, insert_args = conn.execute_calls[0]
         self.assertIn("INSERT INTO transactions", insert_query)
         self.assertIn("flow_kind", insert_query)
@@ -156,6 +156,11 @@ class TransactionServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(conn.transactions[0]["flow_kind"], "normal")
         self.assertEqual(result.transaction_id, 1)
         self.assertEqual(conn.transactions[0]["category_label_arg"], "Зарплата")
+        outbox_query, outbox_args = conn.execute_calls[1]
+        self.assertIn("INSERT INTO gamification_event_outbox", outbox_query)
+        self.assertEqual(outbox_args[0], 1)
+        self.assertEqual(outbox_args[1], 123)
+        self.assertEqual(outbox_args[4], "text")
 
     async def test_commit_normal_expense_inserts_row_and_decreases_balance(self) -> None:
         conn = DummyConn(
@@ -193,7 +198,7 @@ class TransactionServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.amount, Decimal("40.00"))
         self.assertEqual(result.currency, "UAH")
         self.assertEqual(conn.accounts_by_id[12]["balance"], Decimal("60.00"))
-        self.assertEqual(len(conn.execute_calls), 2)
+        self.assertEqual(len(conn.execute_calls), 3)
         self.assertEqual(conn.transactions[0]["flow_kind"], "normal")
         self.assertEqual(conn.transactions[0]["type"], "expense")
         self.assertEqual(conn.transactions[0]["category_label_arg"], "Кафе")
@@ -275,7 +280,7 @@ class TransactionServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result.credit_limit)
         self.assertEqual(conn.accounts_by_id[13]["balance"], Decimal("-50.00"))
         self.assertEqual(conn.accounts_by_id[13]["account_type"], "credit")
-        self.assertEqual(len(conn.execute_calls), 2)
+        self.assertEqual(len(conn.execute_calls), 3)
 
     async def test_expense_can_switch_account_to_credit_with_limit_override(self) -> None:
         conn = DummyConn(

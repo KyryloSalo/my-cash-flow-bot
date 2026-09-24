@@ -27,7 +27,24 @@ class HealthTests(unittest.TestCase):
 
     def test_scheduler_probe_is_explicitly_imported(self):
         source=(CODE/'admin_service/config/settings.py').read_text()
-        self.assertIn('CELERY_IMPORTS = ("common.tasks",)', source)
+        tree=ast.parse(source)
+        imports=next(
+            ast.literal_eval(node.value)
+            for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == 'CELERY_IMPORTS' for target in node.targets)
+        )
+        self.assertIn('common.tasks', imports)
+        self.assertIn('gamification.tasks', imports)
+        self.assertIn('"task": "gamification.finalize_due_profiles"', source)
+
+    def test_gamification_flags_default_to_dark_launch(self):
+        source=(CODE/'admin_service/config/settings.py').read_text()
+        self.assertIn('GAMIFICATION_UI_ENABLED = env_bool("GAMIFICATION_UI_ENABLED", False)', source)
+        self.assertIn(
+            'GAMIFICATION_PROCESSING_ENABLED = env_bool("GAMIFICATION_PROCESSING_ENABLED", False)',
+            source,
+        )
 
     def test_machine_readiness_handles_each_unavailable_dependency(self):
         path=CODE/'admin_service/common/readiness.py'

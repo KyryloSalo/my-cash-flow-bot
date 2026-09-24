@@ -455,11 +455,12 @@ class IncomeFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(query.answered)
         self.assertNotIn("tx_flow", context.user_data)
         service_cls.assert_called_once()
-        self.assertEqual(len(conn.execute_calls), 2)
+        self.assertEqual(len(conn.execute_calls), 3)
         self.assertIn("INSERT INTO transactions", conn.execute_calls[0][0])
-        self.assertIn("UPDATE accounts", conn.execute_calls[1][0])
+        self.assertIn("INSERT INTO gamification_event_outbox", conn.execute_calls[1][0])
+        self.assertIn("UPDATE accounts", conn.execute_calls[2][0])
         self.assertEqual(conn.execute_calls[0][1][-1], "Зарплата")
-        self.assertEqual(conn.execute_calls[1][1][2], Decimal("125.00"))
+        self.assertEqual(conn.execute_calls[2][1][2], Decimal("125.00"))
         self.assertEqual(conn.accounts_by_id[11]["balance"], Decimal("125.00"))
         self.assertEqual(conn.daily_expense_day_statuses, {})
         self.assertIn("Дохід збережено", message.replies[-1]["text"])
@@ -527,11 +528,12 @@ class IncomeFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(query.answered)
         self.assertNotIn("ai_tx_flow", context.user_data)
         service_cls.assert_called_once()
-        self.assertEqual(len(conn.execute_calls), 2)
+        self.assertEqual(len(conn.execute_calls), 3)
         callbacks = [button.kwargs.get("callback_data") for row in message.replies[-1]["reply_markup"].args[0] for button in row]
         self.assertIn("txvoid:pick:1", callbacks)
         self.assertIn("INSERT INTO transactions", conn.execute_calls[0][0])
-        self.assertIn("UPDATE accounts", conn.execute_calls[1][0])
+        self.assertIn("INSERT INTO gamification_event_outbox", conn.execute_calls[1][0])
+        self.assertIn("UPDATE accounts", conn.execute_calls[2][0])
         self.assertEqual(conn.accounts_by_id[11]["balance"], Decimal("125.00"))
         self.assertIn("Операцію збережено", message.replies[-1]["text"])
 
@@ -997,7 +999,11 @@ class IncomeFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(query.answered)
         self.assertNotIn("ai_batch_tx_flow", context.user_data)
         service_cls.assert_called_once()
-        self.assertEqual(len(conn.execute_calls), 6)
+        self.assertEqual(len(conn.execute_calls), 9)
+        self.assertEqual(
+            sum("INSERT INTO gamification_event_outbox" in query for query, _args in conn.execute_calls),
+            3,
+        )
         self.assertEqual(conn.accounts_by_id[11]["balance"], Decimal("200.00"))
         self.assertIn("Операцій збережено: 3", message.replies[-1]["text"])
 
@@ -1137,7 +1143,11 @@ class IncomeFlowTests(unittest.IsolatedAsyncioTestCase):
             await bot_main.pick_callback(update, context)
 
         service_cls.assert_called_once()
-        self.assertEqual(len(conn.execute_calls), 2)
+        self.assertEqual(len(conn.execute_calls), 3)
+        self.assertEqual(
+            sum("INSERT INTO gamification_event_outbox" in query for query, _args in conn.execute_calls),
+            1,
+        )
         self.assertIn("Дохід збережено", message.replies[0]["text"])
         self.assertEqual(message.replies[-1]["text"], "Ця дія вже неактивна.")
         self.assertEqual(conn.accounts_by_id[11]["balance"], Decimal("125.00"))

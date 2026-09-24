@@ -19,8 +19,10 @@
   <link rel="apple-touch-icon" href="{% static 'miniapp/apple-touch-icon.png' %}?v={{ miniapp_asset_version }}">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="{% static 'miniapp/app.css' %}?v={{ miniapp_asset_version }}">
+  <link rel="stylesheet" href="{% static 'miniapp/achievements-ui.css' %}?v={{ miniapp_asset_version }}">
   <script defer src="{% static 'miniapp/install-coach.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/push.js' %}?v={{ miniapp_asset_version }}"></script>
+  <script defer src="{% static 'miniapp/achievements.js' %}?v={{ miniapp_asset_version }}"></script>
 </head>
 <body class="calm-fintech-v2"
   data-auth-url="{% url 'miniapp:auth-telegram' %}"
@@ -102,6 +104,12 @@
   data-logout-url="{% url 'miniapp:auth-logout' %}"
   data-account-deletion-preflight-url="{% url 'miniapp:account-deletion-preflight' %}"
   data-account-deletion-confirm-url="{% url 'miniapp:account-deletion-confirm' %}"
+  data-achievements-overview-url="{% url 'miniapp:gamification:overview' %}"
+  data-achievements-preferences-url="{% url 'miniapp:gamification:preferences' %}"
+  data-achievements-no-expenses-url="{% url 'miniapp:gamification:no-expenses' %}"
+  data-achievements-pins-url="{% url 'miniapp:gamification:pins' %}"
+  data-achievements-notification-claim-url="{% url 'miniapp:gamification:notification-claim' %}"
+  data-achievements-notification-ack-url="{% url 'miniapp:gamification:notification-ack' %}"
   data-service-worker-url="{% url 'miniapp:service-worker' %}?v={{ miniapp_asset_version }}"
   data-dev-auth-enabled="{% if dev_auth_enabled %}true{% else %}false{% endif %}"
   data-preview-enabled="{% if preview_enabled %}true{% else %}false{% endif %}"
@@ -405,6 +413,17 @@
         </div>
 
         <div class="stack calm-overview-stack">
+          <article class="card card-pad achievement-overview" id="achievementsOverviewWidget" hidden>
+            <button class="achievement-overview-link" id="achievementsOverviewOpen" type="button">
+              <img id="achievementsOverviewMascot" width="72" height="72" alt="" loading="lazy">
+              <span class="achievement-overview-copy">
+                <small>Серія активних днів</small>
+                <strong><span id="achievementsOverviewStreak">0</span> днів</strong>
+                <span id="achievementsOverviewLatest">Відкрийте перше досягнення</span>
+              </span>
+              <span class="achievement-overview-arrow" aria-hidden="true">→</span>
+            </button>
+          </article>
           <article class="card hero-card card-pad calm-balance-card">
             <div class="label">На рахунках зараз</div>
             <div class="big-number" id="totalBalance">0 грн</div>
@@ -1230,7 +1249,12 @@
           <p>Рахунки, кредитний режим, цілі, заощадження та інвестиції.</p>
         </div>
 
-        <div class="stack">
+        <div class="achievement-status-tabs" role="tablist" aria-label="Розділ статусу">
+          <button class="achievement-status-tab is-active" id="statusFinanceTab" type="button" role="tab" aria-selected="true" aria-controls="statusFinancePane">Фінанси</button>
+          <button class="achievement-status-tab" id="statusAchievementsTab" type="button" role="tab" aria-selected="false" aria-controls="achievementsStatusPane">Досягнення</button>
+        </div>
+
+        <div class="stack" id="statusFinancePane" role="tabpanel" aria-labelledby="statusFinanceTab">
           <article class="card card-pad">
             <div class="section-head">
               <div>
@@ -1334,6 +1358,25 @@
             </div>
           </article>
         </div>
+        <section class="achievement-status-pane" id="achievementsStatusPane" role="tabpanel" aria-labelledby="statusAchievementsTab" hidden>
+          <article class="card card-pad achievement-hero">
+            <img id="achievementHeroMascot" width="128" height="128" alt="Ваш талісман" loading="lazy">
+            <div>
+              <p class="eyebrow">Ваш ритм</p>
+              <h2><span id="achievementCurrentStreak">0</span> днів поспіль</h2>
+              <p id="achievementHeroSummary">Зробіть підтверджений запис або відмітьте день без витрат.</p>
+              <div class="achievement-stat-row">
+                <span>Рекорд <strong id="achievementBestStreak">0</strong></span>
+                <span>Щити <strong id="achievementShieldBalance">0</strong>/2</span>
+                <span>Активних днів <strong id="achievementLifetimeDays">0</strong></span>
+              </div>
+              <button class="secondary-action" id="achievementNoExpensesBtn" type="button">Сьогодні без витрат</button>
+            </div>
+          </article>
+          <div class="achievement-category-chips" id="achievementCategoryChips" role="list" aria-label="Категорії досягнень"></div>
+          <div class="achievement-grid" id="achievementGrid" aria-live="polite"></div>
+          <p class="form-status" id="achievementStatusMessage" hidden aria-live="polite"></p>
+        </section>
       </section>
       <section class="screen" data-screen="settings">
         <div class="screen-title">
@@ -1343,6 +1386,36 @@
         </div>
 
         <div class="stack">
+          <article class="card card-pad" id="achievementsSettingsCard">
+            <div class="section-head">
+              <div>
+                <h2>Досягнення</h2>
+                <p>Талісман, анімації та часовий пояс серії.</p>
+              </div>
+            </div>
+            <div class="achievement-mascot-options" role="radiogroup" aria-label="Талісман">
+              <button class="achievement-mascot-option" type="button" data-achievement-mascot="bob" role="radio" aria-checked="false">Боб</button>
+              <button class="achievement-mascot-option" type="button" data-achievement-mascot="capi" role="radio" aria-checked="false">Капі</button>
+            </div>
+            <label class="settings-toggle">
+              <input id="achievementMotionSetting" type="checkbox">
+              <span>Анімації досягнень</span>
+            </label>
+            <label class="form-field">
+              <span>Часовий пояс IANA</span>
+              <input id="achievementTimezoneSetting" type="text" list="achievementTimezoneOptions" maxlength="64" autocomplete="off" placeholder="Europe/Kyiv">
+              <datalist id="achievementTimezoneOptions">
+                <option value="Europe/Kyiv"></option>
+                <option value="Europe/Istanbul"></option>
+                <option value="Europe/Warsaw"></option>
+                <option value="Europe/London"></option>
+                <option value="America/New_York"></option>
+              </datalist>
+            </label>
+            <button class="primary-action" id="achievementSettingsSave" type="button">Зберегти</button>
+            <p class="form-status" id="achievementSettingsStatus" hidden aria-live="polite"></p>
+          </article>
+
           <article class="card card-pad" id="notificationSettingsCard">
             <div class="section-head">
               <div>
@@ -1558,6 +1631,24 @@
       </section>
     </div>
   </main>
+  <div class="activation-modal achievement-mascot-modal" id="achievementsMascotModal" role="dialog" aria-modal="true" aria-labelledby="achievementsMascotTitle" hidden>
+    <section class="activation-card achievement-mascot-card" tabindex="-1">
+      <p class="eyebrow">Ваш провідник</p>
+      <h2 id="achievementsMascotTitle">Оберіть талісман</h2>
+      <p class="activation-lead">Він супроводжуватиме серію та святкуватиме досягнення. Змінити вибір можна в Налаштуваннях.</p>
+      <div class="achievement-mascot-picker">
+        <button type="button" data-achievement-first-mascot="bob">
+          <img src="{% static 'miniapp/achievements/assets/bob/01-welcome.png' %}" width="132" height="132" alt="Боб">
+          <strong>Боб</strong>
+        </button>
+        <button type="button" data-achievement-first-mascot="capi">
+          <img src="{% static 'miniapp/achievements/assets/capi/01-welcome.png' %}" width="132" height="132" alt="Капі">
+          <strong>Капі</strong>
+        </button>
+      </div>
+      <p class="form-status" id="achievementMascotStatus" hidden aria-live="polite"></p>
+    </section>
+  </div>
   <div class="notification-drawer" id="notificationDrawer" role="dialog" aria-modal="true" aria-labelledby="notificationDrawerTitle" hidden>
     <button class="notification-drawer-backdrop" id="notificationDrawerBackdrop" type="button" aria-label="Закрити"></button>
     <section class="notification-drawer-panel">

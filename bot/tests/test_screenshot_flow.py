@@ -597,7 +597,11 @@ class ScreenshotFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(query.answered)
         service_cls.assert_called_once()
         self.assertNotIn("ai_tx_flow", context.user_data)
-        self.assertEqual(len(conn.execute_calls), 2)
+        self.assertEqual(len(conn.execute_calls), 3)
+        self.assertEqual(
+            sum("INSERT INTO gamification_event_outbox" in query for query, _args in conn.execute_calls),
+            1,
+        )
         self.assertEqual(conn.accounts_by_id[11]["balance"], Decimal("2600.00"))
         self.assertEqual(conn.drafts[5]["status"], "completed")
         self.assertIn("Операцію збережено", message.replies[-1]["text"])
@@ -725,7 +729,11 @@ class ScreenshotFlowTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(query.answered)
         self.assertNotIn("ai_tx_flow", context.user_data)
-        self.assertEqual(len(conn.execute_calls), 3)
+        self.assertEqual(len(conn.execute_calls), 4)
+        self.assertEqual(
+            sum("INSERT INTO gamification_event_outbox" in query for query, _args in conn.execute_calls),
+            1,
+        )
         self.assertEqual(conn.drafts[5]["status"], "completed")
         self.assertEqual(conn.accounts_by_id[11]["balance"], Decimal("-300.00"))
         self.assertEqual(conn.accounts_by_id[11]["account_type"], "credit")
@@ -779,7 +787,11 @@ class ScreenshotFlowTests(unittest.IsolatedAsyncioTestCase):
             await bot_main.text_message(update, context)
 
         self.assertNotIn("ai_tx_flow", context.user_data)
-        self.assertEqual(len(conn.execute_calls), 3)
+        self.assertEqual(len(conn.execute_calls), 4)
+        self.assertEqual(
+            sum("INSERT INTO gamification_event_outbox" in query for query, _args in conn.execute_calls),
+            1,
+        )
         self.assertEqual(conn.drafts[5]["status"], "completed")
         self.assertIn("Операцію збережено", message.replies[-1]["text"])
 
@@ -891,7 +903,11 @@ class ScreenshotFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(query.answered)
         self.assertNotIn("ai_batch_tx_flow", context.user_data)
         service_cls.assert_called_once()
-        self.assertEqual(len(conn.execute_calls), 6)
+        self.assertEqual(len(conn.execute_calls), 8)
+        self.assertEqual(
+            sum("INSERT INTO gamification_event_outbox" in query for query, _args in conn.execute_calls),
+            2,
+        )
         self.assertEqual(conn.accounts_by_id[11]["balance"], Decimal("800.00"))
         self.assertEqual(conn.drafts[5]["status"], "completed")
         self.assertIn("Операцій збережено: 2", message.replies[-1]["text"])
