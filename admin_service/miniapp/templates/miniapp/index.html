@@ -955,13 +955,50 @@
         <div class="money-panel" data-money-panel="goals" hidden>
           <div class="stack">
             <article class="card card-pad">
-              <div class="section-head">
+              <div class="section-head goals-section-head">
                 <div>
                   <h2 data-money-i18n="goalsListTitle">Цілі та накопичення</h2>
-                  <p data-money-i18n="goalsListSubtitle">Оберіть рахунок, щоб налаштувати або оновити його ціль.</p>
+                  <p data-money-i18n="goalsListSubtitle">Усі ваші активні фінансові цілі.</p>
                 </div>
+                <button class="secondary-action goals-add-button" id="moneyGoalsAdd" type="button">+ Додати ціль</button>
               </div>
               <div class="account-list" id="moneyGoalsList"></div>
+            </article>
+
+            <article class="card card-pad" id="goalCreateCard" hidden>
+              <div class="section-head">
+                <div>
+                  <h2>Нова ціль</h2>
+                  <p>Створіть рахунок накопичення з цільовою сумою та строком.</p>
+                </div>
+                <button class="ghost-action goals-close-button" id="goalCreateClose" type="button" aria-label="Закрити">×</button>
+              </div>
+              <form class="tx-form" id="goalCreateForm">
+                <label class="form-field">
+                  <span>Назва цілі</span>
+                  <input id="goalCreateName" name="goal_name" type="text" maxlength="120" autocomplete="off" placeholder="Наприклад, Подушка безпеки" required>
+                </label>
+                <div class="form-grid">
+                  <label class="form-field"><span>Цільова сума</span><input id="goalCreateAmount" name="goal_amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00" required></label>
+                  <label class="form-field"><span>Вже накопичено</span><input id="goalCreateCurrent" name="starting_balance" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00"></label>
+                </div>
+                <div class="form-grid">
+                  <label class="form-field"><span>Тип рахунку</span><select id="goalCreateType" name="account_type"><option value="savings">Накопичення</option><option value="investment">Інвестиції</option></select></label>
+                  <label class="form-field"><span>Валюта</span><select id="goalCreateCurrency" name="currency"></select></label>
+                </div>
+                <label class="form-field"><span>Строк</span><input id="goalCreateDate" name="goal_date" type="date"></label>
+                <button class="primary-action" id="goalCreatePreviewBtn" type="submit">Перевірити</button>
+                <div class="form-status" id="goalCreateStatus" hidden aria-live="polite"></div>
+              </form>
+            </article>
+
+            <article class="card card-pad tx-draft-card" id="goalCreateDraftCard" hidden>
+              <div class="section-head"><div><h2 id="goalCreateDraftTitle">Підтвердіть створення цілі</h2><p id="goalCreateDraftMeta">-</p></div></div>
+              <div class="draft-amount" id="goalCreateDraftAmount">-</div>
+              <div class="draft-actions">
+                <button class="primary-action" id="goalCreateConfirmBtn" type="button">Створити ціль</button>
+                <button class="ghost-action" id="goalCreateCancelBtn" type="button" data-money-i18n="moneyCancel">Скасувати</button>
+              </div>
             </article>
 
             <article class="card card-pad" id="savingTasksCard">
@@ -4166,6 +4203,24 @@
           accountConfirmButton: document.getElementById("accountConfirmBtn"),
           accountCancelButton: document.getElementById("accountCancelBtn"),
           accountList: document.getElementById("moneyAccountList"),
+          goalCreateOpen: document.getElementById("moneyGoalsAdd"),
+          goalCreateClose: document.getElementById("goalCreateClose"),
+          goalCreateCard: document.getElementById("goalCreateCard"),
+          goalCreateForm: document.getElementById("goalCreateForm"),
+          goalCreateName: document.getElementById("goalCreateName"),
+          goalCreateAmount: document.getElementById("goalCreateAmount"),
+          goalCreateCurrent: document.getElementById("goalCreateCurrent"),
+          goalCreateType: document.getElementById("goalCreateType"),
+          goalCreateCurrency: document.getElementById("goalCreateCurrency"),
+          goalCreateDate: document.getElementById("goalCreateDate"),
+          goalCreateStatus: document.getElementById("goalCreateStatus"),
+          goalCreatePreview: document.getElementById("goalCreatePreviewBtn"),
+          goalCreateDraftCard: document.getElementById("goalCreateDraftCard"),
+          goalCreateDraftTitle: document.getElementById("goalCreateDraftTitle"),
+          goalCreateDraftMeta: document.getElementById("goalCreateDraftMeta"),
+          goalCreateDraftAmount: document.getElementById("goalCreateDraftAmount"),
+          goalCreateConfirm: document.getElementById("goalCreateConfirmBtn"),
+          goalCreateCancel: document.getElementById("goalCreateCancelBtn"),
           transferForm: document.getElementById("transferForm"),
           transferSource: document.getElementById("transferSource"),
           transferTarget: document.getElementById("transferTarget"),
@@ -4495,7 +4550,7 @@
           return goalProgress(right) - goalProgress(left);
         });
         el.overviewGoalsList.replaceChildren();
-        activeGoals.slice(0, 3).forEach(function (account) {
+        activeGoals.forEach((account) => {
           el.overviewGoalsList.appendChild(createGoalCard(account, true));
         });
         el.overviewGoalsList.hidden = !activeGoals.length;
@@ -5320,6 +5375,118 @@
         if (el.accountDraftCard) el.accountDraftCard.hidden = true;
       }
 
+      function setGoalCreateStatus(message, tone) {
+        const status = moneyElements().goalCreateStatus;
+        if (!status) return;
+        status.textContent = message || "";
+        status.className = "form-status " + (tone || "");
+        status.hidden = !message;
+      }
+
+      function resetGoalCreateDraft() {
+        const el = moneyElements();
+        moneyState.goalCreateDraft = null;
+        moneyState.goalCreateIdempotencyKey = null;
+        if (el.goalCreateDraftCard) el.goalCreateDraftCard.hidden = true;
+      }
+
+      function openGoalCreateForm() {
+        const el = moneyElements();
+        resetGoalCreateDraft();
+        if (!el.goalCreateCard) return;
+        el.goalCreateCard.hidden = false;
+        setGoalCreateStatus("", "");
+        loadMoneyOptions(false).then(function () {
+          const options = moneyState.options || {currencies: []};
+          renderSelectOptions(el.goalCreateCurrency, (options.currencies || []).map(function (currency) {
+            return {id: currency, label: currency};
+          }), tr("moneyNoAccounts"), function (currency) { return currency.label; });
+          if (el.goalCreateCurrency && options.base_currency) el.goalCreateCurrency.value = options.base_currency;
+          el.goalCreateCard.scrollIntoView({behavior: "smooth", block: "start"});
+          if (el.goalCreateName) el.goalCreateName.focus({preventScroll: true});
+        });
+      }
+
+      function closeGoalCreateForm() {
+        const el = moneyElements();
+        resetGoalCreateDraft();
+        if (el.goalCreateForm) el.goalCreateForm.reset();
+        if (el.goalCreateCard) el.goalCreateCard.hidden = true;
+        setGoalCreateStatus("", "");
+      }
+
+      function goalCreatePayload() {
+        const el = moneyElements();
+        const name = el.goalCreateName ? el.goalCreateName.value.trim() : "";
+        return {
+          action: "create",
+          account_id: "",
+          label: name,
+          currency: el.goalCreateCurrency ? el.goalCreateCurrency.value : "UAH",
+          account_type: el.goalCreateType ? el.goalCreateType.value : "savings",
+          starting_balance: el.goalCreateCurrent ? el.goalCreateCurrent.value : "",
+          target_balance: "",
+          credit_limit: "",
+          monthly_interest_rate: "",
+          goal_name: name,
+          goal_amount: el.goalCreateAmount ? el.goalCreateAmount.value : "",
+          goal_date: el.goalCreateDate ? el.goalCreateDate.value : ""
+        };
+      }
+
+      function submitGoalCreateDraft(event) {
+        if (event) event.preventDefault();
+        const el = moneyElements();
+        if (moneyState.goalCreateBusy || !el.goalCreateForm) return;
+        resetGoalCreateDraft();
+        moneyState.goalCreateBusy = true;
+        if (el.goalCreatePreview) el.goalCreatePreview.disabled = true;
+        postJson(accountDraftUrl, goalCreatePayload()).then(function (payload) {
+          const draft = payload.draft || null;
+          moneyState.goalCreateDraft = draft;
+          moneyState.goalCreateIdempotencyKey = makeIdempotencyKey();
+          if (!draft) throw new Error("goal_draft_missing");
+          const summary = draft.confirmation && draft.confirmation.summary || [];
+          el.goalCreateDraftTitle.textContent = draft.confirmation && draft.confirmation.title || "Підтвердіть створення цілі";
+          el.goalCreateDraftMeta.textContent = summary.join(" - ");
+          el.goalCreateDraftAmount.textContent = draft.delta && draft.delta.display || summary[1] || goalCreatePayload().goal_amount;
+          el.goalCreateDraftCard.hidden = false;
+          el.goalCreateDraftCard.scrollIntoView({behavior: "smooth", block: "start"});
+          setGoalCreateStatus("Перевірте дані та підтвердьте створення.", "success");
+        }).catch(function (payload) {
+          setGoalCreateStatus(transactionErrorMessage(payload), "error");
+        }).finally(function () {
+          moneyState.goalCreateBusy = false;
+          if (el.goalCreatePreview) el.goalCreatePreview.disabled = false;
+        });
+      }
+
+      function confirmGoalCreateDraft() {
+        const el = moneyElements();
+        if (moneyState.goalCreateBusy || !moneyState.goalCreateDraft) return;
+        moneyState.goalCreateBusy = true;
+        if (el.goalCreateConfirm) el.goalCreateConfirm.disabled = true;
+        postJson(accountConfirmUrl, {
+          draft_id: moneyState.goalCreateDraft.draft_id,
+          idempotency_key: moneyState.goalCreateIdempotencyKey || makeIdempotencyKey()
+        }).then(function () {
+          resetGoalCreateDraft();
+          if (el.goalCreateForm) el.goalCreateForm.reset();
+          if (el.goalCreateCard) el.goalCreateCard.hidden = true;
+          invalidateAccountOptions();
+          return loadMoneyOptions(true);
+        }).then(function () {
+          setMoneyMode("goals");
+          const list = document.getElementById("moneyGoalsList");
+          if (list) list.scrollIntoView({behavior: "smooth", block: "start"});
+        }).catch(function (payload) {
+          setGoalCreateStatus(transactionErrorMessage(payload), "error");
+        }).finally(function () {
+          moneyState.goalCreateBusy = false;
+          if (el.goalCreateConfirm) el.goalCreateConfirm.disabled = false;
+        });
+      }
+
       function renderAccountDraft(draft) {
         const el = moneyElements();
         if (!draft || !el.accountDraftCard) return;
@@ -5564,6 +5731,11 @@
         if (el.transferDate && !el.transferDate.value) el.transferDate.value = todayIso();
         if (el.debtTransactionDate && !el.debtTransactionDate.value) el.debtTransactionDate.value = todayIso();
         if (el.accountForm) el.accountForm.addEventListener("submit", submitAccountDraft);
+        if (el.goalCreateOpen) el.goalCreateOpen.addEventListener("click", openGoalCreateForm);
+        if (el.goalCreateClose) el.goalCreateClose.addEventListener("click", closeGoalCreateForm);
+        if (el.goalCreateForm) el.goalCreateForm.addEventListener("submit", submitGoalCreateDraft);
+        if (el.goalCreateConfirm) el.goalCreateConfirm.addEventListener("click", confirmGoalCreateDraft);
+        if (el.goalCreateCancel) el.goalCreateCancel.addEventListener("click", resetGoalCreateDraft);
         if (el.transferForm) el.transferForm.addEventListener("submit", submitTransferDraft);
         if (el.debtForm) el.debtForm.addEventListener("submit", submitDebtDraft);
         if (el.accountAction) el.accountAction.addEventListener("change", function () {
