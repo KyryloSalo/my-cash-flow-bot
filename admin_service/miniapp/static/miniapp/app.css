@@ -698,17 +698,28 @@ textarea {
 }
 
 .goals-section-head {
-  align-items: flex-start;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
 }
 
 .goals-add-button {
   width: auto;
-  min-width: 132px;
-  flex: 0 0 auto;
-  padding-inline: 16px;
-  border-color: rgba(32, 224, 177, 0.28);
-  color: var(--green-2);
+  min-width: 154px;
+  min-height: 48px;
+  padding-inline: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.goals-add-button > span[aria-hidden="true"] {
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .goals-close-button {
@@ -726,11 +737,13 @@ textarea {
 
 @media (max-width: 520px) {
   .goals-section-head {
-    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
   }
 
   .goals-add-button {
     width: 100%;
+    min-width: 0;
   }
 }
 

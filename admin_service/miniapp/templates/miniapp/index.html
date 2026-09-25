@@ -960,7 +960,10 @@
                   <h2 data-money-i18n="goalsListTitle">Цілі та накопичення</h2>
                   <p data-money-i18n="goalsListSubtitle">Усі ваші активні фінансові цілі.</p>
                 </div>
-                <button class="secondary-action goals-add-button" id="moneyGoalsAdd" type="button">+ Додати ціль</button>
+                <button class="primary-action goals-add-button" id="moneyGoalsAdd" type="button">
+                  <span aria-hidden="true">+</span>
+                  <span>Додати ціль</span>
+                </button>
               </div>
               <div class="account-list" id="moneyGoalsList"></div>
             </article>
@@ -5394,6 +5397,7 @@
         const el = moneyElements();
         resetGoalCreateDraft();
         if (!el.goalCreateCard) return;
+        if (el.goalCreateOpen) el.goalCreateOpen.hidden = true;
         el.goalCreateCard.hidden = false;
         setGoalCreateStatus("", "");
         loadMoneyOptions(false).then(function () {
@@ -5412,6 +5416,7 @@
         resetGoalCreateDraft();
         if (el.goalCreateForm) el.goalCreateForm.reset();
         if (el.goalCreateCard) el.goalCreateCard.hidden = true;
+        if (el.goalCreateOpen) el.goalCreateOpen.hidden = false;
         setGoalCreateStatus("", "");
       }
 
