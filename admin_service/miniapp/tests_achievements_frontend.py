@@ -48,6 +48,9 @@ class AchievementsFrontendContractTests(SimpleTestCase):
         self.assertIn("overflow-wrap: anywhere", css)
         self.assertIn(".achievement-notification-card.is-single", css)
         self.assertIn("#d7ebe5", css)
+        self.assertIn(".achievement-card.is-earned .achievement-card-body h3", css)
+        self.assertIn(".achievement-card.is-earned .achievement-card-body p", css)
+        self.assertIn("color: #ffffff", css)
         self.assertIn("achievement-notification-open", javascript)
         self.assertIn("achievement-notification-list", javascript)
 

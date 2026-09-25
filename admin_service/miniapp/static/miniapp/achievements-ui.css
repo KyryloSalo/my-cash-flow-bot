@@ -204,7 +204,22 @@
 }
 
 .achievement-card.is-earned {
-  border-color: rgba(121, 231, 196, 0.25);
+  border-color: rgba(141, 242, 208, 0.56);
+  background: linear-gradient(160deg, rgba(16, 74, 63, 0.98), rgba(5, 39, 34, 0.98));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(141, 242, 208, 0.08);
+}
+
+.achievement-card.is-earned .achievement-card-body small,
+.achievement-card.is-earned .achievement-card-progress {
+  color: #8df2d0;
+}
+
+.achievement-card.is-earned .achievement-card-body h3 {
+  color: #ffffff;
+}
+
+.achievement-card.is-earned .achievement-card-body p {
+  color: #d7ebe5;
 }
 
 .achievement-card-art {
@@ -262,9 +277,9 @@
 }
 
 .achievement-pin.is-active {
-  border-color: rgba(121, 231, 196, 0.28);
-  color: var(--green-2);
-  background: rgba(69, 217, 174, 0.09);
+  border-color: rgba(141, 242, 208, 0.58);
+  color: #b9f8e3;
+  background: rgba(69, 217, 174, 0.18);
 }
 
 .achievement-mascot-options {
