@@ -184,6 +184,7 @@ def _record_new_registration_event(request: HttpRequest, registration) -> None:
 
 MINIAPP_TEMPLATE = "miniapp/index.html"
 MINIAPP_STATIC_DIR = Path(__file__).resolve().parent / "static" / "miniapp"
+MINIAPP_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / MINIAPP_TEMPLATE
 TRANSACTION_DRAFTS_SESSION_KEY = "miniapp_transaction_drafts"
 ACCOUNT_DRAFTS_SESSION_KEY = "miniapp_account_drafts"
 TRANSFER_DRAFTS_SESSION_KEY = "miniapp_transfer_drafts"
@@ -207,11 +208,15 @@ INSTALL_NUDGE_PROMPT_DELAYS = {
 INSTALL_NUDGE_TELEGRAM_FIRST_DELAY = timedelta(days=1)
 
 
-def _miniapp_asset_stamp(filename: str) -> int:
+def _miniapp_file_stamp(path: Path) -> int:
     try:
-        return (MINIAPP_STATIC_DIR / filename).stat().st_mtime_ns
+        return path.stat().st_mtime_ns
     except OSError:
         return 0
+
+
+def _miniapp_asset_stamp(filename: str) -> int:
+    return _miniapp_file_stamp(MINIAPP_STATIC_DIR / filename)
 
 
 MINIAPP_ASSET_VERSION = str(
@@ -220,6 +225,14 @@ MINIAPP_ASSET_VERSION = str(
         _miniapp_asset_stamp("app.js"),
         _miniapp_asset_stamp("install-coach.js"),
         _miniapp_asset_stamp("push.js"),
+        _miniapp_asset_stamp("sound-manager.js"),
+        _miniapp_asset_stamp("sounds/success.mp3"),
+        _miniapp_asset_stamp("sounds/achievement.mp3"),
+        _miniapp_asset_stamp("sounds/notify.mp3"),
+        _miniapp_asset_stamp("sounds/voice-start.mp3"),
+        _miniapp_asset_stamp("sounds/voice-stop.mp3"),
+        _miniapp_asset_stamp("sounds/error-soft.mp3"),
+        _miniapp_asset_stamp("sounds/LICENSE.json"),
         _miniapp_asset_stamp("icon-192.png"),
         _miniapp_asset_stamp("icon-512.png"),
         _miniapp_asset_stamp("icon-maskable-192.png"),
@@ -228,6 +241,7 @@ MINIAPP_ASSET_VERSION = str(
         _miniapp_asset_stamp("brand-icon.png"),
         _miniapp_asset_stamp("favicon-32.png"),
         _miniapp_asset_stamp("favicon-48.png"),
+        _miniapp_file_stamp(MINIAPP_TEMPLATE_PATH),
         1,
     )
 )
@@ -515,6 +529,13 @@ def manifest(request: HttpRequest) -> JsonResponse:
 def service_worker(request: HttpRequest) -> HttpResponse:
     app_css_url = _versioned_static("miniapp/app.css")
     install_coach_url = _versioned_static("miniapp/install-coach.js")
+    sound_manager_url = _versioned_static("miniapp/sound-manager.js")
+    success_sound_url = _versioned_static("miniapp/sounds/success.mp3")
+    achievement_sound_url = _versioned_static("miniapp/sounds/achievement.mp3")
+    notify_sound_url = _versioned_static("miniapp/sounds/notify.mp3")
+    voice_start_sound_url = _versioned_static("miniapp/sounds/voice-start.mp3")
+    voice_stop_sound_url = _versioned_static("miniapp/sounds/voice-stop.mp3")
+    error_sound_url = _versioned_static("miniapp/sounds/error-soft.mp3")
     icon_192_url = _versioned_static("miniapp/icon-192.png")
     icon_512_url = _versioned_static("miniapp/icon-512.png")
     icon_maskable_192_url = _versioned_static("miniapp/icon-maskable-192.png")
@@ -530,6 +551,13 @@ const SHELL_ASSETS = [
   APP_SHELL_URL,
   "{app_css_url}",
   "{install_coach_url}",
+  "{sound_manager_url}",
+  "{success_sound_url}",
+  "{achievement_sound_url}",
+  "{notify_sound_url}",
+  "{voice_start_sound_url}",
+  "{voice_stop_sound_url}",
+  "{error_sound_url}",
   "{icon_192_url}",
   "{icon_512_url}",
   "{icon_maskable_192_url}",
@@ -572,7 +600,7 @@ self.addEventListener("fetch", (event) => {{
     fetch(event.request)
       .then(async (response) => {{
         const mime = response.headers.get("Content-Type") || "";
-        const expectedType = isAppNavigation ? mime.startsWith("text/html") : ["text/css", "text/javascript", "application/javascript", "image/"].some((type) => mime.startsWith(type));
+        const expectedType = isAppNavigation ? mime.startsWith("text/html") : ["text/css", "text/javascript", "application/javascript", "image/", "audio/"].some((type) => mime.startsWith(type));
         const sameOrigin = !response.url || new URL(response.url).origin === self.location.origin;
         if (response.ok && !response.redirected && sameOrigin && expectedType) {{
           const copy = response.clone();

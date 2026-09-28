@@ -28,6 +28,8 @@ CORE_STATEMENTS = (
     'ALTER TABLE accounts ADD COLUMN IF NOT EXISTS goal_name TEXT',
     'ALTER TABLE accounts ADD COLUMN IF NOT EXISTS goal_amount NUMERIC(18,2)',
     'ALTER TABLE accounts ADD COLUMN IF NOT EXISTS goal_date DATE',
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS goal_status TEXT NOT NULL DEFAULT 'active'",
+    'ALTER TABLE accounts ADD COLUMN IF NOT EXISTS goal_completed_at TIMESTAMPTZ NULL',
     'ALTER TABLE accounts ADD COLUMN IF NOT EXISTS family_id BIGINT NULL REFERENCES families (id)',
     'ALTER TABLE accounts ADD COLUMN IF NOT EXISTS created_by_user_id BIGINT NULL REFERENCES users (tg_user_id)',
     'CREATE TABLE IF NOT EXISTS category_templates (\n  id BIGSERIAL PRIMARY KEY,\n  type TEXT NOT NULL,\n  name TEXT NOT NULL,\n  slug TEXT NULL,\n  aliases TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],\n  sort_order INT NOT NULL DEFAULT 0,\n  is_system BOOLEAN NOT NULL DEFAULT false,\n  is_active BOOLEAN NOT NULL DEFAULT true,\n  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),\n  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()\n)',

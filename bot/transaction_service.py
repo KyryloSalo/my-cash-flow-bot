@@ -295,7 +295,7 @@ class TransactionService:
                 )
                 ON CONFLICT (event_type, entity_type, entity_id) DO NOTHING
                 """,
-                int(transaction_id),
+                str(int(transaction_id)),
                 tg_user_id,
                 scope.family_id,
                 uuid5(NAMESPACE_URL, f"vydno:transaction.created:{int(transaction_id)}"),

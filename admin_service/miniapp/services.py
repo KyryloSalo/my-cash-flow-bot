@@ -1046,6 +1046,17 @@ def _goal_account_type(account: Account) -> str:
     return current
 
 
+def _goal_lifecycle_status(account: Account) -> str:
+    stored_status = str(getattr(account, "goal_status", "") or "").strip().lower()
+    if stored_status == "spent":
+        return "spent"
+    target = _quantize(getattr(account, "goal_amount", None))
+    balance = _quantize(getattr(account, "balance", None))
+    if target > ZERO and balance >= target:
+        return "funded"
+    return "active"
+
+
 def _resolve_runtime_account_type(
     *,
     balance: Decimal,
@@ -1084,6 +1095,8 @@ def _account_payload(account: Account, *, locale: str = "uk") -> dict[str, objec
         "goal_name": str(account.goal_name or "") or None,
         "goal_amount": money_payload(account.goal_amount, account.currency) if account.goal_amount is not None else None,
         "goal_date": account.goal_date.isoformat() if account.goal_date else None,
+        "goal_status": _goal_lifecycle_status(account),
+        "goal_completed_at": account.goal_completed_at.isoformat() if account.goal_completed_at else None,
     }
 
 
@@ -1475,6 +1488,16 @@ def build_transaction_draft(user: TelegramUser, payload: dict[str, object], *, d
     if account is None:
         raise MiniAppTransactionError("account_missing", "Account is not available.", status=404)
     category = _active_scoped_category(user, category_id, kind)
+    goal_spend = payload.get("goal_spend") is True
+    if goal_spend:
+        if kind != "expense" or _goal_lifecycle_status(account) != "funded":
+            raise MiniAppTransactionError("goal_not_ready_to_spend", "Goal must be fully funded before spending it.")
+        if amount != _quantize(account.balance):
+            raise MiniAppTransactionError(
+                "goal_spend_amount_mismatch",
+                "Goal spending must use the full saved balance.",
+                extra={"available": money_payload(account.balance, account.currency)},
+            )
     account_currency = _normalize_currency(account.currency)
     currency = _normalize_currency(payload.get("currency") or account_currency)
     if currency != account_currency:
@@ -1498,9 +1521,10 @@ def build_transaction_draft(user: TelegramUser, payload: dict[str, object], *, d
         "category": _category_payload(category),
         "category_id": int(category.id),
         "comment": comment,
+        "goal_spend": goal_spend,
         "source": MINIAPP_TRANSACTION_SOURCE,
         "confirmation": {
-            "title": mt("Підтвердіть операцію", "Confirm transaction", locale),
+            "title": mt("Підтвердіть витрату цілі", "Confirm goal spending", locale) if goal_spend else mt("Підтвердіть операцію", "Confirm transaction", locale),
             "summary": [
                 amount_payload["display"],
                 str(account.label or ""),
@@ -1562,6 +1586,7 @@ def commit_transaction_draft(user: TelegramUser, draft: dict[str, object]) -> di
     tx_date = _parse_transaction_date(draft.get("transaction_date"))
     comment = str(draft.get("comment") or "").strip()[:500] or None
     source = str(draft.get("source") or MINIAPP_TRANSACTION_SOURCE).strip()
+    goal_spend = draft.get("goal_spend") is True
     if source not in {MINIAPP_TRANSACTION_SOURCE, MINIAPP_BILLING_EXPENSE_SOURCE}:
         raise MiniAppTransactionError("invalid_transaction_source", "Unsupported transaction source.")
     scope = _resolve_finance_scope(user)
@@ -1580,6 +1605,15 @@ def commit_transaction_draft(user: TelegramUser, draft: dict[str, object]) -> di
             )
 
         current_balance = _quantize(account.balance)
+        if goal_spend:
+            if kind != "expense" or _goal_lifecycle_status(account) != "funded":
+                raise MiniAppTransactionError("goal_not_ready_to_spend", "Goal must be fully funded before spending it.")
+            if amount != current_balance:
+                raise MiniAppTransactionError(
+                    "goal_spend_amount_mismatch",
+                    "Goal spending must use the full saved balance.",
+                    extra={"available": money_payload(current_balance, account_currency)},
+                )
         balance_delta = amount if kind == "income" else -amount
         new_balance = _quantize(current_balance + balance_delta)
         current_account_type = _normalize_account_type(account.account_type)
@@ -1633,7 +1667,12 @@ def commit_transaction_draft(user: TelegramUser, draft: dict[str, object]) -> di
         account.balance = new_balance
         account.account_type = new_account_type
         account.non_negative_account_type = non_negative_account_type
-        account.save(update_fields=["balance", "account_type", "non_negative_account_type", "updated_at"])
+        account_update_fields = ["balance", "account_type", "non_negative_account_type", "updated_at"]
+        if goal_spend:
+            account.goal_status = "spent"
+            account.goal_completed_at = timezone.now()
+            account_update_fields.extend(["goal_status", "goal_completed_at"])
+        account.save(update_fields=account_update_fields)
 
     result_status = "completed"
     if current_account_type != CREDIT_ACCOUNT_TYPE and new_account_type == CREDIT_ACCOUNT_TYPE:
@@ -1659,6 +1698,7 @@ def commit_transaction_draft(user: TelegramUser, draft: dict[str, object]) -> di
         "previous_account_type": current_account_type,
         "new_account_type": new_account_type,
         "dashboard_refresh": True,
+        "goal_spend": goal_spend,
     }
 
 
@@ -2082,7 +2122,14 @@ def build_transfer_draft(user: TelegramUser, payload: dict[str, object], *, draf
     )
     tx_date = _parse_transaction_date(payload.get("transaction_date") or payload.get("date"))
     comment = str(payload.get("comment") or "").strip()[:500]
-    transfer_subtype = "credit_payment" if _normalize_account_type(target.account_type) == CREDIT_ACCOUNT_TYPE else None
+    target_type = _normalize_account_type(target.account_type)
+    transfer_subtype = (
+        "credit_payment"
+        if target_type == CREDIT_ACCOUNT_TYPE
+        else "savings_transfer"
+        if target_type in {"savings", "deposit", "investment"}
+        else None
+    )
     return {
         "draft_id": draft_id,
         "source_account_id": source_id,
@@ -2175,7 +2222,13 @@ def commit_transfer_draft(user: TelegramUser, draft: dict[str, object]) -> dict[
         target.account_type = target_next_type
         target.non_negative_account_type = target_non_negative_type
         target.save(update_fields=["balance", "account_type", "non_negative_account_type", "updated_at"])
-        transfer_subtype = "credit_payment" if target_type == CREDIT_ACCOUNT_TYPE else None
+        transfer_subtype = (
+            "credit_payment"
+            if target_type == CREDIT_ACCOUNT_TYPE
+            else "savings_transfer"
+            if target_type in {"savings", "deposit", "investment"}
+            else None
+        )
         tx = Transaction.objects.create(
             tg_user=user,
             created_by_user_id=user.tg_user_id,
@@ -3256,6 +3309,8 @@ def build_goals_preview(user: TelegramUser, *, limit: int = 4) -> dict[str, obje
         }
 
     goal_date_expr = "goal_date" if "goal_date" in columns else "NULL AS goal_date"
+    goal_status_expr = "goal_status" if "goal_status" in columns else "'active' AS goal_status"
+    goal_status_filter = "AND COALESCE(goal_status, 'active') <> 'spent'" if "goal_status" in columns else ""
     scope = _resolve_finance_scope(user)
     if scope.is_family:
         scope_condition = "family_id = %s"
@@ -3266,7 +3321,7 @@ def build_goals_preview(user: TelegramUser, *, limit: int = 4) -> dict[str, obje
     with connection.cursor() as cursor:
         cursor.execute(
             f"""
-            SELECT id, label, currency, balance, goal_name, goal_amount, {goal_date_expr}
+            SELECT id, label, currency, balance, goal_name, goal_amount, {goal_date_expr}, {goal_status_expr}
             FROM accounts
             WHERE {scope_condition}
               AND is_active = true
@@ -3274,6 +3329,7 @@ def build_goals_preview(user: TelegramUser, *, limit: int = 4) -> dict[str, obje
               AND goal_name IS NOT NULL
               AND goal_name <> ''
               AND goal_amount IS NOT NULL
+              {goal_status_filter}
             ORDER BY id DESC
             LIMIT %s
             """,
@@ -3283,7 +3339,7 @@ def build_goals_preview(user: TelegramUser, *, limit: int = 4) -> dict[str, obje
 
     items = []
     for row in rows:
-        account_id, label, currency, balance, goal_name, goal_amount, goal_date = row
+        account_id, label, currency, balance, goal_name, goal_amount, goal_date, goal_status = row
         current = _quantize(balance)
         target = _quantize(goal_amount)
         progress = 0 if target <= ZERO else int((current / target * ONE_HUNDRED).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
@@ -3295,6 +3351,7 @@ def build_goals_preview(user: TelegramUser, *, limit: int = 4) -> dict[str, obje
                 "target_amount": money_payload(target, currency),
                 "progress_percent": progress,
                 "target_date": goal_date.isoformat() if goal_date else None,
+                "goal_status": "funded" if str(goal_status or "active") != "spent" and target > ZERO and current >= target else str(goal_status or "active"),
             }
         )
 

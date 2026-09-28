@@ -158,7 +158,7 @@ class TransactionServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(conn.transactions[0]["category_label_arg"], "Зарплата")
         outbox_query, outbox_args = conn.execute_calls[1]
         self.assertIn("INSERT INTO gamification_event_outbox", outbox_query)
-        self.assertEqual(outbox_args[0], 1)
+        self.assertEqual(outbox_args[0], "1")
         self.assertEqual(outbox_args[1], 123)
         self.assertEqual(outbox_args[4], "text")
 

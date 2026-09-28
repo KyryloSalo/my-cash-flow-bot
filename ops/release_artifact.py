@@ -17,8 +17,9 @@ import zipfile
 
 ROOT_FILES = {'compose.yml', 'deploy_v0_on_vps.sh'}
 ROOT_DIRS = {'bot', 'admin_service', 'nginx', 'ops', 'runtime_schema', '.github'}
+EXTRA_FILES = {'admin_service/miniapp/static/miniapp/sounds/LICENSE.json'}
 BLOCKED_DIRS = {'__pycache__', '.git', '.venv', 'venv', '.venv-admin', 'node_modules', 'staticfiles', 'www', 'Archive', 'local_artifacts', 'certs', 'letsencrypt', 'secrets'}
-SUFFIXES = {'.service', '.timer', '.ps1', '.py', '.txt', '.lock', '.sh', '.yml', '.yaml', '.html', '.css', '.js', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.ico', '.woff', '.woff2', '.ttf', '.webmanifest', '.po', '.mo', '.template', '.md'}
+SUFFIXES = {'.service', '.timer', '.ps1', '.py', '.txt', '.lock', '.sh', '.yml', '.yaml', '.html', '.css', '.js', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.ico', '.woff', '.woff2', '.ttf', '.mp3', '.webmanifest', '.po', '.mo', '.template', '.md'}
 REQUIRED = {
     'compose.yml',
     'deploy_v0_on_vps.sh',
@@ -45,7 +46,7 @@ def allowed_path(value: str) -> bool:
     p = PurePosixPath(value)
     if p.as_posix() != value or any(part in {'.','..'} or blocked_component(part) for part in p.parts):
         return False
-    if value in REQUIRED:
+    if value in REQUIRED or value in EXTRA_FILES:
         return True
     if value in ROOT_FILES:
         return True

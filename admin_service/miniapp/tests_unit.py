@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 import base64
 import os
 import sys
 import unittest
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -53,6 +55,59 @@ class MiniAppMoneyAggregationUnitTests(SimpleTestCase):
         account = SimpleNamespace(account_type="credit", non_negative_account_type="savings")
 
         self.assertEqual(services._goal_account_type(account), "savings")
+
+    def test_goal_lifecycle_keeps_funded_goal_closed_until_it_is_spent(self) -> None:
+        funded = SimpleNamespace(goal_status="active", goal_amount="1000.00", balance="1000.00")
+        spent = SimpleNamespace(goal_status="spent", goal_amount="1000.00", balance="0.00")
+
+        self.assertEqual(services._goal_lifecycle_status(funded), "funded")
+        self.assertEqual(services._goal_lifecycle_status(spent), "spent")
+
+    def test_goal_spend_draft_requires_and_preserves_full_funded_balance(self) -> None:
+        user = SimpleNamespace(tg_user_id=1001, lang="uk", base_currency="UAH")
+        account = SimpleNamespace(
+            id=17,
+            label="Ноутбук",
+            currency="UAH",
+            account_type="savings",
+            non_negative_account_type="savings",
+            balance=Decimal("50000.00"),
+            credit_limit=None,
+            goal_name="Новий ноутбук",
+            goal_amount=Decimal("50000.00"),
+            goal_date=None,
+            goal_status="active",
+            goal_completed_at=None,
+        )
+        category = SimpleNamespace(id=3, name="Техніка", type="expense", kind="expense")
+        payload = {
+            "kind": "expense",
+            "amount": "50000.00",
+            "account_id": "17",
+            "category_id": "3",
+            "transaction_date": "2026-09-28",
+            "goal_spend": True,
+        }
+
+        with (
+            patch.object(services, "_active_scoped_account", return_value=account),
+            patch.object(services, "_active_scoped_category", return_value=category),
+        ):
+            draft = services.build_transaction_draft(user, payload, draft_id="goal-spend")
+
+        self.assertTrue(draft["goal_spend"])
+        self.assertEqual(draft["amount_value"], "50000.00")
+        self.assertEqual(draft["confirmation"]["title"], "Підтвердіть витрату цілі")
+
+        payload["amount"] = "49000.00"
+        with (
+            patch.object(services, "_active_scoped_account", return_value=account),
+            patch.object(services, "_active_scoped_category", return_value=category),
+            self.assertRaises(services.MiniAppTransactionError) as error,
+        ):
+            services.build_transaction_draft(user, payload, draft_id="goal-spend-short")
+
+        self.assertEqual(error.exception.code, "goal_spend_amount_mismatch")
 
     def test_credit_limit_parser_uses_money_precision_and_database_range(self) -> None:
         value = services._parse_optional_credit_limit("9999999999999999.99")
@@ -1380,38 +1435,19 @@ class MiniAppViewUnitTests(unittest.TestCase):
             "https://t.me/vydnocapital_bot?start=app_login",
         )
 
-    @override_settings(DEBUG=True)
     def test_index_exposes_native_goal_progress_on_overview(self) -> None:
-        request = self.factory.get("/app/")
-        request.session = FakeSession()
-
-        response = views.index(request)
-        body = response.content.decode("utf-8")
+        body = (Path(__file__).parent / "templates" / "miniapp" / "index.html").read_text(encoding="utf-8")
 
         self.assertIn('id="overviewGoalsCard"', body)
         self.assertIn('id="overviewGoalsList"', body)
         self.assertIn('id="overviewGoalsEmpty"', body)
-        self.assertIn('id="overviewGoalsCreate"', body)
-        self.assertIn('id="moneyGoalsAdd"', body)
-        self.assertIn('class="primary-action goals-add-button"', body)
-        self.assertIn('id="goalCreateForm"', body)
-        self.assertIn('id="goalCreateName"', body)
-        self.assertIn('id="goalCreateAmount"', body)
-        self.assertIn('id="goalCreateCurrent"', body)
-        self.assertIn('id="goalCreateType"', body)
-        self.assertIn('id="goalCreateCurrency"', body)
-        self.assertIn('id="goalCreateDate"', body)
-        self.assertIn('id="goalCreateDraftCard"', body)
+        self.assertIn('id="overviewGoalsOpenAll"', body)
         self.assertIn("function renderOverviewGoals()", body)
-        self.assertIn("function submitGoalCreateDraft(event)", body)
-        self.assertIn("function confirmGoalCreateDraft()", body)
-        self.assertIn("if (el.goalCreateOpen) el.goalCreateOpen.hidden = true", body)
-        self.assertIn("if (el.goalCreateOpen) el.goalCreateOpen.hidden = false", body)
         self.assertIn("goal-progress-track", body)
         self.assertIn("function goalAccountType(account)", body)
         self.assertIn("function goalEscapeHtml(value)", body)
         self.assertNotIn("escapeHtml(account.goal_name", body)
-        self.assertEqual(body.count("const type = goalAccountType(account);"), 3)
+        self.assertEqual(body.count("const type = goalAccountType(account);"), 4)
         self.assertIn("const selectedType = goalAccountType(selected) || \"main\";", body)
         goal_editor_source = body[
             body.index("function openGoalEditor(account)") : body.index("function openGoalsPanel()")
@@ -1428,7 +1464,63 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertIn('target === "overview"', body)
         self.assertIn("loadGoalOptions(false)", body)
         self.assertIn("moneyState.options && moneyState.debtOptions && !force", body)
-        self.assertNotIn("activeGoals.slice(0, 3)", body)
+
+    def test_goals_empty_state_offers_creation_and_hidden_forms_stay_hidden(self) -> None:
+        body = (Path(__file__).parent / "templates" / "miniapp" / "index.html").read_text(encoding="utf-8")
+        css = (Path(__file__).parent / "static" / "miniapp" / "app.css").read_text(encoding="utf-8")
+
+        self.assertIn('id="moneyGoalsEmpty"', body)
+        self.assertIn('id="moneyGoalsCreate"', body)
+        self.assertIn('id="moneyGoalsAdd"', body)
+        self.assertIn('data-money-i18n="goalsCreate"', body)
+        self.assertIn("moneyGoalsCreate: document.getElementById(\"moneyGoalsCreate\")", body)
+        self.assertIn("moneyGoalsAdd: document.getElementById(\"moneyGoalsAdd\")", body)
+        self.assertIn("el.moneyGoalsEmpty.hidden = Boolean(goalAccounts.length);", body)
+        self.assertIn("el.moneyGoalsCreate.addEventListener(\"click\", openGoalCreate)", body)
+        self.assertIn("el.moneyGoalsAdd.addEventListener(\"click\", openGoalCreate)", body)
+        self.assertIn("if (el.card) el.card.hidden = !available || !tasks.length;", body)
+        self.assertIn("function goalProgressWidth(progress)", body)
+        self.assertNotIn("Math.min(100, Math.round((goalMoneyValue(account.balance) / target) * 100))", body)
+        self.assertIn("[hidden]", css)
+        self.assertIn("display: none !important;", css)
+
+    def test_goal_click_tops_up_active_goal_and_exposes_spend_for_funded_goal(self) -> None:
+        body = (Path(__file__).parent / "templates" / "miniapp" / "index.html").read_text(encoding="utf-8")
+        css = (Path(__file__).parent / "static" / "miniapp" / "app.css").read_text(encoding="utf-8")
+
+        self.assertIn('class="goals-management-actions"', body)
+        self.assertIn('id="moneyGoalsAdjust"', body)
+        self.assertIn('data-money-i18n="goalsAdjust"', body)
+        self.assertIn('id="moneyClosedGoalsSection"', body)
+        self.assertIn('id="moneyClosedGoalsList"', body)
+        self.assertIn("function goalIsClosed(account)", body)
+        self.assertIn('account.goal_status === "funded"', body)
+        self.assertIn('account.goal_status === "spent"', body)
+        self.assertIn("const closedGoals = goalAccounts.filter(goalIsClosed);", body)
+        goal_card_source = body[
+            body.index("function createGoalCard(account, compact)") : body.index("function renderOverviewGoals()")
+        ]
+        self.assertIn("if (closed) openGoalSpendDetails(account);", goal_card_source)
+        self.assertIn("else openGoalTopUp(account);", goal_card_source)
+        self.assertNotIn("openGoalEditor(account);", goal_card_source)
+        self.assertIn("function openGoalTopUp(account)", body)
+        self.assertIn("function openGoalAdjust()", body)
+        self.assertIn("return openGoalEditor(target);", body)
+        self.assertIn('moneyGoalsAdjust: document.getElementById("moneyGoalsAdjust")', body)
+        self.assertIn('el.moneyGoalsAdjust.addEventListener("click", openGoalAdjust)', body)
+        self.assertIn("el.transferTarget.value = String(account.id);", body)
+        self.assertIn("el.transferSource.focus();", body)
+        self.assertIn('account.goal_status !== "spent"', body)
+        self.assertIn('id="moneyGoalSpendBtn"', body)
+        self.assertIn('goal_spend: Boolean(transactionState.goalSpendAccountId)', body)
+        self.assertIn('transactionState.goalSpendAccountId = String(account.id);', body)
+        self.assertIn('goalSpent: "Виконано · кошти витрачено"', body)
+        self.assertIn('goalSpendAction: "Витратити"', body)
+        self.assertIn(".goals-management-actions", css)
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr));", css)
+        self.assertIn(".closed-goals-section", css)
+        self.assertIn(".goal-spend-panel", css)
+        self.assertIn(".money-goal-row.is-closed", css)
 
     @override_settings(DEBUG=True)
     def test_index_exposes_standalone_oidc_recovery_with_bot_fallback(self) -> None:
@@ -1502,6 +1594,16 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertIn('const APP_SHELL_URL = "/app/"', body)
         self.assertIn('url.pathname.startsWith("/app/api/")', body)
         self.assertIn('url.pathname.startsWith("/static/miniapp/")', body)
+        for asset in (
+            "sound-manager.js",
+            "sounds/success.mp3",
+            "sounds/achievement.mp3",
+            "sounds/notify.mp3",
+            "sounds/voice-start.mp3",
+            "sounds/voice-stop.mp3",
+            "sounds/error-soft.mp3",
+        ):
+            self.assertIn(f'/static/miniapp/{asset}?v={views.MINIAPP_ASSET_VERSION}', body)
         self.assertIn(
             'const isAppNavigation = event.request.mode === "navigate" && ["/app/", "/app"].includes(url.pathname)',
             body,
@@ -1847,6 +1949,11 @@ class MiniAppShellTemplateUnitTests(SimpleTestCase):
         self.assertContains(response, 'function setupMoneyForms()')
         self.assertContains(response, 'function loadAnalyticsDetails(force)')
         self.assertContains(response, 'function setupSettingsForms()')
+        self.assertContains(response, 'id="soundEnabledSetting"', count=1)
+        self.assertContains(response, 'id="achievementSoundsEnabledSetting"', count=1)
+        self.assertContains(response, 'id="hapticsEnabledSetting"', count=1)
+        self.assertContains(response, 'data-sound-base="/static/miniapp/sounds/"')
+        self.assertContains(response, 'src="/static/miniapp/sound-manager.js')
         self.assertContains(response, 'function showBillingGate(access)')
         self.assertContains(response, 'function loadHelpContent(topicId)')
         self.assertContains(response, 'function loadBillingExpenseOptions()')

@@ -27,6 +27,8 @@ class Account(models.Model):
     goal_name = models.TextField(blank=True, null=True)
     goal_amount = models.DecimalField(max_digits=18, decimal_places=2, blank=True, null=True)
     goal_date = models.DateField(blank=True, null=True)
+    goal_status = models.TextField(default="active")
+    goal_completed_at = models.DateTimeField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(blank=True, null=True)
     updated_at = models.DateTimeField(blank=True, null=True)
@@ -56,6 +58,8 @@ class Account(models.Model):
             self.account_type = "other"
         if not self.non_negative_account_type:
             self.non_negative_account_type = "main"
+        if not self.goal_status:
+            self.goal_status = "active"
         super().save(*args, **kwargs)
 
 

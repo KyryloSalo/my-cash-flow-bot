@@ -20,6 +20,7 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="{% static 'miniapp/app.css' %}?v={{ miniapp_asset_version }}">
   <link rel="stylesheet" href="{% static 'miniapp/achievements-ui.css' %}?v={{ miniapp_asset_version }}">
+  <script defer src="{% static 'miniapp/sound-manager.js' %}?v={{ miniapp_asset_version }}" data-sound-base="{% static 'miniapp/sounds/' %}" data-asset-version="{{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/install-coach.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/push.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/achievements.js' %}?v={{ miniapp_asset_version }}"></script>
@@ -955,52 +956,34 @@
         <div class="money-panel" data-money-panel="goals" hidden>
           <div class="stack">
             <article class="card card-pad">
-              <div class="section-head goals-section-head">
+              <div class="section-head goals-management-head">
                 <div>
                   <h2 data-money-i18n="goalsListTitle">Цілі та накопичення</h2>
-                  <p data-money-i18n="goalsListSubtitle">Усі ваші активні фінансові цілі.</p>
+                  <p data-money-i18n="goalsListSubtitle">Натисніть на ціль, щоб поповнити її з іншого рахунку.</p>
                 </div>
-                <button class="primary-action goals-add-button" id="moneyGoalsAdd" type="button">
-                  <span aria-hidden="true">+</span>
-                  <span>Додати ціль</span>
-                </button>
+              </div>
+              <div class="goals-management-actions">
+                <button class="primary-action" id="moneyGoalsAdd" type="button" data-money-i18n="goalsCreate">Створити ціль</button>
+                <button class="ghost-action" id="moneyGoalsAdjust" type="button" data-money-i18n="goalsAdjust">Коригувати ціль</button>
               </div>
               <div class="account-list" id="moneyGoalsList"></div>
-            </article>
-
-            <article class="card card-pad" id="goalCreateCard" hidden>
-              <div class="section-head">
-                <div>
-                  <h2>Нова ціль</h2>
-                  <p>Створіть рахунок накопичення з цільовою сумою та строком.</p>
+              <div class="closed-goals-section" id="moneyClosedGoalsSection" hidden>
+                <div class="closed-goals-heading">
+                  <strong data-money-i18n="goalsClosedTitle">Закриті цілі</strong>
+                  <span data-money-i18n="goalsClosedSubtitle">Ціль досягнута. Рахунок і накопичення збережені.</span>
                 </div>
-                <button class="ghost-action goals-close-button" id="goalCreateClose" type="button" aria-label="Закрити">×</button>
+                <div class="account-list" id="moneyClosedGoalsList"></div>
               </div>
-              <form class="tx-form" id="goalCreateForm">
-                <label class="form-field">
-                  <span>Назва цілі</span>
-                  <input id="goalCreateName" name="goal_name" type="text" maxlength="120" autocomplete="off" placeholder="Наприклад, Подушка безпеки" required>
-                </label>
-                <div class="form-grid">
-                  <label class="form-field"><span>Цільова сума</span><input id="goalCreateAmount" name="goal_amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00" required></label>
-                  <label class="form-field"><span>Вже накопичено</span><input id="goalCreateCurrent" name="starting_balance" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00"></label>
+              <div class="goal-spend-panel" id="moneyGoalSpendPanel" hidden>
+                <div>
+                  <strong id="moneyGoalSpendTitle">Витратити накопичення</strong>
+                  <p data-money-i18n="goalSpendExplanation">Це створить витрату з рахунку цілі. Після підтвердження ціль залишиться виконаною, а її кошти більше не входитимуть до загального балансу.</p>
                 </div>
-                <div class="form-grid">
-                  <label class="form-field"><span>Тип рахунку</span><select id="goalCreateType" name="account_type"><option value="savings">Накопичення</option><option value="investment">Інвестиції</option></select></label>
-                  <label class="form-field"><span>Валюта</span><select id="goalCreateCurrency" name="currency"></select></label>
-                </div>
-                <label class="form-field"><span>Строк</span><input id="goalCreateDate" name="goal_date" type="date"></label>
-                <button class="primary-action" id="goalCreatePreviewBtn" type="submit">Перевірити</button>
-                <div class="form-status" id="goalCreateStatus" hidden aria-live="polite"></div>
-              </form>
-            </article>
-
-            <article class="card card-pad tx-draft-card" id="goalCreateDraftCard" hidden>
-              <div class="section-head"><div><h2 id="goalCreateDraftTitle">Підтвердіть створення цілі</h2><p id="goalCreateDraftMeta">-</p></div></div>
-              <div class="draft-amount" id="goalCreateDraftAmount">-</div>
-              <div class="draft-actions">
-                <button class="primary-action" id="goalCreateConfirmBtn" type="button">Створити ціль</button>
-                <button class="ghost-action" id="goalCreateCancelBtn" type="button" data-money-i18n="moneyCancel">Скасувати</button>
+                <button class="primary-action" id="moneyGoalSpendBtn" type="button" data-money-i18n="goalSpendAction">Витратити</button>
+              </div>
+              <div class="overview-goals-empty" id="moneyGoalsEmpty" hidden>
+                <strong data-money-i18n="goalsNoItems">Немає рахунків для накопичень або інвестицій.</strong>
+                <button class="primary-action" id="moneyGoalsCreate" type="button" data-money-i18n="goalsCreate">Створити ціль</button>
               </div>
             </article>
 
@@ -1320,98 +1303,6 @@
             </div>
             <div class="account-list" id="accountList"></div>
           </article>
-
-          <article class="card card-pad">
-            <div class="section-head">
-              <div>
-                <h2 id="statusCreditHeading">Кредитний режим</h2>
-                <p id="statusCreditSubtitle">Ліміти й активні рахунки в мінусі</p>
-              </div>
-            </div>
-
-            <div class="status-grid">
-              <div class="status-mini">
-                <div class="k" id="debtAmountLabel">Загальний борг</div>
-                <div class="v" id="debtAmount">0 грн</div>
-              </div>
-              <div class="status-mini">
-                <div class="k" id="activeCardsLabel">Активні рахунки</div>
-                <div class="v" id="activeCards">0</div>
-              </div>
-            </div>
-
-            <div class="progress red">
-              <span id="debtProgress"></span>
-            </div>
-            <p class="tx-meta" id="debtCaption" style="margin-top: 10px;">Рахунки у кредитному режимі з’являться тут автоматично.</p>
-          </article>
-
-          <article class="card card-pad">
-            <div class="section-head">
-              <div>
-                <h2 id="statusDebtsHeading">Борги</h2>
-                <p id="statusDebtsSubtitle">Хто вам винен і кому винні ви</p>
-              </div>
-            </div>
-
-            <div class="status-grid">
-              <div class="status-mini">
-                <div class="k" id="owedToUserLabel">Мені винні</div>
-                <div class="v positive" id="owedToUser">0 грн</div>
-              </div>
-              <div class="status-mini">
-                <div class="k" id="owedByUserLabel">Я винен</div>
-                <div class="v negative" id="owedByUser">0 грн</div>
-              </div>
-            </div>
-
-            <p class="tx-meta" id="debtsCaption" style="margin-top: 10px;">Активних боргів поки немає.</p>
-          </article>
-
-          <article class="card card-pad">
-            <div class="section-head">
-              <div>
-                <h2 id="statusGoalsHeading">Цілі та заощадження</h2>
-                <p id="statusGoalsSubtitle">Прогрес по головній цілі</p>
-              </div>
-            </div>
-
-            <div class="goal-row">
-              <div class="goal-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none">
-                  <path d="M12 3l7 3v5c0 4.4-2.8 8.4-7 10-4.2-1.6-7-5.6-7-10V6l7-3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
-                  <path d="M8.8 12.2l2.1 2.1 4.7-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                </svg>
-              </div>
-
-              <div>
-                <div class="goal-title" id="goalTitle">Цілі не налаштовані</div>
-                <div class="goal-meta">
-                  <span id="goalAmount">0 з 0 грн</span>
-                  <span id="goalPct">0%</span>
-                </div>
-                <div class="progress" style="margin-top: 8px;">
-                  <span id="goalProgress"></span>
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <article class="card card-pad">
-            <div class="section-head">
-              <div>
-                <h2 id="statusInvestmentsHeading">Інвестиції</h2>
-                <p id="statusInvestmentsSubtitle">Поки що показуємо лише поточний стан інвест-рахунків.</p>
-              </div>
-            </div>
-
-            <div class="investment-row">
-              <div>
-                <div class="investment-k" id="investmentValueLabel">Поточна вартість</div>
-                <div class="investment-v" id="investmentValue">-</div>
-              </div>
-            </div>
-          </article>
         </div>
         <section class="achievement-status-pane" id="achievementsStatusPane" role="tabpanel" aria-labelledby="statusAchievementsTab" hidden>
           <article class="card card-pad achievement-hero">
@@ -1469,6 +1360,22 @@
             </label>
             <button class="primary-action" id="achievementSettingsSave" type="button">Зберегти</button>
             <p class="form-status" id="achievementSettingsStatus" hidden aria-live="polite"></p>
+          </article>
+
+          <article class="card card-pad" id="soundSettingsCard">
+            <div class="section-head">
+              <div>
+                <h2>Звуки / Sounds</h2>
+                <p>Тихі сигнали підтвердження зберігаються лише на цьому пристрої.</p>
+              </div>
+            </div>
+            <div class="sound-settings-grid">
+              <label class="settings-toggle"><input id="soundEnabledSetting" type="checkbox"><span>Звуки інтерфейсу / Interface sounds</span></label>
+              <label class="settings-toggle"><input id="achievementSoundsEnabledSetting" type="checkbox"><span>Звуки досягнень / Achievement sounds</span></label>
+              <label class="settings-toggle"><input id="hapticsEnabledSetting" type="checkbox"><span>Вібрація / Haptics</span></label>
+            </div>
+            <button class="secondary-action" id="soundPreviewButton" type="button">Прослухати / Preview</button>
+            <p class="form-status" id="soundSettingsStatus" hidden aria-live="polite"></p>
           </article>
 
           <article class="card card-pad" id="notificationSettingsCard">
@@ -2066,9 +1973,20 @@
           debtCommitted: "Борг оновлено.",
           debtNoItems: "Активних боргів поки немає.",
           goalsListTitle: "Цілі та накопичення",
-          goalsListSubtitle: "Оберіть рахунок, щоб налаштувати або оновити його ціль.",
+          goalsListSubtitle: "Натисніть на ціль, щоб поповнити її переказом з іншого рахунку.",
           goalsNoItems: "Немає рахунків для накопичень або інвестицій.",
+          goalsCreate: "Створити ціль",
+          goalsAdjust: "Коригувати ціль",
           goalsConfigure: "Налаштувати ціль",
+          goalsClosedTitle: "Закриті цілі",
+          goalsClosedSubtitle: "Ціль досягнута. Рахунок і накопичення збережені.",
+          goalClosed: "Досягнуто · очікує витрати",
+          goalSpent: "Виконано · кошти витрачено",
+          goalSpendAction: "Витратити",
+          goalSpendTitle: "Витратити накопичення на {goal}",
+          goalSpendExplanation: "Це створить витрату з рахунку цілі. Після підтвердження ціль залишиться виконаною, а її кошти більше не входитимуть до загального балансу.",
+          goalSpendComment: "Витрата на фінансову ціль: {goal}",
+          goalTopUpComment: "Поповнення фінансової цілі",
           overviewGoalsTitle: "Фінансові цілі",
           overviewGoalsSubtitle: "Прогрес накопичень у вашому активному бюджеті.",
           overviewGoalsAll: "Усі цілі",
@@ -2364,9 +2282,20 @@
           debtCommitted: "Debt updated.",
           debtNoItems: "No active debts yet.",
           goalsListTitle: "Goals and savings",
-          goalsListSubtitle: "Choose an account to configure or update its goal.",
+          goalsListSubtitle: "Tap a goal to top it up with a transfer from another account.",
           goalsNoItems: "No savings or investment accounts yet.",
+          goalsCreate: "Create goal",
+          goalsAdjust: "Adjust goal",
           goalsConfigure: "Configure goal",
+          goalsClosedTitle: "Closed goals",
+          goalsClosedSubtitle: "The target was reached. The account and savings are preserved.",
+          goalClosed: "Funded · waiting to be spent",
+          goalSpent: "Completed · funds spent",
+          goalSpendAction: "Spend",
+          goalSpendTitle: "Spend savings on {goal}",
+          goalSpendExplanation: "This creates an expense from the goal account. After confirmation the goal stays completed and its funds no longer count toward the total balance.",
+          goalSpendComment: "Financial goal spending: {goal}",
+          goalTopUpComment: "Financial goal top-up",
           overviewGoalsTitle: "Financial goals",
           overviewGoalsSubtitle: "Savings progress in your active budget.",
           overviewGoalsAll: "All goals",
@@ -2695,7 +2624,8 @@
         idempotencyKey: null,
         draftFingerprint: null,
         requiredCurrency: null,
-        aiImageBatchContext: null
+        aiImageBatchContext: null,
+        goalSpendAccountId: null
       };
       const aiImageBatchState = {
         batch: null,
@@ -2725,7 +2655,8 @@
         transferIdempotencyKey: null,
         debtDraft: null,
         debtBusy: false,
-        debtIdempotencyKey: null
+        debtIdempotencyKey: null,
+        selectedGoalSpendAccountId: null
       };
       const familyState = {
         payload: null,
@@ -3331,10 +3262,11 @@
         });
       }
 
-      function uploadAiVoiceRecording(chunks, mimeType) {
+      function uploadAiVoiceRecording(chunks, mimeType, errorEventKey) {
         const blob = new Blob(chunks, { type: mimeType || "" });
         const detectedMimeType = normalizeAiVoiceMime(blob.type || mimeType);
         if (!blob.size || blob.size > 10 * 1024 * 1024 || !detectedMimeType || !aiVoiceParseUrl) {
+          playSoundEffect("error-soft", { eventKey: errorEventKey });
           aiVoiceState.busy = false;
           syncAiVoiceControls();
           setAiVoiceStatus(tr("aiVoiceInvalid"), "error");
@@ -3348,6 +3280,7 @@
           .then(function () { return postFormData(aiVoiceParseUrl, formData); })
           .then(applyAiVoiceSuggestion)
           .catch(function (errorPayload) {
+            playSoundEffect("error-soft", { eventKey: errorEventKey });
             setAiVoiceStatus(transactionErrorMessage(errorPayload), "error");
           })
           .finally(function () {
@@ -3370,6 +3303,7 @@
       function startAiVoiceRecording() {
         if (transactionState.busy) return false;
         if (!isAiVoiceSupported() || aiVoiceState.busy || aiVoiceState.requesting) return;
+        const errorEventKey = "voice-error:" + Date.now();
         aiVoiceState.requesting = true;
         setAiVoiceTranscript("");
         setAiVoiceStatus("", "muted");
@@ -3402,21 +3336,29 @@
             recorder.addEventListener("stop", function () {
               const chunks = aiVoiceState.chunks.slice();
               const completedMimeType = aiVoiceState.mimeType;
+              const completedStartedAt = aiVoiceState.startedAt;
               aiVoiceState.chunks = [];
               aiVoiceState.recorder = null;
               aiVoiceState.recording = false;
               releaseAiVoiceStream();
-              uploadAiVoiceRecording(chunks, completedMimeType);
+              playSoundEffect("voice-stop", { eventKey: "voice-stop:" + completedStartedAt })
+                .finally(function () {
+                  uploadAiVoiceRecording(chunks, completedMimeType, "voice-error:" + completedStartedAt);
+                });
             });
             aiVoiceState.startedAt = Date.now();
-            aiVoiceState.recording = true;
-            recorder.start(250);
-            aiVoiceState.timerId = window.setInterval(updateAiVoiceTimer, 250);
-            renderAiVoiceTimer(0);
-            setAiVoiceStatus(tr("aiVoiceRecording"), "muted");
+            return playSoundEffect("voice-start", { eventKey: "voice-start:" + aiVoiceState.startedAt })
+              .then(function () {
+                aiVoiceState.recording = true;
+                recorder.start(250);
+                aiVoiceState.timerId = window.setInterval(updateAiVoiceTimer, 250);
+                renderAiVoiceTimer(0);
+                setAiVoiceStatus(tr("aiVoiceRecording"), "muted");
+              });
           })
           .catch(function (error) {
             releaseAiVoiceStream();
+            playSoundEffect("error-soft", { eventKey: errorEventKey });
             const denied = error && error.name === "NotAllowedError";
             setAiVoiceStatus(denied ? tr("aiVoicePermissionDenied") : tr("aiVoiceInvalid"), "error");
           })
@@ -3711,6 +3653,21 @@
         return hex.slice(0, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16) + "-" + hex.slice(16, 20) + "-" + hex.slice(20);
       }
 
+      function playSoundEffect(name, options) {
+        if (!window.SoundManager || typeof window.SoundManager.play !== "function") return Promise.resolve(false);
+        return window.SoundManager.play(name, options || {}).catch(function () { return false; });
+      }
+
+      function setupSoundSettings() {
+        const manager = window.SoundManager;
+        if (!manager) return;
+        if (typeof manager.preload === "function") {
+          const preload = function () { manager.preload().catch(function () {}); };
+          if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(preload, { timeout: 2000 });
+          else window.setTimeout(preload, 300);
+        }
+      }
+
       function optionText(label, extra) {
         return extra ? label + " - " + extra : label;
       }
@@ -3797,6 +3754,7 @@
         if (!keepRequiredCurrency) {
           transactionState.requiredCurrency = null;
           transactionState.aiImageBatchContext = null;
+          transactionState.goalSpendAccountId = null;
         }
         document.querySelectorAll("[data-tx-kind]").forEach(function (button) {
           button.classList.toggle("is-active", button.dataset.txKind === transactionState.kind);
@@ -3824,6 +3782,7 @@
           category_id: el.category ? el.category.value : "",
           transaction_date: el.date ? el.date.value : "",
           comment: el.comment ? el.comment.value : "",
+          goal_spend: Boolean(transactionState.goalSpendAccountId),
           ai_image_batch_id: transactionState.aiImageBatchContext ? transactionState.aiImageBatchContext.batchId : "",
           ai_image_batch_item_id: transactionState.aiImageBatchContext ? transactionState.aiImageBatchContext.itemId : ""
         };
@@ -3900,6 +3859,7 @@
         }
         const payload = transactionPayload();
         const fingerprint = transactionPayloadFingerprint(payload);
+        let soundEventKey = "transaction-draft:" + fingerprint;
         setTransactionBusy(true);
         setTransactionConfirmationStatus("", "muted");
         const draftPromise = transactionState.draft && transactionState.draftFingerprint === fingerprint
@@ -3915,12 +3875,16 @@
         draftPromise
           .then(function (draft) {
             if (!draft) throw { error: { message: tr("miniappLoadFailed") } };
+            const idempotencyKey = transactionState.idempotencyKey || makeIdempotencyKey();
+            transactionState.idempotencyKey = idempotencyKey;
+            soundEventKey = "transaction:" + draft.draft_id;
             return postJson(transactionConfirmUrl, {
               draft_id: draft.draft_id,
-              idempotency_key: transactionState.idempotencyKey || makeIdempotencyKey()
+              idempotency_key: idempotencyKey
             });
           })
           .then(function (payload) {
+            playSoundEffect("transaction-success", { eventKey: soundEventKey });
             setTransactionStatus(tr("addCommitted"), "success");
             resetTransactionDraft();
             if (el.amount) el.amount.value = "";
@@ -3928,11 +3892,13 @@
             if (el.date) el.date.value = todayIso();
             transactionState.requiredCurrency = null;
             transactionState.aiImageBatchContext = null;
+            transactionState.goalSpendAccountId = null;
             if (payload && payload.batch) setAiImageBatch(payload.batch);
             renderTransactionOptions();
             loadLiveDashboard();
           })
           .catch(function (errorPayload) {
+            playSoundEffect("error-soft", { eventKey: soundEventKey + ":error" });
             const message = transactionErrorMessage(errorPayload);
             setTransactionStatus(message, "error");
             setTransactionConfirmationStatus(message, "error");
@@ -4206,24 +4172,6 @@
           accountConfirmButton: document.getElementById("accountConfirmBtn"),
           accountCancelButton: document.getElementById("accountCancelBtn"),
           accountList: document.getElementById("moneyAccountList"),
-          goalCreateOpen: document.getElementById("moneyGoalsAdd"),
-          goalCreateClose: document.getElementById("goalCreateClose"),
-          goalCreateCard: document.getElementById("goalCreateCard"),
-          goalCreateForm: document.getElementById("goalCreateForm"),
-          goalCreateName: document.getElementById("goalCreateName"),
-          goalCreateAmount: document.getElementById("goalCreateAmount"),
-          goalCreateCurrent: document.getElementById("goalCreateCurrent"),
-          goalCreateType: document.getElementById("goalCreateType"),
-          goalCreateCurrency: document.getElementById("goalCreateCurrency"),
-          goalCreateDate: document.getElementById("goalCreateDate"),
-          goalCreateStatus: document.getElementById("goalCreateStatus"),
-          goalCreatePreview: document.getElementById("goalCreatePreviewBtn"),
-          goalCreateDraftCard: document.getElementById("goalCreateDraftCard"),
-          goalCreateDraftTitle: document.getElementById("goalCreateDraftTitle"),
-          goalCreateDraftMeta: document.getElementById("goalCreateDraftMeta"),
-          goalCreateDraftAmount: document.getElementById("goalCreateDraftAmount"),
-          goalCreateConfirm: document.getElementById("goalCreateConfirmBtn"),
-          goalCreateCancel: document.getElementById("goalCreateCancelBtn"),
           transferForm: document.getElementById("transferForm"),
           transferSource: document.getElementById("transferSource"),
           transferTarget: document.getElementById("transferTarget"),
@@ -4263,6 +4211,15 @@
           debtCancelButton: document.getElementById("debtCancelBtn"),
           debtList: document.getElementById("moneyDebtList"),
           goalsList: document.getElementById("moneyGoalsList"),
+          closedGoalsSection: document.getElementById("moneyClosedGoalsSection"),
+          closedGoalsList: document.getElementById("moneyClosedGoalsList"),
+          moneyGoalsEmpty: document.getElementById("moneyGoalsEmpty"),
+          moneyGoalsCreate: document.getElementById("moneyGoalsCreate"),
+          moneyGoalsAdd: document.getElementById("moneyGoalsAdd"),
+          moneyGoalsAdjust: document.getElementById("moneyGoalsAdjust"),
+          goalSpendPanel: document.getElementById("moneyGoalSpendPanel"),
+          goalSpendTitle: document.getElementById("moneyGoalSpendTitle"),
+          goalSpendButton: document.getElementById("moneyGoalSpendBtn"),
           overviewGoalsList: document.getElementById("overviewGoalsList"),
           overviewGoalsEmpty: document.getElementById("overviewGoalsEmpty"),
           overviewGoalsOpenAll: document.getElementById("overviewGoalsOpenAll"),
@@ -4491,21 +4448,35 @@
         const el = moneyElements();
         const goalAccounts = (moneyState.options && moneyState.options.accounts || []).filter(function (account) {
           const type = goalAccountType(account);
-          return ["savings", "deposit", "investment"].indexOf(type) !== -1;
+          return ["savings", "deposit", "investment"].indexOf(type) !== -1 && goalMoneyValue(account.goal_amount) > 0;
         });
+        const activeGoals = goalAccounts.filter(function (account) { return !goalIsClosed(account); });
+        const closedGoals = goalAccounts.filter(goalIsClosed);
         if (el.goalsList) {
           el.goalsList.replaceChildren();
-          if (!goalAccounts.length) {
-            const empty = document.createElement("div");
-            empty.className = "empty-subtle";
-            empty.textContent = tr("goalsNoItems");
-            el.goalsList.appendChild(empty);
-          } else {
-            goalAccounts.forEach(function (account) {
+          if (activeGoals.length) {
+            activeGoals.forEach(function (account) {
               el.goalsList.appendChild(createGoalCard(account, false));
             });
           }
         }
+        if (el.closedGoalsList) {
+          el.closedGoalsList.replaceChildren();
+          closedGoals.forEach(function (account) {
+            el.closedGoalsList.appendChild(createGoalCard(account, false));
+          });
+        }
+        if (el.closedGoalsSection) el.closedGoalsSection.hidden = !closedGoals.length;
+        const selectedGoal = goalAccounts.find(function (account) {
+          return String(account.id) === String(moneyState.selectedGoalSpendAccountId || "");
+        });
+        if (el.goalSpendPanel) el.goalSpendPanel.hidden = !selectedGoal || goalIsSpent(selectedGoal);
+        if (el.goalSpendTitle && selectedGoal) {
+          el.goalSpendTitle.textContent = tr("goalSpendTitle", { goal: selectedGoal.goal_name || selectedGoal.label || tr("goalsConfigure") });
+        }
+        if (el.goalSpendButton) el.goalSpendButton.disabled = !selectedGoal || goalIsSpent(selectedGoal);
+        if (el.moneyGoalsEmpty) el.moneyGoalsEmpty.hidden = Boolean(goalAccounts.length);
+        if (el.moneyGoalsAdjust) el.moneyGoalsAdjust.disabled = !goalAccounts.length;
         renderOverviewGoals();
       }
 
@@ -4518,7 +4489,19 @@
       function goalProgress(account) {
         const target = goalMoneyValue(account.goal_amount);
         if (target <= 0) return 0;
-        return Math.max(0, Math.min(100, Math.round((goalMoneyValue(account.balance) / target) * 100)));
+        return Math.max(0, Math.round((goalMoneyValue(account.balance) / target) * 100));
+      }
+
+      function goalProgressWidth(progress) {
+        return Math.max(0, Math.min(100, progress));
+      }
+
+      function goalIsClosed(account) {
+        return account && (account.goal_status === "funded" || account.goal_status === "spent");
+      }
+
+      function goalIsSpent(account) {
+        return account && account.goal_status === "spent";
       }
 
       function goalScopeLabel() {
@@ -4529,17 +4512,23 @@
       function createGoalCard(account, compact) {
         const row = document.createElement("button");
         const progress = goalProgress(account);
+        const closed = goalIsClosed(account);
+        const spent = goalIsSpent(account);
+        const progressWidth = goalProgressWidth(progress);
         const currentAmount = account.balance && account.balance.display ? account.balance.display : "0";
         const goalAmount = account.goal_amount && account.goal_amount.display ? account.goal_amount.display : "—";
         row.type = "button";
-        row.className = compact ? "overview-goal-item" : "money-goal-row";
+        row.className = (compact ? "overview-goal-item" : "money-goal-row") + (closed ? " is-closed" : "");
         row.dataset.accountId = String(account.id);
         row.innerHTML =
           "<span class=\"goal-card-head\"><span><strong>" + goalEscapeHtml(account.goal_name || account.label || tr("goalsConfigure")) + "</strong><small>" + goalEscapeHtml(account.label || "") + "</small></span><span class=\"goal-scope-badge\">" + goalEscapeHtml(goalScopeLabel()) + "</span></span>" +
           "<span class=\"goal-amount-row\"><strong>" + goalEscapeHtml(currentAmount) + "</strong><small>" + goalEscapeHtml(tr("goalAmountJoiner") + " " + goalAmount) + "</small><b>" + String(progress) + "%</b></span>" +
-          "<span class=\"goal-progress-track\" role=\"progressbar\" aria-label=\"" + goalEscapeHtml(tr("goalProgress")) + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"" + String(progress) + "\"><span style=\"width:" + String(progress) + "%\"></span></span>" +
-          (account.goal_date ? "<small class=\"goal-date\">" + goalEscapeHtml(shortDate(account.goal_date)) + "</small>" : "");
-        row.addEventListener("click", function () { openGoalEditor(account); });
+          "<span class=\"goal-progress-track\" role=\"progressbar\" aria-label=\"" + goalEscapeHtml(tr("goalProgress")) + "\" aria-valuemin=\"0\" aria-valuemax=\"" + String(Math.max(100, progress)) + "\" aria-valuenow=\"" + String(progress) + "\"><span style=\"width:" + String(progressWidth) + "%\"></span></span>" +
+          (closed ? "<small class=\"goal-closed-note\">" + goalEscapeHtml(tr(spent ? "goalSpent" : "goalClosed")) + "</small>" : (account.goal_date ? "<small class=\"goal-date\">" + goalEscapeHtml(shortDate(account.goal_date)) + "</small>" : ""));
+        row.addEventListener("click", function () {
+          if (closed) openGoalSpendDetails(account);
+          else openGoalTopUp(account);
+        });
         return row;
       }
 
@@ -4548,12 +4537,12 @@
         if (!el.overviewGoalsList || !el.overviewGoalsEmpty) return;
         const activeGoals = (moneyState.options && moneyState.options.accounts || []).filter(function (account) {
           const type = goalAccountType(account);
-          return ["savings", "deposit", "investment"].indexOf(type) !== -1 && goalMoneyValue(account.goal_amount) > 0;
+          return ["savings", "deposit", "investment"].indexOf(type) !== -1 && goalMoneyValue(account.goal_amount) > 0 && account.goal_status !== "spent";
         }).sort(function (left, right) {
           return goalProgress(right) - goalProgress(left);
         });
         el.overviewGoalsList.replaceChildren();
-        activeGoals.forEach((account) => {
+        activeGoals.slice(0, 3).forEach(function (account) {
           el.overviewGoalsList.appendChild(createGoalCard(account, true));
         });
         el.overviewGoalsList.hidden = !activeGoals.length;
@@ -4573,6 +4562,75 @@
           if (el.accountGoalDate) el.accountGoalDate.value = account.goal_date || "";
           if (el.accountGoalName) el.accountGoalName.focus();
         });
+      }
+
+      function openGoalTopUp(account) {
+        return showScreen("money").then(function () {
+          const el = moneyElements();
+          setMoneyMode("accounts");
+          resetTransferDraft();
+          moneyState.goalTopUpAccountId = String(account.id);
+          if (el.transferTarget) el.transferTarget.value = String(account.id);
+          if (el.transferSource && el.transferSource.value === String(account.id)) {
+            const sourceOption = Array.from(el.transferSource.options).find(function (option) {
+              return option.value && option.value !== String(account.id);
+            });
+            if (sourceOption) el.transferSource.value = sourceOption.value;
+          }
+          if (el.transferAmount) el.transferAmount.value = "";
+          if (el.transferComment) el.transferComment.value = tr("goalTopUpComment");
+          syncTransferValidation();
+          if (el.transferSource) el.transferSource.focus();
+          if (el.transferForm) el.transferForm.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+
+      function openGoalSpendDetails(account) {
+        return showScreen("money").then(function () {
+          setMoneyMode("goals");
+          moneyState.selectedGoalSpendAccountId = String(account.id);
+          renderGoals();
+          const el = moneyElements();
+          if (el.goalSpendPanel && !el.goalSpendPanel.hidden) {
+            el.goalSpendPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        });
+      }
+
+      function selectedGoalSpendAccount() {
+        return (moneyState.options && moneyState.options.accounts || []).find(function (account) {
+          return String(account.id) === String(moneyState.selectedGoalSpendAccountId || "");
+        }) || null;
+      }
+
+      function openGoalSpend(account) {
+        if (!account || goalIsSpent(account) || account.goal_status !== "funded") return Promise.resolve();
+        return showScreen("add").then(function () {
+          setTransactionKind("expense");
+          transactionState.goalSpendAccountId = String(account.id);
+          return loadTransactionOptions(false).then(function () {
+            const el = transactionElements();
+            if (el.amount) el.amount.value = account.balance && account.balance.value ? account.balance.value : "";
+            if (el.account) el.account.value = String(account.id);
+            if (el.comment) el.comment.value = tr("goalSpendComment", { goal: account.goal_name || account.label || tr("goalsConfigure") });
+            if (el.category) el.category.focus();
+            resetTransactionDraft();
+            renderTransactionConfirmation(false);
+            if (el.form) el.form.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        });
+      }
+
+      function openGoalAdjust() {
+        const goalAccounts = (moneyState.options && moneyState.options.accounts || []).filter(function (account) {
+          const type = goalAccountType(account);
+          return ["savings", "deposit", "investment"].indexOf(type) !== -1 && goalMoneyValue(account.goal_amount) > 0;
+        });
+        const target = goalAccounts.find(function (account) {
+          return String(account.id) === String(moneyState.goalTopUpAccountId || "");
+        }) || goalAccounts[0];
+        if (target) return openGoalEditor(target);
+        return openGoalCreate();
       }
 
       function openGoalsPanel() {
@@ -5220,6 +5278,7 @@
         savingTaskState.payload = data;
         const available = data.available === true;
         const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+        if (el.card) el.card.hidden = !available || !tasks.length;
         if (el.list) {
           el.list.replaceChildren();
           tasks.forEach(function (task) { el.list.appendChild(createSavingTaskRow(task)); });
@@ -5334,12 +5393,16 @@
       function confirmSavingTaskDraft() {
         const draft = savingTaskState.draft;
         if (!draft || savingTaskState.busy || !savingTaskConfirmUrl) return;
+        const soundEventKey = "saving-task:" + (savingTaskState.idempotencyKey || draft.draft_id);
         setSavingTaskBusy(true);
         postJson(savingTaskConfirmUrl, {
           draft_id: draft.draft_id,
           idempotency_key: savingTaskState.idempotencyKey || makeIdempotencyKey()
         })
           .then(function (payload) {
+            if (payload.result && payload.result.status === "completed") {
+              playSoundEffect("transaction-success", { eventKey: soundEventKey });
+            }
             savingTaskState.draft = null;
             savingTaskState.idempotencyKey = null;
             renderSavingTasks(payload.tasks || null);
@@ -5376,120 +5439,6 @@
         moneyState.accountDraft = null;
         moneyState.accountIdempotencyKey = null;
         if (el.accountDraftCard) el.accountDraftCard.hidden = true;
-      }
-
-      function setGoalCreateStatus(message, tone) {
-        const status = moneyElements().goalCreateStatus;
-        if (!status) return;
-        status.textContent = message || "";
-        status.className = "form-status " + (tone || "");
-        status.hidden = !message;
-      }
-
-      function resetGoalCreateDraft() {
-        const el = moneyElements();
-        moneyState.goalCreateDraft = null;
-        moneyState.goalCreateIdempotencyKey = null;
-        if (el.goalCreateDraftCard) el.goalCreateDraftCard.hidden = true;
-      }
-
-      function openGoalCreateForm() {
-        const el = moneyElements();
-        resetGoalCreateDraft();
-        if (!el.goalCreateCard) return;
-        if (el.goalCreateOpen) el.goalCreateOpen.hidden = true;
-        el.goalCreateCard.hidden = false;
-        setGoalCreateStatus("", "");
-        loadMoneyOptions(false).then(function () {
-          const options = moneyState.options || {currencies: []};
-          renderSelectOptions(el.goalCreateCurrency, (options.currencies || []).map(function (currency) {
-            return {id: currency, label: currency};
-          }), tr("moneyNoAccounts"), function (currency) { return currency.label; });
-          if (el.goalCreateCurrency && options.base_currency) el.goalCreateCurrency.value = options.base_currency;
-          el.goalCreateCard.scrollIntoView({behavior: "smooth", block: "start"});
-          if (el.goalCreateName) el.goalCreateName.focus({preventScroll: true});
-        });
-      }
-
-      function closeGoalCreateForm() {
-        const el = moneyElements();
-        resetGoalCreateDraft();
-        if (el.goalCreateForm) el.goalCreateForm.reset();
-        if (el.goalCreateCard) el.goalCreateCard.hidden = true;
-        if (el.goalCreateOpen) el.goalCreateOpen.hidden = false;
-        setGoalCreateStatus("", "");
-      }
-
-      function goalCreatePayload() {
-        const el = moneyElements();
-        const name = el.goalCreateName ? el.goalCreateName.value.trim() : "";
-        return {
-          action: "create",
-          account_id: "",
-          label: name,
-          currency: el.goalCreateCurrency ? el.goalCreateCurrency.value : "UAH",
-          account_type: el.goalCreateType ? el.goalCreateType.value : "savings",
-          starting_balance: el.goalCreateCurrent ? el.goalCreateCurrent.value : "",
-          target_balance: "",
-          credit_limit: "",
-          monthly_interest_rate: "",
-          goal_name: name,
-          goal_amount: el.goalCreateAmount ? el.goalCreateAmount.value : "",
-          goal_date: el.goalCreateDate ? el.goalCreateDate.value : ""
-        };
-      }
-
-      function submitGoalCreateDraft(event) {
-        if (event) event.preventDefault();
-        const el = moneyElements();
-        if (moneyState.goalCreateBusy || !el.goalCreateForm) return;
-        resetGoalCreateDraft();
-        moneyState.goalCreateBusy = true;
-        if (el.goalCreatePreview) el.goalCreatePreview.disabled = true;
-        postJson(accountDraftUrl, goalCreatePayload()).then(function (payload) {
-          const draft = payload.draft || null;
-          moneyState.goalCreateDraft = draft;
-          moneyState.goalCreateIdempotencyKey = makeIdempotencyKey();
-          if (!draft) throw new Error("goal_draft_missing");
-          const summary = draft.confirmation && draft.confirmation.summary || [];
-          el.goalCreateDraftTitle.textContent = draft.confirmation && draft.confirmation.title || "Підтвердіть створення цілі";
-          el.goalCreateDraftMeta.textContent = summary.join(" - ");
-          el.goalCreateDraftAmount.textContent = draft.delta && draft.delta.display || summary[1] || goalCreatePayload().goal_amount;
-          el.goalCreateDraftCard.hidden = false;
-          el.goalCreateDraftCard.scrollIntoView({behavior: "smooth", block: "start"});
-          setGoalCreateStatus("Перевірте дані та підтвердьте створення.", "success");
-        }).catch(function (payload) {
-          setGoalCreateStatus(transactionErrorMessage(payload), "error");
-        }).finally(function () {
-          moneyState.goalCreateBusy = false;
-          if (el.goalCreatePreview) el.goalCreatePreview.disabled = false;
-        });
-      }
-
-      function confirmGoalCreateDraft() {
-        const el = moneyElements();
-        if (moneyState.goalCreateBusy || !moneyState.goalCreateDraft) return;
-        moneyState.goalCreateBusy = true;
-        if (el.goalCreateConfirm) el.goalCreateConfirm.disabled = true;
-        postJson(accountConfirmUrl, {
-          draft_id: moneyState.goalCreateDraft.draft_id,
-          idempotency_key: moneyState.goalCreateIdempotencyKey || makeIdempotencyKey()
-        }).then(function () {
-          resetGoalCreateDraft();
-          if (el.goalCreateForm) el.goalCreateForm.reset();
-          if (el.goalCreateCard) el.goalCreateCard.hidden = true;
-          invalidateAccountOptions();
-          return loadMoneyOptions(true);
-        }).then(function () {
-          setMoneyMode("goals");
-          const list = document.getElementById("moneyGoalsList");
-          if (list) list.scrollIntoView({behavior: "smooth", block: "start"});
-        }).catch(function (payload) {
-          setGoalCreateStatus(transactionErrorMessage(payload), "error");
-        }).finally(function () {
-          moneyState.goalCreateBusy = false;
-          if (el.goalCreateConfirm) el.goalCreateConfirm.disabled = false;
-        });
       }
 
       function renderAccountDraft(draft) {
@@ -5543,6 +5492,7 @@
 
       function confirmAccountDraft() {
         if (moneyState.accountBusy || !moneyState.accountDraft) return;
+        const soundEventKey = "account:" + (moneyState.accountIdempotencyKey || moneyState.accountDraft.draft_id);
         setMoneyBusy("account", true);
         postJson(accountConfirmUrl, {
           draft_id: moneyState.accountDraft.draft_id,
@@ -5550,6 +5500,7 @@
         })
           .then(function () {
             const el = moneyElements();
+            playSoundEffect("transaction-success", { eventKey: soundEventKey });
             resetAccountDraft();
             if (el.accountForm) el.accountForm.reset();
             setMoneyStatus("account", tr("moneyCommitted"), "success");
@@ -5618,6 +5569,7 @@
 
       function confirmTransferDraft() {
         if (moneyState.transferBusy || !moneyState.transferDraft) return;
+        const soundEventKey = "transfer:" + (moneyState.transferIdempotencyKey || moneyState.transferDraft.draft_id);
         setMoneyBusy("transfer", true);
         postJson(transferConfirmUrl, {
           draft_id: moneyState.transferDraft.draft_id,
@@ -5625,6 +5577,7 @@
         })
           .then(function () {
             const el = moneyElements();
+            playSoundEffect("transaction-success", { eventKey: soundEventKey });
             resetTransferDraft();
             if (el.transferAmount) el.transferAmount.value = "";
             if (el.transferRate) el.transferRate.value = "";
@@ -5703,6 +5656,7 @@
 
       function confirmDebtDraft() {
         if (moneyState.debtBusy || !moneyState.debtDraft) return;
+        const soundEventKey = "debt:" + (moneyState.debtIdempotencyKey || moneyState.debtDraft.draft_id);
         setMoneyBusy("debt", true);
         postJson(debtConfirmUrl, {
           draft_id: moneyState.debtDraft.draft_id,
@@ -5710,6 +5664,7 @@
         })
           .then(function () {
             const el = moneyElements();
+            playSoundEffect("transaction-success", { eventKey: soundEventKey });
             resetDebtDraft();
             if (el.debtForm) el.debtForm.reset();
             if (el.debtTransactionDate) el.debtTransactionDate.value = todayIso();
@@ -5736,11 +5691,6 @@
         if (el.transferDate && !el.transferDate.value) el.transferDate.value = todayIso();
         if (el.debtTransactionDate && !el.debtTransactionDate.value) el.debtTransactionDate.value = todayIso();
         if (el.accountForm) el.accountForm.addEventListener("submit", submitAccountDraft);
-        if (el.goalCreateOpen) el.goalCreateOpen.addEventListener("click", openGoalCreateForm);
-        if (el.goalCreateClose) el.goalCreateClose.addEventListener("click", closeGoalCreateForm);
-        if (el.goalCreateForm) el.goalCreateForm.addEventListener("submit", submitGoalCreateDraft);
-        if (el.goalCreateConfirm) el.goalCreateConfirm.addEventListener("click", confirmGoalCreateDraft);
-        if (el.goalCreateCancel) el.goalCreateCancel.addEventListener("click", resetGoalCreateDraft);
         if (el.transferForm) el.transferForm.addEventListener("submit", submitTransferDraft);
         if (el.debtForm) el.debtForm.addEventListener("submit", submitDebtDraft);
         if (el.accountAction) el.accountAction.addEventListener("change", function () {
@@ -5781,6 +5731,12 @@
         if (el.debtCancelButton) el.debtCancelButton.addEventListener("click", cancelDebtDraft);
         if (el.overviewGoalsOpenAll) el.overviewGoalsOpenAll.addEventListener("click", openGoalsPanel);
         if (el.overviewGoalsCreate) el.overviewGoalsCreate.addEventListener("click", openGoalCreate);
+        if (el.moneyGoalsCreate) el.moneyGoalsCreate.addEventListener("click", openGoalCreate);
+        if (el.moneyGoalsAdd) el.moneyGoalsAdd.addEventListener("click", openGoalCreate);
+        if (el.moneyGoalsAdjust) el.moneyGoalsAdjust.addEventListener("click", openGoalAdjust);
+        if (el.goalSpendButton) el.goalSpendButton.addEventListener("click", function () {
+          openGoalSpend(selectedGoalSpendAccount());
+        });
         document.querySelectorAll("[data-money-mode]").forEach(function (button) {
           button.addEventListener("click", function () { setMoneyMode(button.dataset.moneyMode); });
         });
@@ -7025,12 +6981,14 @@
       function confirmHistoryDraft() {
         const draft = historyEditState.draft;
         if (!draft || historyEditState.busy || !historyEditConfirmUrl) return;
+        const soundEventKey = "history-edit:" + (historyEditState.idempotencyKey || draft.draft_id);
         setHistoryBusy(true);
         postJson(historyEditConfirmUrl, {
           draft_id: draft.draft_id,
           idempotency_key: historyEditState.idempotencyKey || makeIdempotencyKey()
         })
           .then(function () {
+            playSoundEffect("transaction-success", { eventKey: soundEventKey });
             historyEditState.draft = null;
             historyEditState.idempotencyKey = null;
             renderHistoryDraft(null);
@@ -7729,12 +7687,14 @@
         const el = settingsElements();
         const draft = billingExpenseState.draft || {};
         if (!draft.draft_id) return;
+        const soundEventKey = "billing-expense:" + (billingExpenseState.idempotencyKey || draft.draft_id);
         billingExpenseState.busy = true;
         if (el.billingExpenseConfirm) el.billingExpenseConfirm.disabled = true;
         postJson(billingExpenseConfirmUrl, {
           draft_id: draft.draft_id,
           idempotency_key: billingExpenseState.idempotencyKey || makeIdempotencyKey()
         }).then(function () {
+          playSoundEffect("transaction-success", { eventKey: soundEventKey });
           billingExpenseState.busy = false;
           billingExpenseState.draft = null;
           if (el.billingExpenseConfirmCard) el.billingExpenseConfirmCard.hidden = true;
@@ -8299,6 +8259,47 @@
             showScreen(button.dataset.target || button.dataset.screenTarget);
           });
         });
+      }
+
+      function setupStatusTabs() {
+        const financeTab = document.getElementById("statusFinanceTab");
+        const achievementsTab = document.getElementById("statusAchievementsTab");
+        const financePane = document.getElementById("statusFinancePane");
+        const achievementsPane = document.getElementById("achievementsStatusPane");
+        if (!financeTab || !achievementsTab || !financePane || !achievementsPane) return;
+
+        const tabs = [financeTab, achievementsTab];
+
+        function selectStatusTab(selectedTab) {
+          const showAchievements = selectedTab === achievementsTab;
+          financeTab.classList.toggle("is-active", !showAchievements);
+          achievementsTab.classList.toggle("is-active", showAchievements);
+          financePane.style.display = showAchievements ? "none" : "";
+          achievementsPane.style.display = showAchievements ? "grid" : "none";
+          financeTab.setAttribute("aria-selected", String(!showAchievements));
+          achievementsTab.setAttribute("aria-selected", String(showAchievements));
+          financeTab.tabIndex = showAchievements ? -1 : 0;
+          achievementsTab.tabIndex = showAchievements ? 0 : -1;
+          financePane.hidden = showAchievements;
+          achievementsPane.hidden = !showAchievements;
+        }
+
+        tabs.forEach(function (tab, index) {
+          tab.addEventListener("click", function () { selectStatusTab(tab); });
+          tab.addEventListener("keydown", function (event) {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+            event.preventDefault();
+            let nextIndex = index;
+            if (event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
+            if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+            if (event.key === "Home") nextIndex = 0;
+            if (event.key === "End") nextIndex = tabs.length - 1;
+            selectStatusTab(tabs[nextIndex]);
+            tabs[nextIndex].focus();
+          });
+        });
+
+        selectStatusTab(financeTab);
       }
 
       function initTelegramWebApp() {
@@ -9161,6 +9162,7 @@
         setupBrowserLoginRecovery();
         setLocale(getTelegramLocale());
         setupNavigation();
+        setupStatusTabs();
         setupPeriodSelector();
         setupAiIntakeChooser();
         setupAiVoice();
@@ -9174,6 +9176,7 @@
         setupAnalyticsDetails();
         setupHistoryForms();
         setupSettingsForms();
+        setupSoundSettings();
         setupAccountDeletion();
         const refreshBtn = document.getElementById("refreshBtn");
         if (refreshBtn) {

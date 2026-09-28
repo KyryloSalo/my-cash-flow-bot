@@ -14,8 +14,8 @@ class ReleaseArtifactTests(unittest.TestCase):
         self.assertIn('directory.chmod(0o755)', path.read_text(encoding='utf-8'))
         spec = importlib.util.spec_from_file_location('release_artifact', path)
         m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-        good = ['compose.yml','deploy_v0_on_vps.sh','bot/app.py','bot/bot_main.py','bot/requirements.lock','bot/normalization_runtime.json','admin_service/manage.py','nginx/landing/index.html','ops/validate_release.sh','runtime_schema/__init__.py','runtime_schema/statements.py']
-        bad = ['.env','bot/.env.local','bot/private.pem','bot/x.key','bot/credentials.json','../bot/app.py','bot\\app.py','nginx/www/proof.txt','bot/__pycache__/app.py','bot/.venv/a.py','admin_service/staticfiles/a.css','unknown.py','bot/data.dump','bot/test.sqlite3','.codex-deploy-keys/x']
+        good = ['compose.yml','deploy_v0_on_vps.sh','bot/app.py','bot/bot_main.py','bot/requirements.lock','bot/normalization_runtime.json','admin_service/manage.py','admin_service/miniapp/static/miniapp/sounds/LICENSE.json','admin_service/miniapp/static/miniapp/sounds/success.mp3','nginx/landing/index.html','ops/validate_release.sh','runtime_schema/__init__.py','runtime_schema/statements.py']
+        bad = ['.env','bot/.env.local','bot/private.pem','bot/x.key','bot/credentials.json','admin_service/random.json','../bot/app.py','bot\\app.py','nginx/www/proof.txt','bot/__pycache__/app.py','bot/.venv/a.py','admin_service/staticfiles/a.css','unknown.py','bot/data.dump','bot/test.sqlite3','.codex-deploy-keys/x']
         self.assertTrue(all(m.allowed_path(p) for p in good))
         self.assertFalse(any(m.allowed_path(p) for p in bad))
         with tempfile.TemporaryDirectory() as tmp:

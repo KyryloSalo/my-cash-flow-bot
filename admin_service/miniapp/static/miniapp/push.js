@@ -15,6 +15,7 @@
   let localEndpoint = null;
   let confirmedEndpoint = null;
   let routedLocation = null;
+  const celebratedAchievementNotificationIds = new Set();
 
   function isEnglish() {
     return String(document.documentElement.lang || root.dataset.defaultLocale || "uk").toLowerCase().startsWith("en");
@@ -112,6 +113,19 @@
     catch (_error) { return ""; }
   }
 
+  function dispatchAchievementCelebration(item) {
+    const notificationId = Number(item && item.id || 0);
+    const eventType = String(item && item.event_type || "").toLowerCase();
+    const category = String(item && item.category || "").toLowerCase();
+    if (!Number.isSafeInteger(notificationId) || notificationId <= 0) return;
+    if (category !== "achievement" && !eventType.includes("achievement")) return;
+    if (celebratedAchievementNotificationIds.has(notificationId)) return;
+    celebratedAchievementNotificationIds.add(notificationId);
+    document.dispatchEvent(new CustomEvent("vydno:achievement-celebration", {
+      detail: { notificationId: notificationId },
+    }));
+  }
+
   function renderInbox() {
     const list = document.getElementById("notificationList");
     if (!list) return;
@@ -134,7 +148,11 @@
         window.vydnoNavigate(item.target_url || "/app/").then(function (success) {
           if (!success) return null;
           closeDrawer();
-          return post(urls.read, {notification_id: item.id}).then(function (payload) { sendBadge(payload.badge_count); return refresh(); });
+          return post(urls.read, {notification_id: item.id}).then(function (payload) {
+            sendBadge(payload.badge_count);
+            dispatchAchievementCelebration(item);
+            return refresh();
+          });
         }).catch(function () {});
       });
       list.appendChild(button);
