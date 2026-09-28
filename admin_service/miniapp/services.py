@@ -1083,6 +1083,7 @@ def _category_payload(category: Category) -> dict[str, object]:
 
 
 def _account_payload(account: Account, *, locale: str = "uk") -> dict[str, object]:
+    goal_completed_at = getattr(account, "goal_completed_at", None)
     return {
         "id": int(account.id),
         "label": str(account.label or ""),
@@ -1096,7 +1097,7 @@ def _account_payload(account: Account, *, locale: str = "uk") -> dict[str, objec
         "goal_amount": money_payload(account.goal_amount, account.currency) if account.goal_amount is not None else None,
         "goal_date": account.goal_date.isoformat() if account.goal_date else None,
         "goal_status": _goal_lifecycle_status(account),
-        "goal_completed_at": account.goal_completed_at.isoformat() if account.goal_completed_at else None,
+        "goal_completed_at": goal_completed_at.isoformat() if goal_completed_at else None,
     }
 
 
