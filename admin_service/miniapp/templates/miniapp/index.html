@@ -547,6 +547,7 @@
                 <small id="aiVoiceHint">Скажіть суму, місце й рахунок · до 20 секунд</small>
               </span>
             </button>
+            <audio id="aiVoiceStartCue" preload="auto" playsinline aria-hidden="true" src="{% static 'miniapp/sounds/voice-start.mp3' %}?v={{ miniapp_asset_version }}"></audio>
 
             <div class="ai-intake-secondary-grid">
               <button class="secondary-action ai-intake-launch ai-intake-launch--secondary" id="aiImageLaunchBtn" type="button" aria-expanded="false" aria-controls="aiImageForm">
@@ -3339,6 +3340,41 @@
         recorder.stop();
       }
 
+      function playAiVoiceStartCue() {
+        return new Promise(function (resolve) {
+          const cue = document.getElementById("aiVoiceStartCue");
+          let finished = false;
+          const timeoutId = window.setTimeout(finish, 500);
+
+          function finish() {
+            if (finished) return;
+            finished = true;
+            window.clearTimeout(timeoutId);
+            if (cue) cue.removeEventListener("ended", finish);
+            resolve();
+          }
+
+          if (!cue || typeof cue.play !== "function") {
+            playSoundEffect("voice-start", { forceAudio: true, eventKey: "voice-start:" + Date.now() });
+            return;
+          }
+          cue.addEventListener("ended", finish, { once: true });
+          try {
+            cue.muted = false;
+            cue.volume = 1;
+            cue.currentTime = 0;
+            const playback = cue.play();
+            if (playback && typeof playback.catch === "function") {
+              playback.catch(function () {
+                playSoundEffect("voice-start", { forceAudio: true, eventKey: "voice-start-fallback:" + Date.now() });
+              });
+            }
+          } catch (error) {
+            playSoundEffect("voice-start", { forceAudio: true, eventKey: "voice-start-fallback:" + Date.now() });
+          }
+        });
+      }
+
       function startAiVoiceRecording() {
         if (transactionState.busy) return false;
         if (!isAiVoiceSupported() || aiVoiceState.busy || aiVoiceState.requesting) return;
@@ -3347,7 +3383,8 @@
         setAiVoiceTranscript("");
         setAiVoiceStatus("", "muted");
         syncAiVoiceControls();
-        navigator.mediaDevices.getUserMedia({ audio: true })
+        playAiVoiceStartCue().finally(function () {
+          navigator.mediaDevices.getUserMedia({ audio: true })
           .then(function (stream) {
             const preferredMimeType = preferredAiVoiceMime();
             let recorder;
@@ -3386,14 +3423,11 @@
                 });
             });
             aiVoiceState.startedAt = Date.now();
-            return playSoundEffect("voice-start", { eventKey: "voice-start:" + aiVoiceState.startedAt })
-              .then(function () {
-                aiVoiceState.recording = true;
-                recorder.start(250);
-                aiVoiceState.timerId = window.setInterval(updateAiVoiceTimer, 250);
-                renderAiVoiceTimer(0);
-                setAiVoiceStatus(tr("aiVoiceRecording"), "muted");
-              });
+            aiVoiceState.recording = true;
+            recorder.start(250);
+            aiVoiceState.timerId = window.setInterval(updateAiVoiceTimer, 250);
+            renderAiVoiceTimer(0);
+            setAiVoiceStatus(tr("aiVoiceRecording"), "muted");
           })
           .catch(function (error) {
             releaseAiVoiceStream();
@@ -3405,6 +3439,7 @@
             aiVoiceState.requesting = false;
             syncAiVoiceControls();
           });
+        });
       }
 
       function setupAiVoice() {

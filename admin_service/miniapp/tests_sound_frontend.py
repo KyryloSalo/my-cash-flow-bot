@@ -71,11 +71,27 @@ class SoundFrontendContractTests(unittest.TestCase):
         self.assertNotIn("achievementGrid.addEventListener", self.sound_source)
 
     def test_voice_cues_are_bound_to_real_recorder_transitions(self) -> None:
+        cue_source = self._function_source("playAiVoiceStartCue", "startAiVoiceRecording")
         source = self._function_source("startAiVoiceRecording", "setupAiVoice")
-        self.assertIn('playSoundEffect("voice-start", { eventKey:', source)
+        setup_source = self._function_source("setupAiVoice", "aiImageBatchElements")
+        self.assertNotIn('data-sound-on-gesture="voice-start"', self.template)
+        self.assertIn('id="aiVoiceStartCue"', self.template)
+        self.assertIn('preload="auto"', self.template)
+        self.assertIn("{% static 'miniapp/sounds/voice-start.mp3' %}?v={{ miniapp_asset_version }}", self.template)
+        self.assertIn('cue.play()', cue_source)
+        self.assertIn('playSoundEffect("voice-start", { forceAudio: true', cue_source)
+        self.assertIn("return new Promise(function (resolve)", cue_source)
+        self.assertIn('cue.addEventListener("ended", finish, { once: true })', cue_source)
+        self.assertIn("window.setTimeout(finish, 500)", cue_source)
+        self.assertIn("playAiVoiceStartCue().finally(function ()", source)
+        self.assertNotIn("playAiVoiceStartCue();", source)
+        self.assertNotIn("event.detail === 0", setup_source)
+        self.assertLess(
+            source.index("playAiVoiceStartCue().finally(function ()"),
+            source.index("navigator.mediaDevices.getUserMedia"),
+        )
         self.assertIn('playSoundEffect("voice-stop", { eventKey:', source)
         self.assertIn('playSoundEffect("error-soft", { eventKey:', source)
-        self.assertLess(source.index('playSoundEffect("voice-start"'), source.index("recorder.start(250)"))
         self.assertLess(source.index("releaseAiVoiceStream()"), source.index('playSoundEffect("voice-stop"'))
 
     def test_local_assets_and_license_registry_are_complete(self) -> None:
