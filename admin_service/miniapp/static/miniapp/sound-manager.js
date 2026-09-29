@@ -32,7 +32,7 @@
     hapticsEnabled: true,
   });
   const SOUND_DEFINITIONS = Object.freeze({
-    "tap-soft": Object.freeze({ file: "notify.mp3", volume: 0.25, haptic: "selection" }),
+    "tap-soft": Object.freeze({ file: "notify.mp3", volume: 0.70, haptic: "selection" }),
     "voice-start": Object.freeze({ file: "voice-start.mp3", volume: 0.45, haptic: "light" }),
     "voice-stop": Object.freeze({ file: "voice-stop.mp3", volume: 0.40, haptic: "light" }),
     "transaction-success": Object.freeze({ file: "success.mp3", volume: 0.55, haptic: "success" }),
@@ -252,7 +252,30 @@
       }
     }
 
-    function unlockFromGesture() {
+    function buttonFromGesture(event) {
+      let target = event && event.target;
+      if (target && typeof target.closest === "function") {
+        target = target.closest("button, [role='button'], a[href]");
+      }
+      if (!target || target.disabled || target.getAttribute && target.getAttribute("aria-disabled") === "true") return null;
+      return target;
+    }
+
+    function handleButtonGesture(event) {
+      if (!buttonFromGesture(event)) return;
+      play("tap-soft");
+    }
+
+    function bindButtonFeedback() {
+      if (!documentRef || typeof documentRef.addEventListener !== "function") return;
+      documentRef.addEventListener("pointerdown", handleButtonGesture, { passive: true });
+    }
+
+    function unlockFromGesture(event) {
+      if (buttonFromGesture(event)) {
+        unbindUnlock();
+        return;
+      }
       unlockBound = false;
       unlock();
     }
@@ -363,6 +386,7 @@
     }
     if (config.autoBind !== false) {
       bindControls();
+      bindButtonFeedback();
       bindUnlock();
     }
 

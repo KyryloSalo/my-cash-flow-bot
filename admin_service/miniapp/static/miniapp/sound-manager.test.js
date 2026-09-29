@@ -25,8 +25,8 @@ function makeDocument() {
       if (listeners.has(type)) listeners.get(type).delete(callback);
     },
     getElementById() { return null; },
-    fire(type, detail) {
-      Array.from(listeners.get(type) || []).forEach((callback) => callback({ type, detail }));
+    fire(type, detail, target, extra = {}) {
+      Array.from(listeners.get(type) || []).forEach((callback) => callback(Object.assign({ type, detail, target }, extra)));
     },
   };
 }
@@ -246,4 +246,58 @@ test('unlock is inaudible and achievement event deduplicates by notification id'
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(FakeAudio.plays.filter((entry) => entry.src.endsWith('/achievement.mp3')).length, 2);
   assert.equal(sound.isReady(), true);
+});
+
+test('the first pointer press on an enabled button plays audible tap feedback', async () => {
+  const document = makeDocument();
+  manager({ document, autoBind: true });
+  const button = {
+    disabled: false,
+    dataset: {},
+    getAttribute() { return null; },
+    closest(selector) { return selector.includes('button') ? this : null; },
+  };
+
+  document.fire('pointerdown', null, button);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(FakeAudio.plays.length, 1);
+  assert.equal(FakeAudio.plays[0].src, '/static/miniapp/sounds/notify.mp3');
+  assert.ok(FakeAudio.plays[0].volume > 0);
+});
+
+test('later button presses keep playing tap feedback', async () => {
+  let current = 1000;
+  const document = makeDocument();
+  manager({ document, autoBind: true, now: () => current });
+  const button = {
+    disabled: false,
+    dataset: {},
+    getAttribute() { return null; },
+    closest(selector) { return selector.includes('button') ? this : null; },
+  };
+
+  document.fire('pointerdown', null, button);
+  await new Promise((resolve) => setImmediate(resolve));
+  current += 500;
+  document.fire('pointerdown', null, button);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(FakeAudio.plays.filter((entry) => entry.volume > 0).length, 2);
+});
+
+test('button tap feedback is loud enough for a phone speaker', async () => {
+  const document = makeDocument();
+  manager({ document, autoBind: true });
+  const button = {
+    disabled: false,
+    dataset: {},
+    getAttribute() { return null; },
+    closest(selector) { return selector.includes('button') ? this : null; },
+  };
+
+  document.fire('pointerdown', null, button);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(FakeAudio.plays[0].volume >= 0.6);
 });
