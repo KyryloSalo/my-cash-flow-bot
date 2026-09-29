@@ -110,9 +110,9 @@
     return item.earned ? item.asset_color : item.asset_locked;
   }
 
-  function mascotPoster(mascot) {
+  function mascotAsset(mascot) {
     const safeMascot = mascot === "capi" ? "capi" : "bob";
-    return `/static/miniapp/achievements/previews/${safeMascot}-motion-poster.png`;
+    return `/static/miniapp/achievements/assets/${safeMascot}/01-welcome.png`;
   }
 
   function selectStatusTab(target) {
@@ -225,7 +225,7 @@
     if (elements.widgetStreak) elements.widgetStreak.textContent = String(data.day.current_streak || 0);
     if (elements.widgetLatest) elements.widgetLatest.textContent = latest ? latest.name : "Відкрийте перше досягнення";
     if (elements.widgetMascot) {
-      elements.widgetMascot.src = latest ? preferredAsset(latest) : mascotPoster(data.profile.mascot);
+      elements.widgetMascot.src = latest ? preferredAsset(latest) : mascotAsset(data.profile.mascot);
       elements.widgetMascot.alt = data.profile.mascot === "capi" ? "Капі" : "Боб";
     }
     if (elements.widget) elements.widget.hidden = false;
@@ -233,7 +233,7 @@
 
   function renderHero() {
     if (!state.day || !state.profile) return;
-    if (elements.heroMascot) elements.heroMascot.src = mascotPoster(state.profile.mascot);
+    if (elements.heroMascot) elements.heroMascot.src = mascotAsset(state.profile.mascot);
     if (elements.currentStreak) elements.currentStreak.textContent = String(state.day.current_streak || 0);
     if (elements.bestStreak) elements.bestStreak.textContent = String(state.day.best_streak || 0);
     if (elements.shields) elements.shields.textContent = String(state.day.shield_balance || 0);

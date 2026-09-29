@@ -53,6 +53,18 @@ class AchievementsFrontendContractTests(SimpleTestCase):
         self.assertIn("color: #ffffff", css)
         self.assertIn("achievement-notification-open", javascript)
         self.assertIn("achievement-notification-list", javascript)
+        self.assertIn(
+            'return `/static/miniapp/achievements/assets/${safeMascot}/01-welcome.png`;',
+            javascript,
+        )
+        self.assertIn(
+            "elements.heroMascot.src = mascotAsset(state.profile.mascot);",
+            javascript,
+        )
+        self.assertNotIn(
+            'return `/static/miniapp/achievements/previews/${safeMascot}-motion-poster.png`;',
+            javascript,
+        )
 
         assets_dir = static_dir / "achievements"
         for relative_path in (
