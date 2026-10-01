@@ -1500,9 +1500,14 @@ class MiniAppViewUnitTests(unittest.TestCase):
         goal_card_source = body[
             body.index("function createGoalCard(account, compact)") : body.index("function renderOverviewGoals()")
         ]
+        overview_goals_source = body[
+            body.index("function renderOverviewGoals()") : body.index("function openGoalEditor(account)")
+        ]
         self.assertIn("if (closed) openGoalSpendDetails(account);", goal_card_source)
         self.assertIn("else openGoalTopUp(account);", goal_card_source)
         self.assertNotIn("openGoalEditor(account);", goal_card_source)
+        self.assertIn("!goalIsClosed(account)", overview_goals_source)
+        self.assertNotIn('account.goal_status !== "spent"', overview_goals_source)
         self.assertIn("function openGoalTopUp(account)", body)
         self.assertIn("function openGoalAdjust()", body)
         self.assertIn("return openGoalEditor(target);", body)
@@ -1510,7 +1515,6 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertIn('el.moneyGoalsAdjust.addEventListener("click", openGoalAdjust)', body)
         self.assertIn("el.transferTarget.value = String(account.id);", body)
         self.assertIn("el.transferSource.focus();", body)
-        self.assertIn('account.goal_status !== "spent"', body)
         self.assertIn('id="moneyGoalSpendBtn"', body)
         self.assertIn('goal_spend: Boolean(transactionState.goalSpendAccountId)', body)
         self.assertIn('transactionState.goalSpendAccountId = String(account.id);', body)

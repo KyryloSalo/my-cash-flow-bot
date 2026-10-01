@@ -4611,7 +4611,7 @@
         if (!el.overviewGoalsList || !el.overviewGoalsEmpty) return;
         const activeGoals = (moneyState.options && moneyState.options.accounts || []).filter(function (account) {
           const type = goalAccountType(account);
-          return ["savings", "deposit", "investment"].indexOf(type) !== -1 && goalMoneyValue(account.goal_amount) > 0 && account.goal_status !== "spent";
+          return ["savings", "deposit", "investment"].indexOf(type) !== -1 && goalMoneyValue(account.goal_amount) > 0 && !goalIsClosed(account);
         }).sort(function (left, right) {
           return goalProgress(right) - goalProgress(left);
         });
