@@ -76,6 +76,11 @@ def env_list(name: str, default: list[str] | None = None) -> list[str]:
 
 
 DEBUG = env_bool("DJANGO_DEBUG", False)
+
+# Auto-capture is opt-in and dark by default; platform flags never enable the global switch.
+AUTO_CAPTURE_ENABLED = env_bool("AUTO_CAPTURE_ENABLED", False)
+AUTO_CAPTURE_ANDROID_ENABLED = env_bool("AUTO_CAPTURE_ANDROID_ENABLED", False)
+AUTO_CAPTURE_IOS_ENABLED = env_bool("AUTO_CAPTURE_IOS_ENABLED", False)
 _environment_secret_key = env("DJANGO_SECRET_KEY")
 _file_secret_key = env_file_secret("DJANGO_SECRET_KEY_FILE")
 SECRET_KEY = _file_secret_key or _environment_secret_key

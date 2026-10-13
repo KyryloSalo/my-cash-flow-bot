@@ -117,6 +117,8 @@ def account_deletion_confirm(request: HttpRequest) -> JsonResponse:
     except SelfServiceAccountDeletionError as exc:
         retry_metadata = {"retryable": True} if 500 <= exc.status < 600 else {}
         return _error(exc.code, str(exc), status=exc.status, **retry_metadata)
+    from miniapp.capture_service import purge_capture_data
+    purge_capture_data(int(user.tg_user_id))
     logout_session(request, all_devices=True)
     return JsonResponse(
         {

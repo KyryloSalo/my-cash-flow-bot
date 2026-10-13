@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Auto-capture normalized event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_id", "source", "bank", "observed_at", "occurred_at", "amount", "currency", "merchant", "operation_hint", "parser_version"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "event_id": {"type": "string", "format": "uuid"},
+    "source": {"enum": ["android_notification", "ios_notification_automation", "ios_wallet_automation", "ios_manual_share"]},
+    "bank": {"enum": ["mono", "privat24", "unknown"]},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "occurred_at": {"type": ["string", "null"], "format": "date-time"},
+    "amount": {"type": ["string", "null"], "pattern": "^[0-9]+(\\.[0-9]{1,2})?$"},
+    "currency": {"type": ["string", "null"], "pattern": "^[A-Za-z]{3}$"},
+    "merchant": {"type": ["string", "null"]},
+    "operation_hint": {"enum": ["purchase", "transfer", "refund", "unknown"]},
+    "parser_version": {"type": "string", "minLength": 1, "maxLength": 64}
+  }
+}
