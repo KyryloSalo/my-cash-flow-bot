@@ -77,10 +77,23 @@ def _validate(payload: dict) -> dict:
     return {**payload, "amount": amount}
 
 
+def capture_enabled_for_user(tg_user_id: int, *, platform: str | None = None) -> bool:
+    if not getattr(settings, "AUTO_CAPTURE_ENABLED", False):
+        return False
+    allowlist = {int(value) for value in getattr(settings, "AUTO_CAPTURE_ALLOWLIST_TG_IDS", ())}
+    if int(tg_user_id) not in allowlist:
+        return False
+    if platform is None:
+        return True
+    return platform in ALLOWED_PLATFORMS and bool(
+        getattr(settings, f"AUTO_CAPTURE_{platform.upper()}_ENABLED", False)
+    )
+
+
 def ingest_capture_event(connection: CaptureConnection, payload: dict) -> CaptureEvent:
     if connection.status != "active" or connection.revoked_at is not None:
         raise CaptureValidationError("invalid_credential", "capture connection is not active")
-    if not getattr(settings, "AUTO_CAPTURE_ENABLED", False) or not getattr(settings, f"AUTO_CAPTURE_{connection.platform.upper()}_ENABLED", False):
+    if not capture_enabled_for_user(connection.tg_user_id, platform=connection.platform):
         raise CaptureValidationError("capture_disabled", "capture is disabled")
     normalized = _validate(payload)
     if normalized["source"] not in PLATFORM_SOURCES.get(connection.platform, set()):
@@ -144,20 +157,22 @@ def approve_pairing(*, tg_user_id: int, challenge: str, client_proof: str, platf
     _limit("approve-user", str(tg_user_id), PAIRING_APPROVE_LIMIT)
     if rate_key:
         _limit("approve-ip", rate_key, PAIRING_APPROVE_LIMIT)
-    if not cache.add(f"capture-pair-consumed:{challenge}", 1, int(PAIRING_TTL.total_seconds())):
-        raise CaptureValidationError("pairing_expired")
     record = cache.get(f"capture-pair:{challenge}")
     if not record or record["tg_user_id"] != tg_user_id or not hmac.compare_digest(record["proof"], _hash_secret(client_proof)):
         raise CaptureValidationError("pairing_expired", "pairing challenge is expired or invalid")
+    if not cache.add(f"capture-pair-consumed:{challenge}", 1, int(PAIRING_TTL.total_seconds())):
+        raise CaptureValidationError("pairing_expired")
     cache.delete(f"capture-pair:{challenge}")
     credential = secrets.token_urlsafe(32)
     connection = CaptureConnection.objects.create(tg_user_id=tg_user_id, platform=platform, status="active", credential_hash=_hash_secret(credential))
     return connection, credential
 
 
-def authenticate_submit_credential(credential: str) -> CaptureConnection:
+def authenticate_submit_credential(credential: str, *, rate_key: str | None = None) -> CaptureConnection:
     if not credential or len(credential) > 256:
         raise CaptureValidationError("invalid_credential", "invalid submit credential")
+    if rate_key:
+        _limit("ingest-ip", rate_key, 120, window=300)
     connection = CaptureConnection.objects.filter(status="active", revoked_at__isnull=True).order_by("id")
     for candidate in connection:
         if candidate.credential_issued_at + CREDENTIAL_TTL <= timezone.now():
@@ -168,6 +183,7 @@ def authenticate_submit_credential(credential: str) -> CaptureConnection:
             if count > RATE_LIMIT:
                 raise CaptureValidationError("rate_limited", "too many capture events")
             return candidate
+    _limit("ingest-invalid", _hash_secret(credential)[:16], 10, window=300)
     raise CaptureValidationError("invalid_credential", "invalid submit credential")
 
 

@@ -47,6 +47,7 @@ urlpatterns = [
         account_deletion_views.account_deletion_confirm,
         name="account-deletion-confirm",
     ),
+    path("api/capture/v1/status", capture_views.status, name="capture-status"),
     path("api/capture/v1/pairing/start", capture_views.pairing_start, name="capture-pairing-start"),
     path("api/capture/v1/pairing/approve", capture_views.pairing_approve, name="capture-pairing-approve"),
     path("api/capture/v1/events", capture_views.ingest, name="capture-ingest"),

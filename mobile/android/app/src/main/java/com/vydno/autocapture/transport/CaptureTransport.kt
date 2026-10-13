@@ -7,6 +7,13 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 
 sealed class SendResult { data object Accepted: SendResult(); data object Conflict: SendResult(); data class Retry(val code: Int): SendResult(); data object Revoked: SendResult() }
+enum class DeliveryDisposition { ACCEPTED, MANUAL_REVIEW, RETRY, REPAIR_REQUIRED }
+fun SendResult.disposition(): DeliveryDisposition = when (this) {
+    SendResult.Accepted -> DeliveryDisposition.ACCEPTED
+    SendResult.Conflict -> DeliveryDisposition.MANUAL_REVIEW
+    is SendResult.Retry -> DeliveryDisposition.RETRY
+    SendResult.Revoked -> DeliveryDisposition.REPAIR_REQUIRED
+}
 class CaptureTransport(private val baseUrl: String, private val credential: () -> String?, private val timeoutMs: Int = 15000) {
     private val executor = Executors.newSingleThreadExecutor()
     fun sendAsync(event: NormalizedEvent, callback: (SendResult) -> Unit): Future<*> = executor.submit { callback(send(event)) }

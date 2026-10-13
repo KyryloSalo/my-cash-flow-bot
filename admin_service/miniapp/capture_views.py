@@ -10,7 +10,7 @@ from django.views.decorators.http import require_GET, require_POST
 from miniapp.auth import MiniAppSessionError, get_session_user
 from miniapp.capture_service import (
     CREDENTIAL_TTL, CaptureValidationError, approve_pairing, authenticate_submit_credential,
-    ingest_capture_event, issue_pairing_challenge, revoke_connection,
+    capture_enabled_for_user, ingest_capture_event, issue_pairing_challenge, revoke_connection,
 )
 from miniapp.models import CaptureConnection, CaptureEvent
 from miniapp.models import DraftAction
@@ -46,12 +46,29 @@ def _json_object(request):
     return body
 
 
+def capture_access_error(user, *, platform: str = "android"):
+    if capture_enabled_for_user(int(user.tg_user_id), platform=platform):
+        return None
+    return JsonResponse({"error": {"code": "capture_unavailable"}}, status=404)
+
+
+@require_GET
+def status(request):
+    user = _user(request)
+    if not user:
+        return JsonResponse({"error": {"code": "session_required"}}, status=401)
+    android = capture_enabled_for_user(int(user.tg_user_id), platform="android")
+    return JsonResponse({"enabled": android, "android": android, "ios": False})
+
+
 @csrf_protect
 @require_POST
 def pairing_start(request):
     user = _user(request)
     if not user:
         return JsonResponse({"error": {"code": "session_required"}}, status=401)
+    if access_error := capture_access_error(user):
+        return access_error
     try:
         body = _json_object(request)
         challenge, _ = issue_pairing_challenge(tg_user_id=int(user.tg_user_id), client_proof=str(body["client_proof"]), rate_key=request.META.get("REMOTE_ADDR", "unknown"))
@@ -68,6 +85,8 @@ def pairing_approve(request):
         return JsonResponse({"error": {"code": "session_required"}}, status=401)
     try:
         body = _json_object(request)
+        if access_error := capture_access_error(user, platform=str(body.get("platform") or "")):
+            return access_error
         connection, credential = approve_pairing(tg_user_id=int(user.tg_user_id), challenge=str(body["challenge"]), client_proof=str(body["client_proof"]), platform=str(body["platform"]), rate_key=request.META.get("REMOTE_ADDR", "unknown"))
         expires_at = connection.credential_issued_at + CREDENTIAL_TTL
         return JsonResponse({"connection_id": connection.pk, "credential": credential, "scope": ["capture:submit"], "expires_at": expires_at.isoformat(), "expires_in": int((expires_at - timezone.now()).total_seconds())})
@@ -82,11 +101,13 @@ def ingest(request):
         if len(request.body) > 16 * 1024:
             raise CaptureValidationError("request_too_large")
         credential = request.headers.get("Authorization", "").removeprefix("Bearer ")
-        connection = authenticate_submit_credential(credential)
+        connection = authenticate_submit_credential(credential, rate_key=request.META.get("REMOTE_ADDR", "unknown"))
         event = ingest_capture_event(connection, json.loads(request.body))
         return JsonResponse({"capture_id": event.pk, "status": event.status}, status=200)
     except (UnicodeDecodeError, json.JSONDecodeError, CaptureValidationError) as exc:
-        return _error(exc, 409 if getattr(exc, "code", "") == "event_payload_conflict" else 400)
+        code = getattr(exc, "code", "")
+        status_code = {"invalid_credential": 401, "rate_limited": 429, "event_payload_conflict": 409}.get(code, 400)
+        return _error(exc, status_code)
 
 
 @require_GET
@@ -94,6 +115,8 @@ def inbox(request):
     user = _user(request)
     if not user:
         return JsonResponse({"error": {"code": "session_required"}}, status=401)
+    if access_error := capture_access_error(user):
+        return access_error
     events = CaptureEvent.objects.filter(tg_user_id=user.tg_user_id).exclude(status="expired").order_by("-created_at")
     return JsonResponse({"events": [{"id": e.pk, "status": e.status, "amount": str(e.amount) if e.amount is not None else None, "currency": e.currency, "merchant": e.merchant, "source_revision": e.source_revision} for e in events]})
 
@@ -104,6 +127,8 @@ def review(request, event_id):
     user = _user(request)
     if not user:
         return JsonResponse({"error": {"code": "session_required"}}, status=401)
+    if access_error := capture_access_error(user):
+        return access_error
     with transaction.atomic():
         event = CaptureEvent.objects.select_for_update().filter(pk=event_id, tg_user_id=user.tg_user_id).first()
         if event is None:
@@ -143,6 +168,8 @@ def confirm(request, event_id):
     user = _user(request)
     if not user:
         return JsonResponse({"error": {"code": "session_required"}}, status=401)
+    if access_error := capture_access_error(user):
+        return access_error
     try:
         body = _json_object(request)
         expected = int(body.get("source_revision") or 0)
@@ -175,6 +202,8 @@ def dismiss(request, event_id):
     user = _user(request)
     if not user:
         return JsonResponse({"error": {"code": "session_required"}}, status=401)
+    if access_error := capture_access_error(user):
+        return access_error
     updated = CaptureEvent.objects.filter(pk=event_id, tg_user_id=user.tg_user_id, status__in=["pending", "needs_review", "reviewed"]).update(status="dismissed")
     return JsonResponse({"ok": bool(updated)})
 
@@ -185,6 +214,8 @@ def revoke(request, connection_id):
     user = _user(request)
     if not user:
         return JsonResponse({"error": {"code": "session_required"}}, status=401)
+    if access_error := capture_access_error(user):
+        return access_error
     connection = CaptureConnection.objects.filter(pk=connection_id, tg_user_id=user.tg_user_id).first()
     if not connection:
         return JsonResponse({"error": {"code": "not_found"}}, status=404)

@@ -12,14 +12,14 @@ gradle testDebugUnitTest
 gradle assembleDebug
 ```
 
-No APK was produced in this environment: `java` and `gradle` are not installed and `ANDROID_HOME` is unset.
+The debug APK and JVM unit tests were produced locally with JDK 17 and Android SDK 35. This proves compilation only; installation and real-device acceptance remain separate gates.
 
 ## Security/behavior
 
-- WebView permits only `https://vydno.capital/`; no JavaScript-to-native bridge is exposed.
+- WebView permits only `https://vydno.capital/`. A restricted `AndroidCapture.postMessage(...)` bridge is exposed only to that origin and accepts two bounded commands: a strictly validated pairing credential and opening Android notification-listener settings.
 - Listener rejects packages before parsing. Unknown, OTP, transfer, refund, and income notifications are dropped; incomplete purchases become `unknown` for review.
 - Raw notification text is not persisted, logged, or sent. Credentials use Android encrypted preferences.
 - Queue IDs derive from the notification key and are stable across updates. Queue TTL is seven days with exponential retry; 409 is terminal conflict and never retried with a new UUID.
-- Revoke/kill-switch is represented by 401/403 terminal transport state; the app must clear credentials and stop delivery.
+- Revoke/kill-switch is represented by 401/403 terminal transport state; the app clears the submit credential, stops retrying the affected item, and keeps it for manual review.
 
 Real-device permission, reboot, locked-screen, bank-format, and package-ID evidence remain required before enabling a bank.

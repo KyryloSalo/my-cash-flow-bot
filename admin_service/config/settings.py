@@ -81,6 +81,11 @@ DEBUG = env_bool("DJANGO_DEBUG", False)
 AUTO_CAPTURE_ENABLED = env_bool("AUTO_CAPTURE_ENABLED", False)
 AUTO_CAPTURE_ANDROID_ENABLED = env_bool("AUTO_CAPTURE_ANDROID_ENABLED", False)
 AUTO_CAPTURE_IOS_ENABLED = env_bool("AUTO_CAPTURE_IOS_ENABLED", False)
+AUTO_CAPTURE_ALLOWLIST_TG_IDS = tuple(
+    int(value)
+    for value in env_list("AUTO_CAPTURE_ALLOWLIST_TG_IDS")
+    if value.isdigit() and int(value) > 0
+)
 _environment_secret_key = env("DJANGO_SECRET_KEY")
 _file_secret_key = env_file_secret("DJANGO_SECRET_KEY_FILE")
 SECRET_KEY = _file_secret_key or _environment_secret_key
