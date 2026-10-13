@@ -31,20 +31,28 @@ test("detects Safari, iOS alternate browsers, and Android Chrome", () => {
   assert.equal(coach.detectBrowser({ userAgent: "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/128.0 Mobile Safari/537.36" }), "chrome");
 });
 
-test("shows the complete three-step iOS install instruction at once", () => {
+test("shows the four-step iOS animation immediately without claiming installation", () => {
   const first = coach.buildModel({ locale: "uk", platform: "ios", browser: "safari", step: 0 });
   assert.equal(first.mode, "manual");
-  assert.equal(first.overview, true);
-  assert.equal(first.steps.length, 3);
+  assert.equal(first.overview, false);
+  assert.equal(first.steps.length, 4);
   assert.equal(first.step, 0);
-  assert.match(first.command, /усі 3 дії|всі 3 дії/iu);
+  assert.match(first.command, /Поділитися/iu);
   assert.match(first.steps[0], /Поділитися/iu);
   assert.match(first.steps[1], /На початковий екран/iu);
   assert.match(first.steps[2], /Додати/iu);
-  assert.match(first.hint, /іконк.+Vydno/iu);
-  assert.equal(first.primaryLabel, "Зрозуміло");
+  assert.match(first.steps[3], /іконк.+Vydno/iu);
+  assert.equal(first.primaryLabel, "Далі");
   assert.equal(first.complete, false);
-  assert.match(first.skipLabel, /без встановлення/iu);
+  assert.equal(first.skipLabel, "Не зараз");
+  const last = coach.buildModel({ locale: "uk", platform: "ios", browser: "safari", step: 3 });
+  assert.equal(last.primaryLabel, "Зрозуміло");
+  assert.equal(last.complete, false);
+  const english = coach.buildModel({ locale: "en", platform: "ios", browser: "safari", step: 3 });
+  assert.equal(english.steps.length, 4);
+  assert.equal(english.hints.length, 4);
+  assert.match(english.command, /new Vydno icon/u);
+  assert.equal(english.primaryLabel, "Got it");
   assert.match(
     cssSource,
     /data-install-overview="true"[^}]+\.install-coach-step-label[^}]+position:\s*static/su,
@@ -54,14 +62,15 @@ test("shows the complete three-step iOS install instruction at once", () => {
 test("uses the native Android prompt only when a real prompt is available", () => {
   const native = coach.buildModel({ locale: "uk", platform: "android", browser: "chrome", canPrompt: true });
   assert.equal(native.mode, "native");
-  assert.equal(native.overview, true);
-  assert.equal(native.steps.length, 3);
-  assert.match(native.steps[0], /Встановити Vydno/i);
+  assert.equal(native.overview, false);
+  assert.equal(native.primaryLabel, "Встановити і додати на головний екран");
+  assert.equal(native.command, "");
+
+  assert.match(native.steps[0], /Встановити і додати/iu);
   assert.doesNotMatch(native.steps[0], /системн/i);
   assert.match(native.steps[1], /системному вікні|системне вікно/i);
-  assert.match(native.steps[1], /Установити додаток.+Установити/iu);
+  assert.match(native.steps[1], /підтвердьте встановлення/iu);
   assert.match(native.steps[2], /іконк.+Vydno/i);
-  assert.match(native.command, /3 дії/iu);
   assert.match(native.primaryLabel, /Встановити/);
 
   const manual = coach.buildModel({ locale: "uk", platform: "android", browser: "chrome", canPrompt: false });
@@ -87,16 +96,18 @@ test("native Android coach exposes one product action before opening Chrome's pr
   );
   assert.match(templateSource, /class="install-coach-native-ready"/u);
   assert.match(cssSource, /#installNudgeHelp\[hidden\]/u);
+  for (const selector of [".install-coach-visual", ".install-coach-command", ".install-coach-progress-row", ".install-coach-steps"]) {
+    assert.ok(cssSource.includes('[data-install-status="idle"] ' + selector));
+  }
   assert.match(cssSource, /data-install-mode="native"[^}]+#installNudgePrimary::before/su);
 });
 
-test("native Android coach matches the Ukrainian Chrome dialog seen on device", () => {
+test("native Android does not promise a particular system dialog label", () => {
   const native = coach.buildModel({ locale: "uk", platform: "android", browser: "chrome", canPrompt: true, step: 1 });
-  assert.equal(native.steps[1], "Chrome відкриє системне вікно «Установити додаток» із назвою «Vydno.Capital». Натисніть «Установити» й дочекайтеся завершення.");
-  assert.match(native.steps.join(" "), /Установити додаток.+Vydno\.Capital.+Установити/iu);
-  assert.equal(native.overview, true);
-  assert.match(native.hints[1], /«Установити додаток»/u);
-  assert.match(native.hints[1], /«Vydno\.Capital»/u);
+  assert.match(native.steps[1], /системному вікні/iu);
+  assert.doesNotMatch(native.steps.join(" "), /Установити додаток|Vydno\.Capital/iu);
+  assert.equal(native.overview, false);
+  assert.match(native.hints[1], /залежать від браузера/iu);
   assert.match(
     templateSource,
     /<span><strong>Vydno\.Capital<\/strong><small>Установити додаток<\/small><\/span><button[^>]*>Установити<\/button>/u,
@@ -193,6 +204,45 @@ test("Telegram install handoff requests Safari on iOS and Chrome on Android", ()
     assert.deepEqual(Object.keys(calls[0][1]), ["try_browser"]);
     assert.equal(calls[0][1].try_browser, expectedBrowser);
     assert.deepEqual(assignments, []);
+  }
+});
+
+test("Telegram handoff failure stays in the guide instead of navigating internally", () => {
+  for (const api of [null, { openLink() { throw new Error("blocked"); } }]) {
+    const failures = [];
+    const open = loadInlineFunction("openInstallBrowserUrl", {
+      window: {
+        Telegram: api ? { WebApp: api } : undefined,
+        location: { assign() { throw new Error("internal navigation forbidden"); } },
+      },
+    });
+    assert.equal(open("https://vydno.example/fresh-login", "ios", (error) => failures.push(error.message)), false);
+    assert.equal(failures.length, 1);
+  }
+});
+
+test("Telegram unavailable or failed browser handoff never dismisses the guide", () => {
+  for (const url of ["", "https://vydno.example/fresh-login"]) {
+    const refreshes = [];
+    let hidden = false;
+    const start = loadInlineFunction("startInstallFromCoach", {
+      installPromptBusy: false,
+      installNudgePayload: { browser_login_url: url },
+      installCoachHelpOpen: false,
+      window: {
+        VydnoInstallCoach: { buildModel: () => ({ mode: "handoff", platform: "ios" }) },
+        navigator: {},
+      },
+      installCoachOptions: () => ({}),
+      recordInstallFunnelEvent: () => {},
+      refreshInstallCoach: (options) => refreshes.push(options.outcome),
+      openInstallBrowserUrl: (target, platform, fallback) => { fallback(); return false; },
+      hideInstallNudge: () => { hidden = true; },
+      advanceInstallCoach: () => { throw new Error("must not acknowledge a handoff failure"); },
+    });
+    start();
+    assert.deepEqual(refreshes, ["handoff-fallback"]);
+    assert.equal(hidden, false);
   }
 });
 

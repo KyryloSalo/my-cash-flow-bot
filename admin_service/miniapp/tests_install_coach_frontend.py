@@ -56,21 +56,27 @@ class InstallCoachFrontendContractTests(SimpleTestCase):
         self.assertIn('id="installCoachHelp"', self.source)
         self.assertIn('id="installNudgeHelp"', self.source)
         self.assertIn('id="installNudgeLater"', self.source)
-        self.assertIn("Продовжити без встановлення", self.source)
+        self.assertIn('id="installNudgeLater" type="button">Не зараз', self.source)
         self.assertIn('aria-live="polite"', self.source)
 
-    def test_initial_ios_and_android_install_instructions_are_all_steps_overviews(self) -> None:
-        self.assertIn('const overview = mode === "manual" || (mode === "native" && nativeStatus === "idle")', self.module)
+    def test_initial_ios_animation_and_android_single_cta_contract(self) -> None:
+        self.assertIn('const overview = platform !== "ios" && mode === "manual"', self.module)
         self.assertIn("overview: overview", self.module)
         self.assertIn('modal.dataset.installOverview = model.overview ? "true" : "false"', self.module)
         self.assertIn('#installNudgeModal[data-install-overview="true"] .install-coach-progress-row', self.css)
-        self.assertIn('#installNudgeModal[data-install-overview="true"] .install-coach-visual', self.css)
+        self.assertNotIn('#installNudgeModal[data-install-overview="true"] .install-coach-visual,', self.css)
+        self.assertIn('modal.dataset.installStatus = model.nativeStatus', self.module)
+        for selector in (".install-coach-visual", ".install-coach-command", ".install-coach-progress-row", ".install-coach-steps"):
+            self.assertIn('[data-install-status="idle"] ' + selector, self.css)
+        self.assertIn('"Open the new Vydno icon on the Home Screen."', self.module)
+        self.assertIn('"На головному екрані відкрийте нову іконку Vydno."', self.module)
         self.assertIn('#installNudgeModal[data-install-overview="true"] .install-coach-steps li', self.css)
 
         handler = self.source.split("function advanceInstallCoach()", 1)[1].split(
             "function setInstallPromptBusy", 1
         )[0]
-        self.assertIn("if (model.overview)", handler)
+        self.assertIn("if (model.overview || model.step >= model.steps.length - 1)", handler)
+        self.assertIn('refreshInstallCoach({ outcome: "step-advanced" })', handler)
         self.assertIn('recordInstallFunnelEvent("install_cta_click", "manual-instructions-acknowledged")', handler)
         self.assertIn('recordInstallNudge("dismissed").then(hideInstallNudge)', handler)
         self.assertNotIn('recordInstallNudge("confirmed")', handler)
@@ -170,17 +176,22 @@ class InstallCoachFrontendContractTests(SimpleTestCase):
         self.assertIn('model.mode === "handoff"', handler)
         self.assertIn("installNudgePayload.browser_login_url", handler)
         self.assertIn(
-            "openInstallBrowserUrl(installNudgePayload.browser_login_url, model.platform)",
+            "openInstallBrowserUrl(safeUrl, model.platform, fallback)",
             handler,
         )
         self.assertNotIn("openBillingUrl(", handler)
 
-        opener = self.source.split("function openInstallBrowserUrl(url, platform)", 1)[1].split(
+        self.assertIn("if (!safeUrl)", handler)
+        self.assertIn('refreshInstallCoach({ outcome: "handoff-fallback" })', handler)
+        self.assertIn("window.navigator.clipboard.writeText(safeUrl)", handler)
+        opener = self.source.split("function openInstallBrowserUrl(url, platform, onFallback)", 1)[1].split(
             "function createBillingConsent", 1
         )[0]
         self.assertIn('platform === "ios" ? "safari" : "chrome"', opener)
         self.assertIn("window.Telegram.WebApp.openLink(target, { try_browser: tryBrowser })", opener)
         self.assertNotIn("window.Telegram.WebApp.openLink(target);", opener)
+        self.assertNotIn("window.location.assign", opener)
+        self.assertIn("onFallback(error)", opener)
 
     def test_standalone_session_recovery_uses_oidc_inside_the_installed_app(self) -> None:
         self.assertIn('data-telegram-oidc-recovery-url="{% url \'miniapp:telegram-oidc-start\' %}"', self.source)
