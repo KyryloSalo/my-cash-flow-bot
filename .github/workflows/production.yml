@@ -112,9 +112,17 @@ jobs:
             "$SSH_USER@$SSH_HOST" bash -s <<'REMOTE' |
           set -euo pipefail
           root=/opt/my-cash-flow-bot
-          release_id=$(cat "$root/current-release")
-          project="mcf_${release_id:0:12}"
-          exec docker compose --env-file "$root/.env" -f "$root/current/compose.yml" -p "$project" \
+          project_dir="$root"
+          if [[ -L "$root/current" && -f "$root/current-release" ]]; then
+            candidate=$(readlink -f "$root/current")
+            IFS= read -r release_id < "$root/current-release" || true
+            if [[ -f "$candidate/compose.yml" && "$(basename -- "$candidate")" == "$release_id" ]]; then
+              project_dir="$candidate"
+            fi
+          fi
+          project_name=${COMPOSE_PROJECT_NAME:-my-cash-flow-bot}
+          exec docker compose --env-file "$root/.env" -p "$project_name" \
+            --project-directory "$project_dir" -f "$project_dir/compose.yml" \
             exec -T db sh -lc 'exec pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"'
           REMOTE
             gzip -9 |

@@ -62,6 +62,9 @@ class DeployPolicyTests(unittest.TestCase):
 
         self.assertIn('secrets.BACKUP_ENCRYPTION_PASSPHRASE', workflow)
         self.assertIn('pg_dump', workflow)
+        self.assertIn('project_name=${COMPOSE_PROJECT_NAME:-my-cash-flow-bot}', workflow)
+        self.assertIn('--project-directory "$project_dir"', workflow)
+        self.assertNotIn('project="mcf_${release_id:0:12}"', workflow)
         self.assertIn('openssl enc -aes-256-cbc -salt -pbkdf2', workflow)
         self.assertIn('id: database-backup', workflow)
         self.assertIn('production-db-backup-', workflow)
