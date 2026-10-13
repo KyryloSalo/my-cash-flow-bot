@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "event_id": "6fddf4a4-2ee3-4dd8-94cc-cd30c75d82b0",
+  "source": "android_notification",
+  "bank": "mono",
+  "observed_at": "2026-10-13T10:00:00+03:00",
+  "occurred_at": null,
+  "amount": "125.50",
+  "currency": "UAH",
+  "merchant": "Крамниця",
+  "operation_hint": "purchase",
+  "parser_version": "android-1"
+}

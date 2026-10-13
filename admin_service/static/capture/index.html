@@ -1,0 +1,9 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Capture review</title>
+<main><h1>Capture review</h1><p id="status">Sign in to review captured transactions.</p><button id="refresh">Refresh</button><ul id="events"></ul></main>
+<script>
+const list=document.querySelector('#events'), status=document.querySelector('#status');
+async function refresh(){const r=await fetch('/api/capture/v1/inbox'); if(!r.ok){status.textContent='Capture review is unavailable.';return} const d=await r.json(); list.innerHTML=''; for(const e of d.events){const li=document.createElement('li'); li.textContent=`${e.merchant||'Transaction'} — ${e.amount||''} ${e.currency||''} (${e.status})`; list.append(li)}}
+document.querySelector('#refresh').onclick=refresh; refresh();
+</script>
