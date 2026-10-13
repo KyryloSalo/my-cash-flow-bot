@@ -66,6 +66,7 @@ class CaptureFoundationTests(TestCase):
 
     def test_ingest_persists_normalized_event_without_ledger_write(self):
         capture = ingest_capture_event(self.connection, self.event())
+        capture.refresh_from_db()
         self.assertEqual(capture.status, "pending")
         self.assertEqual(CaptureEvent.objects.count(), 1)
         self.assertEqual(capture.amount, Decimal("125.50"))
@@ -99,11 +100,6 @@ class CaptureFoundationTests(TestCase):
             ingest_capture_event(self.connection, self.event())
         self.assertEqual(error.exception.code, "capture_disabled")
 
-    def test_flags_are_off_by_default(self):
-        from django.conf import settings
-        self.assertFalse(getattr(settings, "AUTO_CAPTURE_ENABLED", False))
-        self.assertFalse(getattr(settings, "AUTO_CAPTURE_ANDROID_ENABLED", False))
-
     def test_expired_credential_is_rejected(self):
         self.connection.credential_hash = _hash_secret("expired-token")
         self.connection.credential_issued_at = timezone.now() - CREDENTIAL_TTL - timedelta(seconds=1)
@@ -116,6 +112,12 @@ class CaptureFoundationTests(TestCase):
 class CaptureRolloutTests(SimpleTestCase):
     def setUp(self):
         self.request = RequestFactory().get("/app/api/capture/v1/status")
+
+    def test_flags_are_off_by_default(self):
+        from django.conf import settings
+
+        self.assertFalse(getattr(settings, "AUTO_CAPTURE_ENABLED", False))
+        self.assertFalse(getattr(settings, "AUTO_CAPTURE_ANDROID_ENABLED", False))
 
     @override_settings(
         AUTO_CAPTURE_ENABLED=True,
