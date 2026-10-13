@@ -160,6 +160,8 @@ class HardDeleteStats:
     deleted_ai_transaction_drafts: int = 0
     deleted_saving_prompt_settings: int = 0
     deleted_pending_saving_tasks: int = 0
+    deleted_capture_events: int = 0
+    deleted_capture_connections: int = 0
     deleted_debt_invites: int = 0
     deleted_family_members: int = 0
     deleted_family_invites: int = 0
@@ -221,6 +223,8 @@ class HardDeleteStats:
             "deleted_ai_transaction_drafts": self.deleted_ai_transaction_drafts,
             "deleted_saving_prompt_settings": self.deleted_saving_prompt_settings,
             "deleted_pending_saving_tasks": self.deleted_pending_saving_tasks,
+            "deleted_capture_events": self.deleted_capture_events,
+            "deleted_capture_connections": self.deleted_capture_connections,
             "deleted_debt_invites": self.deleted_debt_invites,
             "deleted_family_members": self.deleted_family_members,
             "deleted_family_invites": self.deleted_family_invites,
@@ -1402,6 +1406,21 @@ def delete_own_account(*, user_id: int, request_id: str) -> dict:
     }
 
 
+def _delete_capture_rows(*, user_id: int, stats: HardDeleteStats, existing_tables: set[str]) -> None:
+    stats.deleted_capture_events = _delete_rows(
+        table_name="miniapp_capture_events",
+        where_sql="tg_user_id = %s",
+        params=[user_id],
+        existing_tables=existing_tables,
+    )
+    stats.deleted_capture_connections = _delete_rows(
+        table_name="miniapp_capture_connections",
+        where_sql="tg_user_id = %s",
+        params=[user_id],
+        existing_tables=existing_tables,
+    )
+
+
 def hard_delete_user(
     user_id: int,
     *,
@@ -1479,6 +1498,11 @@ def hard_delete_user(
             )
 
         _delete_privacy_identity_rows(
+            user_id=user.tg_user_id,
+            stats=stats,
+            existing_tables=existing_tables,
+        )
+        _delete_capture_rows(
             user_id=user.tg_user_id,
             stats=stats,
             existing_tables=existing_tables,

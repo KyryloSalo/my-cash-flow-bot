@@ -73,6 +73,48 @@ class DraftAction(models.Model):
         ]
 
 
+class CaptureConnection(models.Model):
+    tg_user_id = models.BigIntegerField(db_index=True)
+    platform = models.CharField(max_length=40)
+    status = models.CharField(max_length=24, default="pending")
+    credential_hash = models.CharField(max_length=128)
+    credential_issued_at = models.DateTimeField(auto_now_add=True)
+    last_received_at = models.DateTimeField(blank=True, null=True)
+    revoked_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "miniapp_capture_connections"
+
+
+class CaptureEvent(models.Model):
+    connection = models.ForeignKey(CaptureConnection, on_delete=models.CASCADE, related_name="events")
+    tg_user_id = models.BigIntegerField(db_index=True)
+    event_id = models.UUIDField()
+    source = models.CharField(max_length=48)
+    bank = models.CharField(max_length=32)
+    observed_at = models.DateTimeField()
+    occurred_at = models.DateTimeField(blank=True, null=True)
+    amount = models.DecimalField(max_digits=18, decimal_places=2, blank=True, null=True)
+    currency = models.CharField(max_length=3, blank=True, null=True)
+    merchant = models.CharField(max_length=160, blank=True, null=True)
+    operation_hint = models.CharField(max_length=16)
+    parser_version = models.CharField(max_length=64)
+    payload = models.JSONField(default=dict)
+    payload_fingerprint = models.CharField(max_length=64)
+    status = models.CharField(max_length=24, default="pending")
+    source_revision = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    draft_id = models.CharField(max_length=128, blank=True, null=True, unique=True)
+    draft_payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "miniapp_capture_events"
+        constraints = [models.UniqueConstraint(fields=("connection", "event_id"), name="miniapp_capture_event_unique")]
+
+
 class InstallNudgeState(models.Model):
     """Persistent Home Screen install campaign state shared with the Telegram bot."""
 

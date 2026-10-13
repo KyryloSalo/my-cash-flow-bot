@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from miniapp import account_deletion_views, funnel_views, views
+from miniapp import account_deletion_views, capture_views, funnel_views, views
 
 
 urlpatterns = [
@@ -47,6 +47,15 @@ urlpatterns = [
         account_deletion_views.account_deletion_confirm,
         name="account-deletion-confirm",
     ),
+    path("api/capture/v1/status", capture_views.status, name="capture-status"),
+    path("api/capture/v1/pairing/start", capture_views.pairing_start, name="capture-pairing-start"),
+    path("api/capture/v1/pairing/approve", capture_views.pairing_approve, name="capture-pairing-approve"),
+    path("api/capture/v1/events", capture_views.ingest, name="capture-ingest"),
+    path("api/capture/v1/inbox", capture_views.inbox, name="capture-inbox"),
+    path("api/capture/v1/events/<int:event_id>/review", capture_views.review, name="capture-review"),
+    path("api/capture/v1/events/<int:event_id>/confirm", capture_views.confirm, name="capture-confirm"),
+    path("api/capture/v1/events/<int:event_id>/dismiss", capture_views.dismiss, name="capture-dismiss"),
+    path("api/capture/v1/connections/<int:connection_id>/revoke", capture_views.revoke, name="capture-revoke"),
     path("api/notifications", views.notification_status, name="notification-status"),
     path("api/notifications/subscribe", views.notification_subscribe, name="notification-subscribe"),
     path("api/notifications/unsubscribe", views.notification_unsubscribe, name="notification-unsubscribe"),

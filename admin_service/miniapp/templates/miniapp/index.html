@@ -23,6 +23,7 @@
   <script defer src="{% static 'miniapp/sound-manager.js' %}?v={{ miniapp_asset_version }}" data-sound-base="{% static 'miniapp/sounds/' %}" data-asset-version="{{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/install-coach.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/push.js' %}?v={{ miniapp_asset_version }}"></script>
+  <script defer src="{% static 'miniapp/capture.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/achievements.js' %}?v={{ miniapp_asset_version }}"></script>
 </head>
 <body class="calm-fintech-v2"
@@ -1600,6 +1601,20 @@
                 <button class="primary-action" id="billingExpenseConfirmBtn" type="button">Confirm expense</button>
               </div>
             </div>
+          </article>
+
+          <article class="settings-card" id="capturePanel" hidden>
+            <div class="settings-card-title-row">
+              <div>
+                <h2>Автоматичне додавання з Android</h2>
+                <p class="tx-meta" id="captureStatus">Перевіряємо доступність…</p>
+              </div>
+            </div>
+            <div class="settings-action-row">
+              <button class="ghost-btn" id="capturePair" type="button" hidden>Підключити Android</button>
+              <button class="ghost-btn" id="captureNotificationSettings" type="button" hidden>Дозволити сповіщення</button>
+            </div>
+            <div id="captureInbox" aria-live="polite"></div>
           </article>
 
           <article class="card card-pad">
