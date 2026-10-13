@@ -1,0 +1,149 @@
+name: Deploy validated release to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Full 40-character commit SHA from current main
+        required: true
+        type: string
+      confirm:
+        description: Type deploy-production
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: production
+    env:
+      RELEASE_SHA: ${{ github.event.inputs.release_sha }}
+      DEPLOY_CONFIRM: ${{ github.event.inputs.confirm }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Authorize exact validated main commit
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "Production workflow must run from the protected main definition" >&2; exit 2; }
+          [[ "$DEPLOY_CONFIRM" == "deploy-production" ]] || { echo "Confirmation phrase is invalid" >&2; exit 2; }
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "A full lowercase commit SHA is required" >&2; exit 2; }
+          main_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          [[ "$main_sha" == "$RELEASE_SHA" ]] || { echo "Only the current main commit can be deployed" >&2; exit 2; }
+          validation_run=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/runs" \
+            -f head_sha="$RELEASE_SHA" -f status=completed -f per_page=100 \
+            --jq '[.workflow_runs[] | select(.event == "push" and .conclusion == "success")] | first | .id // empty')
+          [[ "$validation_run" =~ ^[0-9]+$ ]] || { echo "No successful push validation found for the requested SHA" >&2; exit 2; }
+          release_target=$(gh release view "validated-$RELEASE_SHA" --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq '.targetCommitish')
+          [[ "$release_target" == "$RELEASE_SHA" ]] || { echo "Validated release tag does not target the requested SHA" >&2; exit 2; }
+          release_body=$(gh release view "validated-$RELEASE_SHA" --repo "$GITHUB_REPOSITORY" --json body --jq '.body')
+          [[ "$release_body" == *"Validated by GitHub Actions run $validation_run."* ]] || { echo "Release was not published by the selected validation run" >&2; exit 2; }
+          echo "VALIDATION_RUN_ID=$validation_run" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.inputs.release_sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12.10'
+
+      - name: Download and verify immutable CI bundle
+        run: |
+          set -euo pipefail
+          mkdir artifacts
+          gh run download "$VALIDATION_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "validated-release-$RELEASE_SHA" --dir artifacts
+          verified_sha=$(python ops/release_evidence.py verify artifacts | tail -n 1)
+          [[ "$verified_sha" == "$RELEASE_SHA" ]] || { echo "Release evidence SHA mismatch" >&2; exit 2; }
+
+      - name: Deploy with pinned SSH identity and verify production
+        env:
+          SSH_HOST: 31.131.31.117
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: '22'
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "$SSH_HOST" =~ ^[a-zA-Z0-9.-]+$ ]] || { echo "Invalid SSH host" >&2; exit 2; }
+          [[ "$SSH_USER" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo "Invalid SSH user" >&2; exit 2; }
+          [[ "$SSH_PORT" =~ ^[0-9]+$ ]] && (( SSH_PORT >= 1 && SSH_PORT <= 65535 )) || { echo "Invalid SSH port" >&2; exit 2; }
+
+          install -m 600 ops/known_hosts.production "$RUNNER_TEMP/known_hosts"
+          lookup="$SSH_HOST"
+          if [[ "$SSH_PORT" != "22" ]]; then lookup="[$SSH_HOST]:$SSH_PORT"; fi
+          ssh-keygen -F "$lookup" -f "$RUNNER_TEMP/known_hosts" >/dev/null || { echo "Configured host is not pinned" >&2; exit 2; }
+
+          install -m 600 /dev/null "$RUNNER_TEMP/deploy_key"
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/deploy_key"
+          eval "$(ssh-agent -s)"
+          trap 'ssh-agent -k >/dev/null 2>&1 || true; rm -f "$RUNNER_TEMP/deploy_key"' EXIT
+          ssh-add "$RUNNER_TEMP/deploy_key"
+
+          pwsh -NoProfile -File ops/deploy.ps1 \
+            -ConfirmProduction \
+            -KnownHostsPath "$RUNNER_TEMP/known_hosts" \
+            -ServerHost "$SSH_HOST" \
+            -ServerUser "$SSH_USER" \
+            -ServerPort "$SSH_PORT" \
+            -ArtifactDirectory "$GITHUB_WORKSPACE/artifacts"
+
+          deployed_sha=$(ssh -p "$SSH_PORT" \
+            -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$RUNNER_TEMP/known_hosts" -o GlobalKnownHostsFile=none \
+            "$SSH_USER@$SSH_HOST" 'cat /opt/my-cash-flow-bot/current-release')
+          [[ "$deployed_sha" == "$RELEASE_SHA" ]] || { echo "Production release readback mismatch" >&2; exit 2; }
+          python ops/readiness_smoke.py
+
+          mkdir -p deployment-evidence
+          python - <<'PY'
+          import datetime as dt
+          import json
+          import os
+          from pathlib import Path
+
+          payload = {
+              "deployed_sha": os.environ["RELEASE_SHA"],
+              "validation_run_id": int(os.environ["VALIDATION_RUN_ID"]),
+              "deployment_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "deployed_at_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+              "environment": "production",
+              "readback": "passed",
+          }
+          Path("deployment-evidence/deployment.json").write_text(
+              json.dumps(payload, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: production-deployment-${{ github.event.inputs.release_sha }}
+          path: deployment-evidence/deployment.json
+          if-no-files-found: error
+          retention-days: 90
+
+  promote-release:
+    name: Promote deployed release
+    needs: deploy
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      RELEASE_SHA: ${{ github.event.inputs.release_sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Mark the verified production bundle as latest
+        run: |
+          gh release edit "validated-$RELEASE_SHA" --repo "$GITHUB_REPOSITORY" \
+            --prerelease=false --latest \
+            --notes "Production deployment verified for commit $RELEASE_SHA by Actions run $GITHUB_RUN_ID."

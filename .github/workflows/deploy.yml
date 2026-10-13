@@ -107,8 +107,9 @@ jobs:
         run: |
           mkdir artifacts
           gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "validated-release-$GITHUB_SHA" --dir artifacts
-          gh release create "validated-$GITHUB_SHA" artifacts/release.zip artifacts/images.tar artifacts/release-evidence.json \
+          gh release create "validated-$GITHUB_SHA" \
+            artifacts/release.zip artifacts/images.tar artifacts/release-evidence.json \
+            artifacts/bot-sbom.json artifacts/admin-sbom.json \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Validated deployment $GITHUB_SHA" \
-            --notes "Immutable CI-validated deployment bundle for commit $GITHUB_SHA." --prerelease
-# No SSH secrets or automatic production job. Download a successful artifact,
-# approve staging gates/runbook, then use ops/deploy.ps1 -ConfirmProduction.
+            --notes "Immutable CI-validated deployment bundle for commit $GITHUB_SHA. Validated by GitHub Actions run $GITHUB_RUN_ID." --prerelease
+# Production promotion is a separate manual workflow protected by the production Environment.
