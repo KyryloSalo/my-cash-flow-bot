@@ -18,15 +18,15 @@
       iosTelegramMessage: "Перейдіть через захищений вхід у Safari. Там ми покажемо встановлення для iPhone.",
       safariTitle: "Спочатку відкрийте сторінку в Safari",
       safariMessage: "На iPhone встановлення PWA доступне через меню Safari.",
-      androidNativeMessage: "Усі 3 дії видно одразу. Почніть із зеленої кнопки — Chrome відкриє системне вікно встановлення.",
+      androidNativeMessage: "Натисніть кнопку — Chrome відкриє системне вікно встановлення.",
       androidNativeSteps: [
-        "Натисніть зелену кнопку «Встановити Vydno» під інструкцією.",
-        "Chrome відкриє системне вікно «Установити додаток» із назвою «Vydno.Capital». Натисніть «Установити» й дочекайтеся завершення.",
+        "Натисніть зелену кнопку «Встановити і додати на головний екран».",
+        "У системному вікні підтвердьте встановлення Vydno й дочекайтеся завершення.",
         "На головному екрані відкрийте нову іконку Vydno.",
       ],
       androidNativeHints: [
         "Це єдина кнопка, яка запускає встановлення; меню Chrome відкривати не потрібно.",
-        "Вікно має заголовок «Установити додаток» і показує назву «Vydno.Capital».",
+        "Назва вікна та кнопки залежать від браузера й мови телефона.",
         "Запуск із нової іконки підтвердить, що Vydno відкривається як окремий застосунок.",
       ],
       androidNativePendingCommand: "Дочекайтеся завершення встановлення в Chrome.",
@@ -35,11 +35,13 @@
         "У Safari натисніть кнопку «Поділитися» — квадрат зі стрілкою вгору.",
         "У меню «Поділитися» прокрутіть список і виберіть «На початковий екран».",
         "Залиште «Відкрити як вебдодаток» увімкненим і натисніть «Додати» у правому верхньому куті.",
+        "На головному екрані відкрийте нову іконку Vydno.",
       ],
       iosHints: [
         "Кнопка розташована в панелі Safari — зверху або знизу залежно від налаштувань браузера.",
         "Якщо пункту не видно, прокрутіть список дій униз.",
         "Після натискання Safari створить окрему іконку Vydno.",
+        "Відкрийте саме нову іконку — інструкція не виконує системні дії за вас.",
       ],
       androidSteps: [
         "У Chrome натисніть меню ⋮ угорі праворуч.",
@@ -67,12 +69,12 @@
       closeGuidance: "Закрити підказку",
       installingTitle: "Vydno встановлюється",
       installedTitle: "Vydno встановлено",
-      install: "Встановити Vydno",
+      install: "Встановити і додати на головний екран",
       openBrowser: "Відкрити у Safari / Chrome",
       openSafariBrowser: "Відкрити у Safari",
       openSafari: "Як відкрити в Safari",
       help: "Не бачу цієї кнопки",
-      skip: "Продовжити без встановлення",
+      skip: "Не зараз",
       step: function (current, total) { return "Крок " + current + " із " + total; },
       helpIos: "Якщо пункту немає, переконайтеся, що сторінка відкрита саме в Safari. Прокрутіть список дій униз і натисніть «Редагувати дії», щоб додати «На початковий екран».",
       helpIosBrowser: "Скопіюйте адресу цієї сторінки, відкрийте Safari та вставте її в адресний рядок. Встановлення з Chrome або вбудованого браузера на iPhone може бути недоступним.",
@@ -91,15 +93,15 @@
       iosTelegramMessage: "Continue through the secure login in Safari. We will show the iPhone install steps there.",
       safariTitle: "Open this page in Safari first",
       safariMessage: "On iPhone, PWA installation is available from Safari's menu.",
-      androidNativeMessage: "All 3 actions are visible at once. Start with the button below and Chrome will open the system install prompt.",
+      androidNativeMessage: "Tap the button and Chrome will open the system install prompt.",
       androidNativeSteps: [
-        "Tap the Install Vydno button below.",
-        "Chrome will open the Install app system dialog showing Vydno.Capital. Tap Install and wait for installation to finish.",
+        "Tap Install and add to Home Screen.",
+        "Confirm installation of Vydno in the system prompt and wait for installation to finish.",
         "Open the new Vydno icon on the Home Screen.",
       ],
       androidNativeHints: [
         "This button belongs to Vydno and only asks Chrome to open installation.",
-        "The dialog is titled Install app and shows the name Vydno.Capital.",
+        "The dialog and button labels depend on your browser and phone language.",
         "Launching from the new icon confirms that Vydno opens as a standalone app.",
       ],
       androidNativePendingCommand: "Wait for Chrome to finish installing Vydno.",
@@ -108,11 +110,13 @@
         "In Safari, tap Share — the square with an upward arrow.",
         "In the Share menu, scroll and choose Add to Home Screen.",
         "Keep Open as Web App enabled and tap Add in the top-right corner.",
+        "Open the new Vydno icon on the Home Screen.",
       ],
       iosHints: [
         "The button is in Safari's toolbar at the top or bottom, depending on your settings.",
         "If the action is not visible, scroll down the actions list.",
         "Safari will create a separate Vydno icon.",
+        "Open the new icon yourself — this guide does not perform system actions.",
       ],
       androidSteps: [
         "In Chrome, tap the ⋮ menu in the top-right corner.",
@@ -140,12 +144,12 @@
       closeGuidance: "Close guide",
       installingTitle: "Vydno is installing",
       installedTitle: "Vydno is installed",
-      install: "Install Vydno",
+      install: "Install and add to Home Screen",
       openBrowser: "Open in Safari / Chrome",
       openSafariBrowser: "Open in Safari",
       openSafari: "How to open Safari",
       help: "I cannot find this button",
-      skip: "Continue without installing",
+      skip: "Not now",
       step: function (current, total) { return "Step " + current + " of " + total; },
       helpIos: "If the action is missing, make sure this page is open in Safari. Scroll down the action list and choose Edit Actions to add Add to Home Screen.",
       helpIosBrowser: "Copy this page address, open Safari, and paste it into the address bar. Installation may be unavailable in Chrome or an embedded browser on iPhone.",
@@ -217,7 +221,7 @@
     if (mode === "native" && nativeStatus === "accepted") requestedStep = 1;
     if (mode === "native" && nativeStatus === "installed") requestedStep = 2;
     const step = Math.min(Math.max(requestedStep, 0), Math.max(steps.length - 1, 0));
-    const overview = mode === "manual" || (mode === "native" && nativeStatus === "idle");
+    const overview = platform !== "ios" && mode === "manual";
     let primaryLabel = copy.next;
     if (mode === "handoff") primaryLabel = platform === "ios" ? copy.openSafariBrowser : copy.openBrowser;
     else if (mode === "native" && nativeStatus === "accepted") primaryLabel = copy.acknowledge;
@@ -225,7 +229,7 @@
     else if (mode === "native") primaryLabel = copy.install;
     else if (mode === "open-safari" || mode === "unsupported") primaryLabel = copy.openSafari;
     else if (overview) primaryLabel = copy.acknowledge;
-    else if (step >= steps.length - 1) primaryLabel = copy.complete;
+    else if (step >= steps.length - 1) primaryLabel = copy.acknowledge;
     if (mode === "native" && nativeStatus === "accepted") title = copy.installingTitle;
     if (mode === "native" && nativeStatus === "installed") title = copy.installedTitle;
 
@@ -234,7 +238,9 @@
     else if (platform === "ios" && browser !== "safari") helpText = copy.helpIosBrowser;
     else if (platform === "ios") helpText = copy.helpIos;
 
-    let command = overview ? copy.manualCommand(steps.length) : steps[step] || message;
+    let command = mode === "native" && nativeStatus === "idle"
+      ? ""
+      : (overview ? copy.manualCommand(steps.length) : steps[step] || message);
     let hint = overview
       ? (platform === "ios" ? copy.manualHintIos : copy.manualHintAndroid)
       : hints[step] || "";
@@ -283,6 +289,7 @@
     const list = byId(modal, "installNudgeSteps");
     if (!list || !list.ownerDocument) return;
     while (list.firstChild) list.removeChild(list.firstChild);
+    if (model.mode === "native" && model.nativeStatus === "idle") return;
     model.steps.forEach(function (label, index) {
       const item = list.ownerDocument.createElement("li");
       const number = list.ownerDocument.createElement("span");
@@ -307,6 +314,7 @@
     modal.dataset.installStep = String(model.step);
     modal.dataset.installOverview = model.overview ? "true" : "false";
     modal.dataset.installOutcome = String((options && options.outcome) || "");
+    modal.dataset.installStatus = model.nativeStatus;
     text(modal, "installNudgeEyebrow", model.eyebrow);
     text(modal, "installNudgeTitle", model.title);
     text(modal, "installNudgeMessage", model.message);

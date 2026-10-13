@@ -249,7 +249,7 @@
       <div class="activation-actions install-coach-actions">
         <button class="primary-action" id="installNudgePrimary" type="button">Далі</button>
         <button class="secondary-action" id="installNudgeHelp" type="button" aria-controls="installCoachHelp" aria-expanded="false">Не бачу цієї кнопки</button>
-        <button class="ghost-action" id="installNudgeLater" type="button">Продовжити без встановлення</button>
+        <button class="ghost-action" id="installNudgeLater" type="button">Не зараз</button>
       </div>
       <p class="activation-footnote" id="installNudgeFootnote">Встановлення не блокує доступ до Vydno.</p>
     </section>
@@ -7817,15 +7817,21 @@
         window.location.assign(target);
       }
 
-      function openInstallBrowserUrl(url, platform) {
+      function openInstallBrowserUrl(url, platform, onFallback) {
         const target = String(url || "").trim();
-        if (!target) return;
+        if (!target) return false;
         if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
           const tryBrowser = platform === "ios" ? "safari" : "chrome";
-          window.Telegram.WebApp.openLink(target, { try_browser: tryBrowser });
-          return;
+          try {
+            window.Telegram.WebApp.openLink(target, { try_browser: tryBrowser });
+            return true;
+          } catch (error) {
+            if (typeof onFallback === "function") onFallback(error);
+            return false;
+          }
         }
-        window.location.assign(target);
+        if (typeof onFallback === "function") onFallback(new Error("browser handoff unavailable"));
+        return false;
       }
 
       function createBillingConsent() {
@@ -8689,10 +8695,13 @@
         const coach = window.VydnoInstallCoach;
         if (!coach) return;
         const model = coach.buildModel(installCoachOptions());
-        if (model.overview) {
+        if (model.overview || model.step >= model.steps.length - 1) {
           recordInstallFunnelEvent("install_cta_click", "manual-instructions-acknowledged");
           recordInstallNudge("dismissed").then(hideInstallNudge);
+          return;
         }
+        installCoachStep = coach.nextStep(installCoachStep, model.steps.length);
+        refreshInstallCoach({ outcome: "step-advanced" });
       }
 
       function setInstallPromptBusy(value) {
@@ -8750,10 +8759,27 @@
           hideInstallNudge();
           return;
         }
-        if (model.mode === "handoff" && installNudgePayload && installNudgePayload.browser_login_url) {
+        if (model.mode === "handoff") {
           recordInstallFunnelEvent("install_cta_click", "browser-handoff");
-          openInstallBrowserUrl(installNudgePayload.browser_login_url, model.platform);
-          hideInstallNudge();
+          const safeUrl = String((installNudgePayload && installNudgePayload.browser_login_url) || "").trim();
+          const fallback = function () {
+            installCoachHelpOpen = true;
+            refreshInstallCoach({ outcome: "handoff-fallback" });
+            recordInstallFunnelEvent("install_manual_steps_view", "handoff-fallback");
+            if (safeUrl && window.navigator.clipboard && typeof window.navigator.clipboard.writeText === "function") {
+              Promise.resolve().then(function () { return window.navigator.clipboard.writeText(safeUrl); }).then(function () {
+                const help = document.getElementById("installCoachHelp");
+                if (help) help.textContent += activeLocale === "en"
+                  ? " Link copied — paste it into Safari or Chrome."
+                  : " Посилання скопійовано — вставте його у Safari або Chrome.";
+              }).catch(function () {});
+            }
+          };
+          if (!safeUrl) {
+            fallback();
+            return;
+          }
+          if (openInstallBrowserUrl(safeUrl, model.platform, fallback)) hideInstallNudge();
           return;
         }
         if (model.mode === "native" && deferredInstallPrompt) {

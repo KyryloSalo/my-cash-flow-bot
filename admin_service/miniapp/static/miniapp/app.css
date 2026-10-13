@@ -3068,7 +3068,8 @@ button.transaction,
 
 .install-coach-visual[data-install-step="0"] [data-install-highlight="0"],
 .install-coach-visual[data-install-step="1"] [data-install-highlight="1"],
-.install-coach-visual[data-install-step="2"] [data-install-highlight="2"] {
+.install-coach-visual[data-install-step="2"] [data-install-highlight="2"],
+.install-coach-visual[data-install-step="3"] [data-install-highlight="3"] {
   opacity: 1;
   animation-name: install-coach-pulse;
   animation-duration: 720ms;
@@ -3145,7 +3146,6 @@ button.transaction,
   transform: translateX(3px);
 }
 
-#installNudgeModal[data-install-overview="true"] .install-coach-visual,
 #installNudgeModal[data-install-overview="true"] .install-coach-progress-row {
   display: none;
 }
@@ -3182,6 +3182,13 @@ button.transaction,
 
 .install-coach-actions {
   gap: 8px;
+}
+
+#installNudgeModal[data-install-mode="native"][data-install-status="idle"] .install-coach-visual,
+#installNudgeModal[data-install-mode="native"][data-install-status="idle"] .install-coach-command,
+#installNudgeModal[data-install-mode="native"][data-install-status="idle"] .install-coach-progress-row,
+#installNudgeModal[data-install-mode="native"][data-install-status="idle"] .install-coach-steps {
+  display: none;
 }
 
 @media (max-width: 374px) {
