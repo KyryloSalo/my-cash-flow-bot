@@ -6,6 +6,7 @@ param(
     [string]$KnownHostsPath,
     [ValidatePattern('^[a-zA-Z0-9.-]+$')][string]$ServerHost = "31.131.31.117",
     [ValidatePattern('^[a-zA-Z0-9_-]+$')][string]$ServerUser = "deploy",
+    [ValidateRange(1, 65535)][int]$ServerPort = 22,
     [string]$ArtifactDirectory,
     [string]$BackupReceiptPath
 )
@@ -48,16 +49,18 @@ foreach ($item in @(@($zip, $evidence.source_sha256), @($images, $evidence.image
     if ((Get-FileHash -LiteralPath $item[0] -Algorithm SHA256).Hash.ToLower() -ne $item[1]) { throw "Artifact checksum mismatch" }
 }
 $transportArgs = @("-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=yes", "-o", "UserKnownHostsFile=$KnownHostsPath", "-o", "GlobalKnownHostsFile=none")
+$sshArgs = @("-p", "$ServerPort") + $transportArgs
+$scpArgs = @("-P", "$ServerPort") + $transportArgs
 $destination = "${ServerUser}@${ServerHost}"
-$remote = & $sshClient @transportArgs $destination 'mktemp -d /tmp/mcf-release.XXXXXXXX'
+$remote = & $sshClient @sshArgs $destination 'mktemp -d /tmp/mcf-release.XXXXXXXX'
 if ($LASTEXITCODE -ne 0 -or $remote -notmatch '^/tmp/mcf-release\.[A-Za-z0-9]+$') { throw "Verified SSH staging creation failed" }
-& $scpClient @transportArgs $zip "${destination}:${remote}/release.zip"
+& $scpClient @scpArgs $zip "${destination}:${remote}/release.zip"
 if ($LASTEXITCODE -ne 0) { throw "Source upload failed" }
-& $scpClient @transportArgs $images "${destination}:${remote}/images.tar"
+& $scpClient @scpArgs $images "${destination}:${remote}/images.tar"
 if ($LASTEXITCODE -ne 0) { throw "Image upload failed" }
-& $scpClient @transportArgs $evidencePath "${destination}:${remote}/release-evidence.json"
+& $scpClient @scpArgs $evidencePath "${destination}:${remote}/release-evidence.json"
 if ($LASTEXITCODE -ne 0) { throw "Evidence upload failed" }
-& $scpClient @transportArgs $builder "${destination}:${remote}/release_artifact.py"
+& $scpClient @scpArgs $builder "${destination}:${remote}/release_artifact.py"
 if ($LASTEXITCODE -ne 0) { throw "Validator upload failed" }
 $backupRemoteArgument = ""
 if ($BackupReceiptPath) {
@@ -72,9 +75,9 @@ if ($BackupReceiptPath) {
     if ($backupHash -ne $backupReceipt.server_backup_sha256 -or $backupHash -ne $backupReceipt.off_host_sha256) {
         throw "Off-host backup checksum mismatch"
     }
-    & $scpClient @transportArgs $backupCiphertext "${destination}:${remote}/$($backupReceipt.backup_filename)"
+    & $scpClient @scpArgs $backupCiphertext "${destination}:${remote}/$($backupReceipt.backup_filename)"
     if ($LASTEXITCODE -ne 0) { throw "Encrypted backup upload failed" }
-    & $scpClient @transportArgs $BackupReceiptPath "${destination}:${remote}/backup-receipt.json"
+    & $scpClient @scpArgs $BackupReceiptPath "${destination}:${remote}/backup-receipt.json"
     if ($LASTEXITCODE -ne 0) { throw "Backup receipt upload failed" }
     $backupRemoteArgument = " --backup-receipt '$remote/backup-receipt.json'"
 }
@@ -85,7 +88,7 @@ try {
     # OpenSSH writes normal remote progress to stderr. Judge the rollout by its
     # native exit code instead of converting progress output into an exception.
     $ErrorActionPreference = "Continue"
-    & $sshClient @transportArgs $destination $remoteCommand
+    & $sshClient @sshArgs $destination $remoteCommand
     $rolloutExitCode = $LASTEXITCODE
 } finally {
     $ErrorActionPreference = $previousErrorActionPreference

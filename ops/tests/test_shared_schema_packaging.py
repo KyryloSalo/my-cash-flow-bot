@@ -31,6 +31,14 @@ class SharedSchemaPackagingTests(unittest.TestCase):
         self.assertIn('docker build --pull -t "mcf-admin:$GITHUB_SHA" -f admin_service/Dockerfile .', workflow)
         self.assertIn('docker build --pull -t "mcf-nginx:$GITHUB_SHA" nginx', workflow)
 
+    def test_release_publishes_sboms_and_binds_release_to_validation_run(self):
+        workflow = (CODE / ".github/workflows/deploy.yml").read_text(encoding="utf8")
+
+        self.assertIn('artifacts/bot-sbom.json', workflow)
+        self.assertIn('artifacts/admin-sbom.json', workflow)
+        self.assertIn('Validated by GitHub Actions run $GITHUB_RUN_ID.', workflow)
+        self.assertNotIn('No SSH secrets or automatic production job', workflow)
+
     def test_release_validator_uses_normal_migrations_only(self):
         text = (CODE / "ops/validate_release.sh").read_text(encoding="utf8")
         self.assertNotIn("bootstrap_core_schema", text)
