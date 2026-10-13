@@ -56,6 +56,23 @@ class DeployPolicyTests(unittest.TestCase):
         self.assertNotIn('StrictHostKeyChecking=no', workflow)
         self.assertIn('31.131.31.117 ssh-ed25519 ', known_hosts)
 
+    def test_github_production_deploy_creates_verified_off_host_backup(self):
+        workflow = (CODE / '.github' / 'workflows' / 'production.yml').read_text(encoding='utf-8')
+        deploy_client = (CODE / 'ops' / 'deploy.ps1').read_text(encoding='utf-8')
+
+        self.assertIn('secrets.BACKUP_ENCRYPTION_PASSPHRASE', workflow)
+        self.assertIn('pg_dump', workflow)
+        self.assertIn('openssl enc -aes-256-cbc -salt -pbkdf2', workflow)
+        self.assertIn('id: database-backup', workflow)
+        self.assertIn('production-db-backup-', workflow)
+        self.assertIn('steps.database-backup.outputs.artifact-id', workflow)
+        self.assertIn('actions/artifacts/$BACKUP_ARTIFACT_ID/zip', workflow)
+        self.assertIn('OFF_HOST_BACKUP_SHA256', workflow)
+        self.assertIn('"off_host_verified": True', workflow)
+        self.assertIn('-BackupReceiptPath "$GITHUB_WORKSPACE/backup-evidence/backup-receipt.json"', workflow)
+        self.assertIn('$backupCiphertext = Join-Path', deploy_client)
+        self.assertIn('& $scpClient @scpArgs $backupCiphertext', deploy_client)
+
     def test_rollout_requires_immutable_images_and_readiness(self):
         text=(CODE/'deploy_v0_on_vps.sh').read_text(encoding='utf-8')
         for token in ['--confirm-production', '--source-sha256', '--backup-receipt', 'backup_receipt.py', 'sha256sum', 'docker load', '--no-build', '--wait', 'migrate --check', 'readiness_smoke.py', 'RELEASES="$ROOT/releases"', 'CURRENT="$ROOT/current"']:

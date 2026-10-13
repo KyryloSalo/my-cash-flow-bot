@@ -67,7 +67,7 @@ jobs:
           verified_sha=$(python ops/release_evidence.py verify artifacts | tail -n 1)
           [[ "$verified_sha" == "$RELEASE_SHA" ]] || { echo "Release evidence SHA mismatch" >&2; exit 2; }
 
-      - name: Deploy with pinned SSH identity and verify production
+      - name: Prepare pinned SSH identity
         env:
           SSH_HOST: 31.131.31.117
           SSH_USER: ${{ secrets.SSH_USER }}
@@ -86,9 +86,123 @@ jobs:
 
           install -m 600 /dev/null "$RUNNER_TEMP/deploy_key"
           printf '%s\n' "$SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/deploy_key"
-          eval "$(ssh-agent -s)"
-          trap 'ssh-agent -k >/dev/null 2>&1 || true; rm -f "$RUNNER_TEMP/deploy_key"' EXIT
+          eval "$(ssh-agent -a "$RUNNER_TEMP/ssh-agent.sock" -s)"
           ssh-add "$RUNNER_TEMP/deploy_key"
+
+          {
+            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
+            echo "SSH_AGENT_PID=$SSH_AGENT_PID"
+            echo "SSH_HOST=$SSH_HOST"
+            echo "SSH_USER=$SSH_USER"
+            echo "SSH_PORT=$SSH_PORT"
+          } >> "$GITHUB_ENV"
+
+      - name: Create and verify encrypted database backup
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          [[ -n "$BACKUP_ENCRYPTION_PASSPHRASE" ]] || { echo "Backup encryption secret is missing" >&2; exit 2; }
+          mkdir -p backup-evidence
+          backup_file="$GITHUB_WORKSPACE/backup-evidence/database-$GITHUB_RUN_ID.sql.gz.enc"
+
+          ssh -p "$SSH_PORT" \
+            -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$RUNNER_TEMP/known_hosts" -o GlobalKnownHostsFile=none \
+            "$SSH_USER@$SSH_HOST" bash -s <<'REMOTE' |
+          set -euo pipefail
+          root=/opt/my-cash-flow-bot
+          release_id=$(cat "$root/current-release")
+          project="mcf_${release_id:0:12}"
+          exec docker compose --env-file "$root/.env" -f "$root/current/compose.yml" -p "$project" \
+            exec -T db sh -lc 'exec pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"'
+          REMOTE
+            gzip -9 |
+            openssl enc -aes-256-cbc -salt -pbkdf2 \
+              -pass env:BACKUP_ENCRYPTION_PASSPHRASE -out "$backup_file"
+
+          [[ -s "$backup_file" ]] || { echo "Encrypted backup is empty" >&2; exit 2; }
+          openssl enc -d -aes-256-cbc -pbkdf2 \
+            -pass env:BACKUP_ENCRYPTION_PASSPHRASE -in "$backup_file" | gzip -t
+
+      - name: Store encrypted database backup off host
+        id: database-backup
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: production-db-backup-${{ github.event.inputs.release_sha }}-${{ github.run_id }}
+          path: backup-evidence/database-${{ github.run_id }}.sql.gz.enc
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Verify uploaded off-host backup
+        env:
+          BACKUP_ARTIFACT_ID: ${{ steps.database-backup.outputs.artifact-id }}
+        run: |
+          set -euo pipefail
+          [[ "$BACKUP_ARTIFACT_ID" =~ ^[0-9]+$ ]] || { echo "Backup artifact identity is missing" >&2; exit 2; }
+          artifact_zip="$RUNNER_TEMP/database-backup-$BACKUP_ARTIFACT_ID.zip"
+          for attempt in 1 2 3 4 5; do
+            if gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$BACKUP_ARTIFACT_ID/zip" > "$artifact_zip"; then
+              break
+            fi
+            [[ "$attempt" != "5" ]] || { echo "Unable to download uploaded backup artifact" >&2; exit 2; }
+            sleep 2
+          done
+
+          python - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path, PurePosixPath
+          import zipfile
+
+          local_backup = Path("backup-evidence") / f"database-{os.environ['GITHUB_RUN_ID']}.sql.gz.enc"
+          artifact_zip = Path(os.environ["RUNNER_TEMP"]) / f"database-backup-{os.environ['BACKUP_ARTIFACT_ID']}.zip"
+          with zipfile.ZipFile(artifact_zip) as archive:
+              files = [name for name in archive.namelist() if not name.endswith("/")]
+              if len(files) != 1 or PurePosixPath(files[0]).name != local_backup.name:
+                  raise SystemExit("Uploaded backup artifact has an unexpected file set")
+              off_host_digest = hashlib.sha256(archive.read(files[0])).hexdigest()
+          local_digest = hashlib.sha256(local_backup.read_bytes()).hexdigest()
+          if off_host_digest != local_digest:
+              raise SystemExit("Uploaded backup artifact checksum mismatch")
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as env_file:
+              env_file.write(f"OFF_HOST_BACKUP_SHA256={off_host_digest}\n")
+          PY
+
+      - name: Create off-host backup receipt
+        env:
+          BACKUP_ARTIFACT_ID: ${{ steps.database-backup.outputs.artifact-id }}
+        run: |
+          set -euo pipefail
+          [[ "$BACKUP_ARTIFACT_ID" =~ ^[0-9]+$ ]] || { echo "Backup artifact identity is missing" >&2; exit 2; }
+          [[ "$OFF_HOST_BACKUP_SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo "Verified off-host checksum is missing" >&2; exit 2; }
+          python - <<'PY'
+          import datetime as dt
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          backup = Path("backup-evidence") / f"database-{os.environ['GITHUB_RUN_ID']}.sql.gz.enc"
+          digest = hashlib.sha256(backup.read_bytes()).hexdigest()
+          payload = {
+              "version": 1,
+              "backup_filename": backup.name,
+              "bytes": backup.stat().st_size,
+              "server_backup_sha256": digest,
+              "off_host_verified": True,
+              "off_host_copy_id": f"github-actions-artifact:{os.environ['BACKUP_ARTIFACT_ID']}",
+              "off_host_sha256": os.environ["OFF_HOST_BACKUP_SHA256"],
+              "verified_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+          }
+          Path("backup-evidence/backup-receipt.json").write_text(
+              json.dumps(payload, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Deploy with pinned SSH identity and verify production
+        run: |
+          set -euo pipefail
 
           pwsh -NoProfile -File ops/deploy.ps1 \
             -ConfirmProduction \
@@ -96,7 +210,8 @@ jobs:
             -ServerHost "$SSH_HOST" \
             -ServerUser "$SSH_USER" \
             -ServerPort "$SSH_PORT" \
-            -ArtifactDirectory "$GITHUB_WORKSPACE/artifacts"
+            -ArtifactDirectory "$GITHUB_WORKSPACE/artifacts" \
+            -BackupReceiptPath "$GITHUB_WORKSPACE/backup-evidence/backup-receipt.json"
 
           deployed_sha=$(ssh -p "$SSH_PORT" \
             -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
@@ -125,10 +240,18 @@ jobs:
           )
           PY
 
+      - name: Remove ephemeral SSH material
+        if: always()
+        run: |
+          if [[ -n "${SSH_AGENT_PID:-}" ]]; then kill "$SSH_AGENT_PID" >/dev/null 2>&1 || true; fi
+          rm -f "$RUNNER_TEMP/deploy_key" "$RUNNER_TEMP/ssh-agent.sock"
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: production-deployment-${{ github.event.inputs.release_sha }}
-          path: deployment-evidence/deployment.json
+          path: |
+            deployment-evidence/deployment.json
+            backup-evidence/backup-receipt.json
           if-no-files-found: error
           retention-days: 90
 
