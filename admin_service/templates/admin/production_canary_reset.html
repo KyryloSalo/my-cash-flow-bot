@@ -1,0 +1,7 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<h1>Production Canary reset: {{ object }}</h1>
+<p>This preview is read-only. Only canary-created synthetic records are eligible; ordinary financial and ledger data is never deleted.</p>
+<table>{% for key, value in preview.items %}<tr><th>{{ key }}</th><td>{{ value }}</td></tr>{% endfor %}</table>
+<form method="post">{% csrf_token %}<input type="hidden" name="tg_user_id" value="{{ object.tg_user_id }}"><input type="hidden" name="preview_fingerprint" value="{{ preview_fingerprint }}"><p>Fingerprint: <code>{{ preview_fingerprint }}</code></p><p><label>Confirmation <input name="confirmation" required></label></p><p><label>Comment <textarea name="comment" required></textarea></label></p><button type="submit">Execute reset</button> <a href="{{ back_url }}">Cancel</a></form>
+{% endblock %}

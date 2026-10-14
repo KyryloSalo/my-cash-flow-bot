@@ -118,6 +118,7 @@ class Subscription(models.Model):
     auto_renew = models.BooleanField(default=False)
     source = models.CharField(max_length=32, choices=Source.choices, default=Source.SYSTEM)
     comment = models.TextField(blank=True, default="")
+    canary_owned = models.BooleanField(default=False, db_index=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -179,6 +180,7 @@ class BillingProfile(models.Model):
     last_failure_reason = models.TextField(blank=True, default="")
     last_action_url = models.CharField(max_length=1024, blank=True, default="")
     last_bound_at = models.DateTimeField(blank=True, null=True)
+    canary_owned = models.BooleanField(default=False, db_index=True)
     last_charge_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -201,6 +203,8 @@ class Payment(models.Model):
         REJECTED = "rejected", "Rejected"
         REFUNDED = "refunded", "Refunded"
         MANUAL_CONFIRMED = "manual_confirmed", "Manual Confirmed"
+        PROCESSING = "processing", "Processing"
+        ACTION_REQUIRED = "action_required", "Action required"
 
     class Kind(models.TextChoices):
         LEGACY = "legacy", "Legacy"
@@ -249,6 +253,7 @@ class Payment(models.Model):
         related_name="confirmed_payments",
     )
     raw_payload = models.JSONField(default=dict, blank=True)
+    canary_owned = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -301,6 +306,7 @@ class BillingConsent(models.Model):
     acquisition_snapshot = models.JSONField(default=dict, blank=True)
     payload_hash = models.CharField(max_length=64)
     accepted_at = models.DateTimeField(default=timezone.now)
+    canary_owned = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

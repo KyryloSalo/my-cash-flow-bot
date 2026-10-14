@@ -21,6 +21,7 @@ ACTION_PERMISSIONS = {
     "tag_assign": (("users.add_usertag",),),
     "tag_remove": (("users.delete_usertag",),),
     "test_mark": (("users.can_use_test_tools", "users.change_useradminstate"),),
+    "production_canary": (("users.can_manage_production_canary", "users.change_useradminstate"),),
     "onboarding_reset": (("users.change_telegramuser",), ("users.can_use_test_tools",)),
     "test_cleanup": (("users.can_use_test_tools", "users.delete_telegramuser"),),
     "broadcast_create": (("broadcasts.add_broadcast",),),

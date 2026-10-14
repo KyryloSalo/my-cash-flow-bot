@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 import hashlib
 import hmac
 import json
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import quote
@@ -94,6 +95,7 @@ class BrowserLoginCanonicalRegressionTests(SimpleTestCase):
         self.use_create = self.enterContext(
             patch.object(auth.BrowserLoginTokenUse.objects, "create", side_effect=self._consume_hash)
         )
+        self.atomic = self.enterContext(patch.object(auth.transaction, "atomic", return_value=nullcontext()))
         self.session_create = self.enterContext(
             patch.object(auth.UserAuthSession.objects, "create")
         )
@@ -162,6 +164,7 @@ class BrowserLoginCanonicalRegressionTests(SimpleTestCase):
             [{
                 "token_hash": hashlib.sha256(self.token.encode("utf-8")).hexdigest(),
                 "tg_user_id": 900001,
+                "purpose": "ordinary_browser_login",
                 "expires_at": datetime.fromtimestamp(NOW + 900, tz=UTC),
             }],
         )
@@ -218,13 +221,13 @@ class BrowserLoginCanonicalRegressionTests(SimpleTestCase):
             self.assertNotEqual(current, self.token)
             self.assertIs(auth.consume_browser_login_token(current), self.users[900001])
 
-    def test_telegram_secret_fallback_stays_compatible(self) -> None:
+    def test_telegram_secret_is_never_used_as_browser_login_fallback(self) -> None:
         with override_settings(MINIAPP_BROWSER_LOGIN_SECRET=""):
-            fallback_token = auth.build_browser_login_token(900001, now=NOW, nonce=NONCE)
-            self.assertIs(auth.consume_browser_login_token(fallback_token), self.users[900001])
-            with self.assertRaisesRegex(auth.MiniAppAuthError, "signature invalid"):
+            with self.assertRaisesRegex(auth.MiniAppAuthError, "not configured"):
+                auth.build_browser_login_token(900001, now=NOW, nonce=NONCE)
+            with self.assertRaisesRegex(auth.MiniAppAuthError, "not configured"):
                 auth.consume_browser_login_token(self.token)
-        self.assertEqual(len(self.uses), 1)
+        self.assertEqual(self.uses, {})
 
     def test_missing_secret_fails_closed(self) -> None:
         with override_settings(MINIAPP_BROWSER_LOGIN_SECRET="", TELEGRAM_BOT_TOKEN=""):

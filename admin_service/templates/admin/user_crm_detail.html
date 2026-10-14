@@ -292,8 +292,10 @@
               <details class="crm-action-disclosure">
                 <summary>{{ group.title }}</summary>
                 <div class="crm-action-row">
+                  {% if group.status %}<div class="crm-note">Feature: {{ group.status.feature_enabled|yesno:"enabled,disabled" }} · Allowlist: {{ group.status.allowlisted|yesno:"yes,no,unknown" }} · Test: {{ group.status.test_user|yesno:"yes,no" }} · Eligible: {{ group.status.canary_eligible|yesno:"yes,no" }} · Active: {{ group.status.active_eligibility|yesno:"yes,no" }}</div>{% endif %}
                   {% for item in group.items %}
                     <a class="crm-action crm-action--{{ item.variant|default:'secondary' }}" href="{{ item.url }}">{{ item.label }}</a>
+                  {% empty %}<span class="crm-note">Недоступно: користувач не відповідає умовам Production Canary.</span>
                   {% endfor %}
                 </div>
               </details>

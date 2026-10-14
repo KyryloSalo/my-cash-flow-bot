@@ -22,3 +22,10 @@ def funnel_excluded_telegram_ids() -> set[int]:
             if telegram_id > 0:
                 result.add(telegram_id)
     return result
+
+
+def production_canary_exclusion_q(prefix: str = ""):
+    """Return the stable ORM predicate used by business automation/reporting."""
+    from django.db.models import Q
+
+    return Q(**{f"{prefix}admin_state__is_production_canary": True})

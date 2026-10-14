@@ -39,6 +39,7 @@ class PwaFunnelStageTests(SimpleTestCase):
             {"id": "real", "user_id": 100, "is_test_user": False, "automation_status": "unknown"},
             {"id": "test", "user_id": 101, "is_test_user": True, "automation_status": "unknown"},
             {"id": "operator", "user_id": 102, "is_test_user": False, "automation_status": "verified_human"},
+            {"id": "canary", "user_id": 103, "is_test_user": False, "canary_owned": True, "automation_status": "unknown"},
             {"id": "bot", "user_id": None, "is_test_user": False, "automation_status": "automated"},
             {"id": "anonymous", "user_id": None, "is_test_user": False, "automation_status": "unknown"},
         ]
@@ -56,9 +57,27 @@ class PwaFunnelStageTests(SimpleTestCase):
 
         self.assertEqual(report["cohort_sessions"], 2)
         self.assertEqual(report["anonymous_unclassified"], 1)
-        self.assertEqual(report["excluded_internal"], 2)
+        self.assertEqual(report["excluded_internal"], 3)
         self.assertEqual(report["excluded_automation"], 1)
         self.assertEqual(report["stages"][0]["value"], 2)
+
+    def test_canary_owned_sessions_stay_excluded_when_test_users_are_included(self) -> None:
+        report = build_pwa_funnel_report_from_rows(
+            session_rows=[
+                {"id": "real-test", "user_id": 101, "is_test_user": True},
+                {"id": "synthetic", "user_id": 101, "is_test_user": True, "canary_owned": True},
+            ],
+            event_rows=[
+                {"acquisition_session_id": "real-test", "event_name": "landing_view"},
+                {"acquisition_session_id": "synthetic", "event_name": "landing_view"},
+            ],
+            include_test_users=True,
+            excluded_telegram_ids=set(),
+        )
+
+        self.assertEqual(report["cohort_sessions"], 1)
+        self.assertEqual(report["excluded_internal"], 1)
+        self.assertEqual(report["stages"][0]["value"], 1)
 
     @patch("dashboard.funnel.funnel_excluded_telegram_ids", return_value=set())
     @patch("dashboard.funnel.FunnelEvent")
@@ -75,6 +94,7 @@ class PwaFunnelStageTests(SimpleTestCase):
                 "id": "real",
                 "user_id": 100,
                 "user__admin_state__is_test_user": False,
+                "canary_owned": False,
                 "automation_status": "unknown",
             }
         ]
@@ -94,6 +114,7 @@ class PwaFunnelStageTests(SimpleTestCase):
             "id",
             "user_id",
             "user__admin_state__is_test_user",
+            "canary_owned",
             "automation_status",
         )
         event_values.assert_called_once_with("acquisition_session_id", "event_name")

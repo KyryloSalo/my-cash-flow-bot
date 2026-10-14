@@ -56,6 +56,8 @@ For each production run, retain and inspect:
 
 A successful HTTP response alone is not deployment proof. The authoritative proof is the exact-SHA deployment artifact with `readback: passed`.
 
+For the restricted synthetic billing validation workflow, security gates, kill switch, reset contract, and operator checklist, see `docs/PRODUCTION_CANARY_MODE.md`. That mode remains disabled unless its independent production configuration and per-user gates are all enabled.
+
 ## Rollback
 
 Do not initiate rollback only because an external page probe fails. First inspect the failed GitHub Actions run and production evidence.

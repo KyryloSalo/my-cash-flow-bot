@@ -1616,6 +1616,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
 
     @override_settings(
         TELEGRAM_BOT_TOKEN="123456:test-miniapp-token",
+        MINIAPP_BROWSER_LOGIN_SECRET="browser-login-test-secret",
         MINIAPP_BROWSER_LOGIN_TOKEN_TTL_SECONDS=900,
     )
     def test_browser_login_token_round_trips_without_query_user_identity(self) -> None:
@@ -1629,6 +1630,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
 
     @override_settings(
         TELEGRAM_BOT_TOKEN="123456:test-miniapp-token",
+        MINIAPP_BROWSER_LOGIN_SECRET="browser-login-test-secret",
         MINIAPP_BROWSER_LOGIN_TOKEN_TTL_SECONDS=900,
     )
     def test_browser_login_token_rejects_tampering_and_expiry(self) -> None:
@@ -1660,7 +1662,10 @@ class MiniAppViewUnitTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], "/app/")
-        consume_mock.assert_called_once_with("raw-token")
+        consume_mock.assert_called_once_with(
+            "raw-token",
+            expected_purpose="ordinary_browser_login",
+        )
         login_mock.assert_called_once_with(
             request,
             fake_user,
@@ -1780,7 +1785,10 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertIn(settings.SESSION_COOKIE_NAME, response.cookies)
         self.assertEqual(client.session[auth.SESSION_USER_ID_KEY], 1001)
         self.assertEqual(client.session[auth.SESSION_AUTH_MODE_KEY], auth.BROWSER_AUTH_MODE)
-        consume_mock.assert_called_once_with("raw-token")
+        consume_mock.assert_called_once_with(
+            "raw-token",
+            expected_purpose="ordinary_browser_login",
+        )
 
 
 class MiniAppFlowBucketUnitTests(unittest.TestCase):

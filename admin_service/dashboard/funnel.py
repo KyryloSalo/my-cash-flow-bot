@@ -62,6 +62,9 @@ def build_pwa_funnel_report_from_rows(
         if session.get("automation_status") == "automated":
             excluded_automation += 1
             continue
+        if bool(session.get("canary_owned")):
+            excluded_internal += 1
+            continue
         user_id = session.get("user_id")
         internal = bool(session.get("is_test_user")) or user_id in excluded_telegram_ids
         if internal and not include_test_users:
@@ -105,6 +108,7 @@ def build_pwa_funnel_report(
             "id",
             "user_id",
             "user__admin_state__is_test_user",
+            "canary_owned",
             "automation_status",
         )
     )
@@ -113,6 +117,7 @@ def build_pwa_funnel_report(
             "id": row["id"],
             "user_id": row["user_id"],
             "is_test_user": bool(row["user__admin_state__is_test_user"]),
+            "canary_owned": bool(row["canary_owned"]),
             "automation_status": row["automation_status"],
         }
         for row in session_rows

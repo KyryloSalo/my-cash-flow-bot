@@ -348,6 +348,22 @@ def _exclude_test_users(qs, *, prefix: str, include_test_users: bool):
     return qs.exclude(_test_user_q(prefix))
 
 
+def _canary_user_q(prefix: str = "") -> Q:
+    return Q(**{f"{prefix}admin_state__is_production_canary": True})
+
+def _exclude_reporting_canaries(qs, *, prefix: str = ""):
+    """Synthetic canary rows stay out of business automation/reporting by default."""
+    return qs.exclude(_canary_user_q(prefix))
+
+
+def _exclude_synthetic_canary_subscriptions(qs):
+    return qs.exclude(canary_owned=True)
+
+
+def _exclude_synthetic_canary_payments(qs):
+    return qs.exclude(Q(canary_owned=True) | Q(provider="canary"))
+
+
 def _test_tool_links(request) -> dict:
     user = getattr(request, "user", None)
     if not user or not can_use_test_tools(user):
@@ -457,7 +473,9 @@ def _subscription_snapshot(subscriptions_qs, payments_qs, *, now, read):
     """Canonical current classification shared by Overview and operator KPIs."""
     latest_subscription_qs = subscriptions_qs.annotate(
         latest_pk=Subquery(
-            Subscription.objects.filter(user_id=OuterRef("user_id")).order_by("-created_at", "-pk").values("pk")[:1]
+            Subscription.objects.filter(user_id=OuterRef("user_id"), canary_owned=False)
+            .order_by("-created_at", "-pk")
+            .values("pk")[:1]
         )
     ).filter(pk=F("latest_pk"))
     latest_subscriptions = read(lambda: list(latest_subscription_qs), None)
@@ -540,24 +558,26 @@ def build_dashboard_context(request) -> dict:
     if pwa_funnel.get("available") is not False:
         pwa_funnel = {**pwa_funnel, "available": True, "reason": ""}
 
-    users_qs = _exclude_test_users(TelegramUser.objects.all(), prefix="", include_test_users=include_test_users)
-    subscriptions_qs = _exclude_test_users(
+    users_qs = _exclude_reporting_canaries(_exclude_test_users(TelegramUser.objects.all(), prefix="", include_test_users=include_test_users))
+    subscriptions_qs = _exclude_synthetic_canary_subscriptions(_exclude_test_users(
         Subscription.objects.select_related("plan_ref"),
         prefix="user__",
         include_test_users=include_test_users,
+    ))
+    payments_qs = _exclude_synthetic_canary_payments(
+        _exclude_test_users(Payment.objects.all(), prefix="user__", include_test_users=include_test_users)
     )
-    payments_qs = _exclude_test_users(Payment.objects.all(), prefix="user__", include_test_users=include_test_users)
-    bot_events_qs = _exclude_test_users(BotEvent.objects.all(), prefix="user__", include_test_users=include_test_users)
-    recipient_logs_qs = _exclude_test_users(
+    bot_events_qs = _exclude_reporting_canaries(_exclude_test_users(BotEvent.objects.all(), prefix="user__", include_test_users=include_test_users), prefix="user__")
+    recipient_logs_qs = _exclude_reporting_canaries(_exclude_test_users(
         BroadcastRecipient.objects.all(),
         prefix="user__",
         include_test_users=include_test_users,
-    )
-    recovery_recipients_qs = _exclude_test_users(
+    ), prefix="user__")
+    recovery_recipients_qs = _exclude_reporting_canaries(_exclude_test_users(
         TrialRecoveryRecipient.objects.all(),
         prefix="user__",
         include_test_users=include_test_users,
-    )
+    ), prefix="user__")
 
     latest_subscription_by_user, segment_by_user, segment_source_available = _subscription_snapshot(
         subscriptions_qs, payments_qs, now=now, read=read,

@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from django.conf import settings
+from django.core.cache import cache
 from django.db import transaction as db_transaction
 from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
@@ -25,16 +26,20 @@ from django.views.decorators.http import require_GET, require_POST, require_http
 
 from miniapp.auth import (
     BROWSER_AUTH_MODE,
+    PRODUCTION_CANARY_AUTH_MODE,
     SESSION_AUTH_MODE_KEY,
     MiniAppAuthError,
     MiniAppSessionError,
     browser_session_age_seconds,
     build_browser_login_token,
+    authorize_browser_login_identity,
     consume_browser_login_token_with_identity,
     dev_login_user,
     get_session_user,
     login_session,
     logout_session,
+    validate_browser_login_token,
+    sensitive_action_auth_is_fresh,
     validate_telegram_init_data,
 )
 from miniapp.ai_text_client import MiniAppAiTextError, request_ai_text_parse
@@ -155,9 +160,11 @@ from miniapp.operator_hub import (
 )
 from subscriptions.billing import BILLING_BOT_URL, build_bind_invoice, build_recovery_invoice, cancel_auto_renew, retry_monobank_charge
 from subscriptions.consent import attach_consent_to_payment_id, get_billing_consent_for_user
+from subscriptions.models import Plan
 from subscriptions.monobank import MonobankAPIError
 from subscriptions.trial_recovery import record_trial_offer_event
 from users.models import TelegramUser, UserAdminState, UserAuthIdentity
+from users.canary import assert_canary_session, is_canary_user
 from users.registration import (
     RegistrationClosed,
     RegistrationIdentityConflict,
@@ -585,10 +592,11 @@ self.addEventListener("activate", (event) => {{
 }});
 
 self.addEventListener("fetch", (event) => {{
+  // never cache POST responses or any canary login/billing/confirmation flow.
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith("/app/api/")) return;
+  if (url.pathname.startsWith("/app/api/") || url.pathname.startsWith("/app/canary/") || url.pathname.includes("/browser-login/") || url.pathname.includes("/canary/checkout/")) return;
 
   const isAppNavigation = event.request.mode === "navigate" && ["/app/", "/app"].includes(url.pathname);
   const isMiniAppStatic = url.pathname.startsWith("/static/miniapp/");
@@ -799,6 +807,7 @@ def _browser_login_error_response(exc: MiniAppAuthError) -> HttpResponse:
 </html>"""
     response = HttpResponse(body, status=400, content_type="text/html; charset=utf-8")
     response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, private"
+    response["Referrer-Policy"] = "no-referrer"
     return response
 
 
@@ -897,21 +906,97 @@ def browser_login_handoff(request: HttpRequest, token: str) -> HttpResponse:
     return response
 
 
+@csrf_exempt
+@never_cache
+def canary_browser_login_bootstrap(request: HttpRequest) -> HttpResponse:
+    """Exchange a fragment-delivered canary token without putting it in a URL."""
+    if request.method == "GET":
+        response = HttpResponse("""<!doctype html><meta name=referrer content=no-referrer><script>
+const token = location.hash.slice(1).replace(/^token=/, '');
+fetch(location.pathname, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token})})
+  .then(r => { if (!r.ok) throw new Error(); location.replace(r.url); })
+  .catch(() => { document.body.textContent='Canary unavailable.'; });
+</script>""")
+        response["Cache-Control"] = "no-store"
+        response["Referrer-Policy"] = "no-referrer"
+        return response
+    if request.method != "POST":
+        return HttpResponse(status=405)
+    payload = _read_json(request) if request.content_type == "application/json" else request.POST
+    token = str(payload.get("token") or "")
+    if not token:
+        return _canary_response(HttpResponse(status=404))
+    return _complete_browser_login(
+        request,
+        token,
+        expected_purpose="production_canary_browser_login",
+    )
+
+
 @never_cache
 @require_GET
 def browser_login(request: HttpRequest, token: str) -> HttpResponse:
+    return _complete_browser_login(
+        request,
+        token,
+        expected_purpose="ordinary_browser_login",
+    )
+
+
+def _complete_browser_login(
+    request: HttpRequest,
+    token: str,
+    *,
+    expected_purpose: str,
+) -> HttpResponse:
     try:
-        user, browser_identity = consume_browser_login_token_with_identity(token)
+        if expected_purpose == "production_canary_browser_login":
+            identity = validate_browser_login_token(token)
+            candidate = authorize_browser_login_identity(identity, expected_purpose=expected_purpose)
+            with db_transaction.atomic():
+                UserAdminState.objects.select_for_update().filter(
+                    telegram_user_id=candidate.tg_user_id,
+                ).first()
+                if not is_canary_user(candidate) or _canary_rate_limited(
+                    request,
+                    "browser-login",
+                    user=candidate,
+                    capability_digest=hashlib.sha256(token.encode()).hexdigest(),
+                ):
+                    return _canary_response(HttpResponse(status=404))
+                user, browser_identity = consume_browser_login_token_with_identity(
+                    token,
+                    expected_purpose=expected_purpose,
+                )
+                login_session(
+                    request,
+                    user,
+                    session_age_seconds=browser_session_age_seconds(),
+                    auth_mode=PRODUCTION_CANARY_AUTH_MODE,
+                    authenticated_at=browser_identity.issued_at,
+                )
+        else:
+            user, browser_identity = consume_browser_login_token_with_identity(
+                token,
+                expected_purpose=expected_purpose,
+            )
     except MiniAppAuthError as exc:
         return _browser_login_error_response(exc)
 
-    login_session(
-        request,
-        user,
-        session_age_seconds=browser_session_age_seconds(),
-        auth_mode=BROWSER_AUTH_MODE,
-        authenticated_at=browser_identity.issued_at,
+    auth_mode = (
+        PRODUCTION_CANARY_AUTH_MODE
+        if expected_purpose == "production_canary_browser_login"
+        else BROWSER_AUTH_MODE
     )
+
+    if auth_mode != PRODUCTION_CANARY_AUTH_MODE:
+        login_session(
+            request,
+            user,
+            session_age_seconds=browser_session_age_seconds(),
+            auth_mode=auth_mode,
+            authenticated_at=browser_identity.issued_at,
+        )
     if str(request.GET.get("operator") or "") == "1":
         if not is_operator_user(user):
             logout_session(request)
@@ -921,7 +1006,10 @@ def browser_login(request: HttpRequest, token: str) -> HttpResponse:
             )
         return redirect("/app/operator/")
     target = "/app/?install=1" if str(request.GET.get("install") or "") == "1" else "/app/"
-    return redirect(target)
+    response = redirect(target)
+    response["Cache-Control"] = "no-store"
+    response["Referrer-Policy"] = "no-referrer"
+    return response
 
 
 @csrf_exempt
@@ -1952,6 +2040,15 @@ def billing_action(request: HttpRequest) -> JsonResponse:
                     "Accept the current billing terms before opening checkout.",
                 )
             get_billing_consent_for_user(consent_id=consent_id, user=result)
+            if is_canary_user(result):
+                from subscriptions.canary import init_canary_bind
+                plan = Plan.objects.filter(slug="solo").first()
+                if plan is None:
+                    raise ValueError("Canary plan unavailable.")
+                canary = init_canary_bind(user=result, consent_id=consent_id, plan=plan)
+                response = {"action": "bind", "action_url": canary.page_url, "trial_days": 0, "trial_granted": False}
+                response["settings"] = _settings_payload(result)
+                return _json_ok(response)
             if _billing_recovery_checkout_needed(access):
                 invoice = build_recovery_invoice(user_id=result.tg_user_id)
                 action_name = "recovery"
@@ -3334,3 +3431,127 @@ def investments(request: HttpRequest) -> JsonResponse:
     user, _access = authorized
     limit = _read_limit(request, default=4, maximum=20)
     return _json_ok(build_investments_preview(user, limit=limit))
+
+
+def _canary_response(response: HttpResponse) -> HttpResponse:
+    response["Cache-Control"] = "no-store"
+    response["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+def _canary_unavailable() -> HttpResponse:
+    return _canary_response(HttpResponse(status=404))
+
+
+def _canary_boundary(request: HttpRequest, *, user, capability_token: str, purpose: str) -> HttpResponse | None:
+    if not getattr(settings, "PRODUCTION_CANARY_ENABLED", False):
+        return _canary_unavailable()
+    try:
+        assert_canary_session(request, user, purpose)
+    except Exception:
+        return _canary_unavailable()
+    if not capability_token or len(capability_token) > 256:
+        return _canary_unavailable()
+    return None
+
+
+def _canary_rate_limited(request: HttpRequest, bucket: str, limit: int = 5, window: int = 60, *, user=None, capability_digest: str = "") -> bool:
+    user_id = getattr(user, "tg_user_id", None) or getattr(request.user, "pk", "anonymous")
+    key = "canary-rate:%s:%s:%s:%s" % (bucket, request.META.get("REMOTE_ADDR", "unknown"), user_id, capability_digest or "none")
+    try:
+        count = int(cache.get(key, 0))
+        if count >= limit:
+            return True
+        cache.set(key, count + 1, window)
+    except Exception:
+        # Security boundary: unavailable limiter means deny, never fail open.
+        return True
+    return False
+
+
+CANARY_CAPABILITY_SESSION_KEY = "production_canary_capability_id"
+
+
+@require_GET
+def canary_checkout(request: HttpRequest) -> HttpResponse:
+    try:
+        user = get_session_user(request)
+    except Exception:
+        return _canary_unavailable()
+    blocked = _canary_boundary(request, user=user, capability_token="session-bound", purpose="billing_bind")
+    if blocked:
+        return blocked
+    capability_id = request.session.get(CANARY_CAPABILITY_SESSION_KEY)
+    if not capability_id:
+        response = HttpResponse("""<!doctype html><meta name=referrer content=no-referrer><script>
+const token = location.hash.slice(1).replace(/^token=/, '');
+fetch('/app/canary/checkout/exchange', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token})})
+  .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+  .then(data => location.replace(data.redirect))
+  .catch(() => { document.body.textContent='Canary unavailable.'; });
+</script>""")
+        return _canary_response(response)
+    capability_digest = hashlib.sha256(str(capability_id).encode()).hexdigest()
+    if _canary_rate_limited(request, "billing-preview", user=user, capability_digest=capability_digest):
+        return _canary_unavailable()
+    from subscriptions.canary import CanaryBindError, get_canary_bind_preview_by_id
+    try:
+        preview = get_canary_bind_preview_by_id(user=user, capability_id=int(capability_id))
+    except (CanaryBindError, TypeError, ValueError):
+        request.session.pop(CANARY_CAPABILITY_SESSION_KEY, None)
+        return _canary_unavailable()
+    response = _canary_response(render(request, "miniapp/canary_checkout.html", preview))
+    return response
+
+
+@csrf_exempt
+@require_POST
+def canary_checkout_exchange(request: HttpRequest) -> HttpResponse:
+    try:
+        user = get_session_user(request)
+    except Exception:
+        return _canary_unavailable()
+    payload = _read_json(request) if request.content_type == "application/json" else request.POST
+    token = str(payload.get("token") or "")
+    blocked = _canary_boundary(request, user=user, capability_token=token, purpose="billing_bind")
+    if blocked:
+        return blocked
+    capability_digest = hashlib.sha256(token.encode()).hexdigest()
+    if _canary_rate_limited(request, "billing-exchange", user=user, capability_digest=capability_digest):
+        return _canary_unavailable()
+    from subscriptions.canary import CanaryBindError, exchange_canary_bind_capability
+    try:
+        capability_id = exchange_canary_bind_capability(user=user, capability_token=token)
+    except CanaryBindError:
+        return _canary_unavailable()
+    request.session[CANARY_CAPABILITY_SESSION_KEY] = capability_id
+    return _canary_response(JsonResponse({"redirect": "/app/canary/checkout/"}))
+
+
+@require_POST
+def canary_checkout_confirm(request: HttpRequest) -> HttpResponse:
+    try:
+        user = get_session_user(request)
+    except Exception:
+        return _canary_unavailable()
+    capability_id = request.session.get(CANARY_CAPABILITY_SESSION_KEY)
+    blocked = _canary_boundary(request, user=user, capability_token=str(capability_id or ""), purpose="billing_bind")
+    if blocked:
+        return blocked
+    capability_digest = hashlib.sha256(str(capability_id).encode()).hexdigest()
+    if not sensitive_action_auth_is_fresh(request) or _canary_rate_limited(request, "billing-confirm", user=user, capability_digest=capability_digest):
+        return _canary_response(JsonResponse({"error": {"code": "canary_unavailable", "message": "Canary checkout is unavailable."}}, status=429))
+    payload = _read_json(request) if request.content_type == "application/json" else request.POST
+    from subscriptions.canary import CanaryBindError, confirm_canary_bind_by_id
+    try:
+        confirmed_value = payload.get("confirmed")
+        review_digest = str(payload.get("review_digest") or "")
+        confirmed = confirmed_value is True or str(confirmed_value).lower() == "true"
+        result = confirm_canary_bind_by_id(user=user, capability_id=int(capability_id), confirmed=confirmed, review_digest=review_digest)
+    except (CanaryBindError, TypeError, ValueError):
+        return _canary_response(JsonResponse({"error": {"code": "canary_unavailable", "message": "Canary checkout is unavailable."}}, status=409))
+    request.session.pop(CANARY_CAPABILITY_SESSION_KEY, None)
+    response = redirect("/app/?billing=success&payment_id=%s" % result.payment_id)
+    response["Cache-Control"] = "no-store"
+    response["Referrer-Policy"] = "no-referrer"
+    return response

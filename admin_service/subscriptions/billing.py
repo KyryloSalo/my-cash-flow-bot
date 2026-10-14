@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from copy import deepcopy
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import html
@@ -31,6 +33,7 @@ from subscriptions.monobank import (
 from subscriptions.payloads import sanitize_monobank_payload
 from subscriptions.services import latest_subscription_for_user, sync_admin_access_scope, sync_admin_subscription_state
 from users.models import TelegramUser, UserAdminState
+from users.canary import is_canary_user
 
 
 logger = logging.getLogger(__name__)
@@ -505,7 +508,7 @@ def _find_payment(invoice_id: str) -> Payment | None:
         return None
     return (
         Payment.objects.select_related("user", "subscription", "plan")
-        .filter(provider=MONO_PROVIDER, provider_payment_id=invoice_id)
+        .filter(provider__in={MONO_PROVIDER, "canary"}, provider_payment_id=invoice_id)
         .first()
     )
 
@@ -1059,10 +1062,11 @@ def _upsert_billing_profile(
     last_action_url: str = "",
     last_bound_at: datetime | None = None,
     last_charge_at: datetime | None = None,
+    provider: str = MONO_PROVIDER,
 ) -> BillingProfile:
     profile, _ = BillingProfile.objects.get_or_create(
         user_id=user.tg_user_id,
-        defaults={"provider": MONO_PROVIDER, "wallet_id": _wallet_id(user.tg_user_id)},
+        defaults={"provider": provider, "wallet_id": _wallet_id(user.tg_user_id)},
     )
     if not profile.wallet_id:
         profile.wallet_id = _wallet_id(user.tg_user_id)
@@ -1072,7 +1076,8 @@ def _upsert_billing_profile(
         profile.card_token = card_token
     if masked_pan:
         profile.masked_pan = masked_pan
-    profile.provider = MONO_PROVIDER
+    profile.provider = provider
+    profile.canary_owned = provider == "canary"
     profile.status = status
     profile.auto_renew_enabled = auto_renew_enabled
     profile.last_charge_status = last_charge_status
@@ -1189,12 +1194,15 @@ def _subscription_keeps_full_access(subscription: Subscription | None) -> bool:
 def _apply_bind_subscription_state(
     payment: Payment,
     *,
+    provider: str = MONO_PROVIDER,
     trial_days: int,
     mode: str,
     trial_granted: bool,
 ) -> Subscription | None:
     now = timezone.now()
     subscription = payment.subscription or latest_subscription_for_user(payment.user)
+    if provider == "canary" and subscription is not None and not subscription.canary_owned:
+        subscription = None
     if subscription is None:
         if not trial_granted:
             sync_admin_subscription_state(payment.user_id, subscription=None)
@@ -1211,10 +1219,11 @@ def _apply_bind_subscription_state(
     promo_offer_id = int(promo_offer_id) if promo_offer_id else None
 
     current_profile = BillingProfile.objects.filter(user_id=payment.user_id).first()
-    mandate_enabled = bool(current_profile and current_profile.auto_renew_enabled and current_profile.card_token)
+    mandate_enabled = bool(current_profile and current_profile.canary_owned == (provider == "canary") and current_profile.auto_renew_enabled and current_profile.card_token)
     if trial_granted:
         subscription.status = Subscription.Status.TRIAL
-        subscription.provider = MONO_PROVIDER
+        subscription.provider = provider
+        subscription.canary_owned = provider == "canary"
         subscription.source = Subscription.Source.PROMO if promo_offer_id else Subscription.Source.PAYMENT
         subscription.plan = subscription.plan or "solo"
         subscription.amount = _minor_to_decimal(settings.MONO_RENEWAL_AMOUNT)
@@ -1248,7 +1257,8 @@ def _apply_bind_subscription_state(
             promo_code=promo_code,
         )
     else:
-        subscription.provider = MONO_PROVIDER
+        subscription.provider = provider
+        subscription.canary_owned = provider == "canary"
         subscription.auto_renew = mandate_enabled
         subscription.next_charge_at = subscription.expires_at if mandate_enabled and _subscription_grants_full_access(subscription) else None
         update_fields = ["provider", "auto_renew", "next_charge_at", "updated_at"]
@@ -1282,18 +1292,19 @@ def _apply_bind_subscription_state(
     return subscription
 
 
-def _extend_paid_subscription(payment: Payment, *, auto_renew: bool = True) -> Subscription:
+def _extend_paid_subscription(payment: Payment, *, provider: str = MONO_PROVIDER, auto_renew: bool = True) -> Subscription:
     now = timezone.now()
     subscription = payment.subscription or latest_subscription_for_user(payment.user)
     if subscription is None:
-        subscription = Subscription(user_id=payment.user_id, provider=MONO_PROVIDER)
-        subscription.started_at = now
+        subscription = Subscription(user_id=payment.user_id, provider=provider)
+        subscription.canary_owned = provider == "canary"
         subscription.plan = "solo"
 
     before = _subscription_snapshot(subscription) if subscription.pk else {}
     base_date = max(subscription.expires_at or now, now)
     subscription.status = Subscription.Status.ACTIVE
-    subscription.provider = MONO_PROVIDER
+    subscription.provider = provider
+    subscription.canary_owned = provider == "canary"
     subscription.source = Subscription.Source.PAYMENT
     subscription.amount = _minor_to_decimal(settings.MONO_RENEWAL_AMOUNT)
     subscription.currency = MONO_CURRENCY
@@ -1359,7 +1370,7 @@ def _payment_mandate_is_current(payment: Payment, *, newer_pending_blocks: bool 
     """
     if (payment.raw_payload or {}).get("mandate_revoked_at"):
         return False
-    newer = Payment.objects.filter(user_id=payment.user_id, provider=MONO_PROVIDER, pk__gt=payment.pk).filter(
+    newer = Payment.objects.filter(user_id=payment.user_id, provider=payment.provider, pk__gt=payment.pk).filter(
         Q(kind=Payment.Kind.BIND) | Q(raw_payload__recovery_context__save_card=True)
     )
     if not newer_pending_blocks:
@@ -1368,6 +1379,7 @@ def _payment_mandate_is_current(payment: Payment, *, newer_pending_blocks: bool 
 
 
 def _handle_bind_success(payment: Payment, payload: dict[str, Any], *, apply_effect: bool = True) -> None:
+    provider = getattr(payment, "provider", MONO_PROVIDER)
     bind_context = _bind_context(payment)
     mode = _bind_mode(payment)
     trial_days = _trial_days(bind_context.get("trial_days"))
@@ -1377,9 +1389,17 @@ def _handle_bind_success(payment: Payment, payload: dict[str, Any], *, apply_eff
     modified_at = payment.provider_modified_at or timezone.now()
     if not _payment_mandate_is_current(payment, newer_pending_blocks=False):
         if apply_effect:
-            _apply_bind_subscription_state(payment, trial_days=trial_days, mode=mode, trial_granted=trial_granted)
+            _apply_bind_subscription_state(payment, provider=provider, trial_days=trial_days, mode=mode, trial_granted=trial_granted)
             from subscriptions.trial_recovery import mark_trial_recovery_converted
             mark_trial_recovery_converted(payment.user_id)
+        return
+    if provider == "canary":
+        if not apply_effect:
+            return
+        subscription = _apply_bind_subscription_state(
+            payment, trial_days=trial_days, provider=provider, mode=mode, trial_granted=trial_granted,
+        )
+        finalize_paid_consent(payment=payment, first_renewal_at=getattr(subscription, "next_charge_at", None))
         return
     card_token, resolved_payload = _resolve_paid_save_card_payload(payment, payload)
     masked_pan = _extract_masked_pan(resolved_payload)
@@ -1387,6 +1407,7 @@ def _handle_bind_success(payment: Payment, payload: dict[str, Any], *, apply_eff
     failure_reason = "" if card_token else "Monobank did not return cardToken."
     _upsert_billing_profile(
         user=payment.user,
+        provider=provider,
         status=profile_status,
         auto_renew_enabled=bool(card_token),
         card_token=card_token,
@@ -1401,6 +1422,7 @@ def _handle_bind_success(payment: Payment, payload: dict[str, Any], *, apply_eff
     subscription = _apply_bind_subscription_state(
         payment,
         trial_days=trial_days,
+        provider=provider,
         mode=mode,
         trial_granted=trial_granted,
     )
@@ -1433,11 +1455,15 @@ def _handle_bind_success(payment: Payment, payload: dict[str, Any], *, apply_eff
 
 
 def _handle_bind_failure(payment: Payment, payload: dict[str, Any]) -> None:
+    provider = payment.provider
+    if provider == "canary":
+        return
     if not _payment_mandate_is_current(payment):
         return
     reason = str(payload.get("failureReason") or payload.get("errText") or "Не вдалося завершити оплату.")
     _upsert_billing_profile(
         user=payment.user,
+        provider=provider,
         status=BillingProfile.Status.FAILED,
         auto_renew_enabled=False,
         last_charge_status=payment.status,
@@ -1505,6 +1531,7 @@ def _handle_refunded_bind(payment: Payment, payload: dict[str, Any]) -> None:
 
 
 def _handle_refunded_charge(payment: Payment, payload: dict[str, Any]) -> None:
+    provider = payment.provider
     modified_at = payment.provider_modified_at or timezone.now()
     refund_request = ((payment.raw_payload or {}).get("refund_request") or {}).copy()
     if refund_request:
@@ -1522,6 +1549,7 @@ def _handle_refunded_charge(payment: Payment, payload: dict[str, Any]) -> None:
     subscription = _restore_subscription_from_snapshot(payment)
     _upsert_billing_profile(
         user=payment.user,
+        provider=provider,
         status=BillingProfile.Status.CANCELLED,
         auto_renew_enabled=False,
         clear_card_token=True,
@@ -1555,6 +1583,15 @@ def _handle_refunded_charge(payment: Payment, payload: dict[str, Any]) -> None:
 
 
 def _handle_renewal_update(payment: Payment, payload: dict[str, Any], *, apply_effect: bool = True) -> None:
+    provider = payment.provider
+    if provider == "canary":
+        if payment.status == Payment.Status.PAID and apply_effect:
+            _extend_paid_subscription(payment, provider=provider, auto_renew=False)
+        elif payment.status in {Payment.Status.FAILED, Payment.Status.REJECTED} and apply_effect:
+            subscription = payment.subscription or latest_subscription_for_user(payment.user)
+            if subscription is not None:
+                _set_subscription_grace(subscription, failure_reason=str(payload.get("failureReason") or ""))
+        return
     if payment.status == Payment.Status.REFUNDED:
         _handle_refunded_charge(payment, payload)
         return
@@ -1593,6 +1630,7 @@ def _handle_renewal_update(payment: Payment, payload: dict[str, Any], *, apply_e
 
     profile = _upsert_billing_profile(
         user=payment.user,
+        provider=provider,
         status=profile_status,
         auto_renew_enabled=auto_renew_enabled,
         card_token=resolved_card_token,
@@ -1639,7 +1677,7 @@ def _handle_renewal_update(payment: Payment, payload: dict[str, Any], *, apply_e
         return
 
     if payment.status == Payment.Status.PAID:
-        subscription = _extend_paid_subscription(payment, auto_renew=bool(profile and profile.auto_renew_enabled and profile.card_token)) if apply_effect else payment.subscription
+        subscription = _extend_paid_subscription(payment, provider=provider, auto_renew=bool(profile and profile.auto_renew_enabled and profile.card_token)) if apply_effect else payment.subscription
         if not apply_effect:
             if mandate_current and subscription is not None and resolved_card_token:
                 subscription.auto_renew = True
@@ -1724,9 +1762,47 @@ def _handle_renewal_update(payment: Payment, payload: dict[str, Any], *, apply_e
         return
 
 
+@dataclass(frozen=True)
+class ProviderPaymentEvent:
+    provider: str
+    provider_payment_id: str
+    status: str
+    amount: int
+    currency: str
+    modified_at: datetime | None
+    card_token: str | None
+    masked_pan: str | None
+    action_url: str | None
+    failure_reason: str | None
+    raw_payload: dict[str, Any]
+
+
+def parse_monobank_payment_event(payload: dict[str, Any]) -> ProviderPaymentEvent:
+    wallet_data = payload.get("walletData") or {}
+    currency = "UAH" if str(payload.get("ccy") or "980") == "980" else str(payload.get("ccy") or "")
+    return ProviderPaymentEvent(
+        provider=MONO_PROVIDER,
+        provider_payment_id=str(payload.get("invoiceId") or ""),
+        status=_payment_status_from_mono(payload),
+        amount=int(payload.get("amount") or 0),
+        currency=currency,
+        modified_at=_parse_timestamp(payload.get("modifiedDate")),
+        card_token=str(wallet_data.get("cardToken") or "") or None,
+        masked_pan=str(wallet_data.get("maskedPan") or "") or None,
+        action_url=str(payload.get("tdsUrl") or "") or None,
+        failure_reason=str(payload.get("failureReason") or "") or None,
+        raw_payload=deepcopy(payload),
+    )
+
+
 @transaction.atomic
-def process_monobank_event(payload: dict[str, Any]) -> tuple[Payment | None, bool]:
-    invoice_id = str(payload.get("invoiceId") or "")
+def finalize_payment_event(event: ProviderPaymentEvent) -> tuple[Payment | None, bool]:
+    payload = event.raw_payload if isinstance(event.raw_payload, dict) else {}
+    if event.provider == "canary":
+        marker = payload.get("canary")
+        if not isinstance(marker, dict) or marker.get("canary_owned") is not True or marker.get("result") not in {"success", "failure"}:
+            raise ValueError("Malformed canary finalizer result.")
+    invoice_id = event.provider_payment_id
     payment = _find_payment(invoice_id)
     if payment is None and invoice_id:
         # Signed callbacks can arrive before wallet/payment returns its invoiceId.
@@ -1739,9 +1815,16 @@ def process_monobank_event(payload: dict[str, Any]) -> tuple[Payment | None, boo
             ).first()
             if candidate is not None and not candidate.provider_payment_id and _charge_identity_matches(candidate, payload):
                 payment = candidate
+    if payment is not None and event.provider == "canary":
+        if payment.provider != "canary" or not payment.canary_owned or not is_canary_user(payment.user):
+            raise ValueError("Unauthorized canary finalizer target.")
     if payment is None:
         logger.warning("Monobank webhook for unknown invoiceId=%s", invoice_id)
         return None, False
+
+    if event.provider != payment.provider:
+        create_audit_log(action="billing_provider_mismatch", target_type="payment", target_id=str(payment.pk), metadata={"event_provider": event.provider, "payment_provider": payment.provider, "provider_payment_id": invoice_id})
+        raise ValueError("Payment event provider does not match payment provider.")
 
     # All billing mutations use user -> profile -> subscription -> payment.
     # Re-read after locking; the initial lookup is only for routing the lock.
@@ -1763,7 +1846,7 @@ def process_monobank_event(payload: dict[str, Any]) -> tuple[Payment | None, boo
     # Do not lock nullable joins: PostgreSQL rejects FOR UPDATE on their null side.
     payment.subscription = subscription
     modified_at = _parse_timestamp(payload.get("modifiedDate"))
-    incoming_status = _payment_status_from_mono(payload)
+    incoming_status = event.status if event.provider == "canary" else _payment_status_from_mono(payload)
     incoming_action_url = str(payload.get("tdsUrl") or "")
     previous_status = payment.status
     paid_was_recorded = payment.paid_at is not None
@@ -1790,7 +1873,7 @@ def process_monobank_event(payload: dict[str, Any]) -> tuple[Payment | None, boo
         ):
             return payment, False
 
-    payment.provider = MONO_PROVIDER
+    payment.provider = event.provider
     payment.status = incoming_status
     payment.action_url = incoming_action_url
     payment.provider_modified_at = modified_at or payment.provider_modified_at
@@ -1838,6 +1921,10 @@ def process_monobank_event(payload: dict[str, Any]) -> tuple[Payment | None, boo
 
     _handle_renewal_update(payment, payload)
     return payment, True
+
+
+def process_monobank_event(payload: dict[str, Any]) -> tuple[Payment | None, bool]:
+    return finalize_payment_event(parse_monobank_payment_event(payload))
 
 
 @transaction.atomic
@@ -2534,6 +2621,8 @@ def _create_charge_attempt(
     if intent_key and (not isinstance(intent_key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", intent_key)):
         raise ValueError("Invalid billing intent key.")
     TelegramUser.objects.select_for_update().get(pk=user_id)
+    if UserAdminState.objects.filter(telegram_user_id=user_id, is_production_canary=True).exists():
+        raise BillingChargeSkipped("Production Canary users are isolated from provider billing.")
     if intent_key:
         existing = Payment.objects.filter(user_id=user_id, provider=MONO_PROVIDER,
             kind=payment_kind, raw_payload__charge_context__intent_key=intent_key).first()
@@ -2744,7 +2833,9 @@ def run_due_monobank_charges() -> dict[str, int]:
             auto_renew=True,
             next_charge_at__isnull=False,
             next_charge_at__lte=now,
+            user__billing_profile__provider=MONO_PROVIDER,
         )
+        .filter(Q(user__admin_state__isnull=True) | Q(user__admin_state__is_production_canary=False))
         .order_by("user_id", "-created_at")
     )
     for subscription in due_subscriptions:
