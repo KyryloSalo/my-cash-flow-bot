@@ -8,6 +8,7 @@ FUNNEL_INTERNAL_ID_SETTINGS = (
     "MINIAPP_OPERATOR_TELEGRAM_IDS",
     "ADMIN_TELEGRAM_IDS",
     "FUNNEL_EXCLUDED_TELEGRAM_IDS",
+    "PRODUCTION_CANARY_TELEGRAM_IDS",
 )
 
 
@@ -28,4 +29,6 @@ def production_canary_exclusion_q(prefix: str = ""):
     """Return the stable ORM predicate used by business automation/reporting."""
     from django.db.models import Q
 
-    return Q(**{f"{prefix}admin_state__is_production_canary": True})
+    return Q(**{f"{prefix}admin_state__is_production_canary": True}) | Q(
+        **{f"{prefix}admin_state__source": "production_canary_seed"}
+    )
