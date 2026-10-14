@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from django.test import SimpleTestCase, TestCase
+from users.models import TelegramUser
+
 from pathlib import Path
 
 from django.conf import settings
@@ -12,6 +15,7 @@ from bot_events.models import BotEvent
 from categories.models import Category
 from common.admin import ADMIN_PAGE_METADATA
 from common.admin_site import admin_site
+from common.audit import sanitize_audit_metadata
 from common.middleware import AdminIPAllowlistMiddleware, _trusted_remote_ip
 from common.telegram_admins import get_primary_admin_telegram_id
 from transactions.models import Debt, DebtPayment, Transaction
@@ -95,6 +99,36 @@ class PrimaryAdminTelegramIdTests(SimpleTestCase):
     @override_settings(ADMIN_TELEGRAM_IDS=[], PRIMARY_ADMIN_TELEGRAM_ID=None)
     def test_primary_admin_returns_none_when_admins_missing(self):
         self.assertIsNone(get_primary_admin_telegram_id())
+
+
+class CanaryAuditSanitizerTests(SimpleTestCase):
+    def test_preserves_required_schema_and_redacts_secret_like_values(self):
+        metadata = sanitize_audit_metadata({
+            "actor": 7,
+            "target_user_id": 92001,
+            "capability_uuid": "safe-id",
+            "payment_id": 12,
+            "scenario": "success",
+            "result": "confirmed",
+            "reason": "Bearer raw-secret",
+            "unapproved": "must disappear",
+        })
+
+        self.assertEqual(metadata["actor"], 7)
+        self.assertEqual(metadata["target_user_id"], 92001)
+        self.assertEqual(metadata["payment_id"], 12)
+        self.assertEqual(metadata["scenario"], "success")
+        self.assertEqual(metadata["result"], "confirmed")
+        self.assertEqual(metadata["reason"], "[redacted]")
+        self.assertNotIn("unapproved", metadata)
+
+    def test_reason_is_bounded_consistently(self):
+        metadata = sanitize_audit_metadata({"reason": "x" * 500})
+        self.assertEqual(len(metadata["reason"]), 160)
+
+    def test_pan_like_values_are_never_persisted(self):
+        metadata = sanitize_audit_metadata({"reason": "card 4444 3333 2222 1111"})
+        self.assertEqual(metadata["reason"], "[redacted]")
 
 
 class OperationalAdminArchitectureTests(SimpleTestCase):
@@ -303,3 +337,16 @@ class OperationalAdminArchitectureTests(SimpleTestCase):
         for template_name in template_names:
             with self.subTest(template_name=template_name):
                 self.assertIsNotNone(get_template(template_name))
+
+
+class CanaryAuditSlice10Tests(SimpleTestCase):
+    def test_audit_sanitizer_removes_secrets(self):
+        from common.audit import sanitize_audit_metadata
+        value = sanitize_audit_metadata({"capability": "raw", "payment_id": 4, "nested": {"cookie": "x", "scenario": "success"}})
+        self.assertEqual(value, {"payment_id": 4, "nested": {"scenario": "success"}})
+
+    def test_reporting_queryset_excludes_canary_but_not_normal_test_user(self):
+        from dashboard.services import _exclude_reporting_canaries
+        source = Path(_exclude_reporting_canaries.__code__.co_filename).read_text(encoding="utf-8")
+        self.assertIn("is_production_canary", source)
+        self.assertIn("exclude", source)

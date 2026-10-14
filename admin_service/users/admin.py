@@ -22,21 +22,26 @@ from bot_events.models import BotEvent
 from broadcasts.models import AdminMessageLog, Broadcast
 from broadcasts.tasks import send_manual_message_task
 from common.admin import AuditedModelAdmin
-from common.admin_actions import admin_action_permission, require_admin_action, require_non_operator_target
+from common.admin_actions import admin_action_permission, can_admin_action, require_admin_action, require_non_operator_target
 from common.admin_site import admin_site
 from common.admin_ui import boolean_badge
-from common.audit import create_audit_log
+from common.audit import create_audit_log, create_canary_audit
 from subscriptions.billing import get_latest_refundable_monobank_payment, refund_latest_monobank_payment, retry_monobank_charge
+from subscriptions.canary import complete_delayed_canary, confirm_canary_renewal, init_canary_bind
 from subscriptions.monobank import MonobankAPIError
 from subscriptions.models import BillingProfile, Payment, Plan, Subscription
 from subscriptions.services import apply_subscription_change, resolve_subscription_plan_ref
-from users.models import AdminNote, PushTopic, Tag, TelegramUser, UserAdminState, UserTag
+from users.canary import issue_canary_capability, issue_production_canary_browser_login
+from users.canary_reset import execute_canary_reset, preview_canary_reset, preview_fingerprint
+from users.models import AdminNote, CanaryCapability, PushTopic, Tag, TelegramUser, UserAdminState, UserTag
 from users.services import (
     REPLAY_RESET_CONFIRMATION,
     RESET_MODES,
     HardDeleteUserError,
     ResetOnboardingError,
     assign_tag_to_users,
+    disable_production_canary,
+    enable_production_canary,
     get_or_create_user_tag,
     hard_delete_user,
     is_allowlisted_test_user,
@@ -157,6 +162,29 @@ class SubscriptionActionForm(forms.Form):
 
 class ConfirmActionForm(forms.Form):
     comment = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), label="Коментар")
+
+
+class CanaryConfirmForm(forms.Form):
+    confirmation = forms.CharField(required=True, label="Підтвердження")
+    comment = forms.CharField(required=True, widget=forms.Textarea(attrs={"rows": 3}), label="Обов'язковий коментар")
+
+    def clean_confirmation(self):
+        value = self.cleaned_data["confirmation"].strip()
+        if value != "CONFIRM PRODUCTION CANARY":
+            raise forms.ValidationError("Введіть точну фразу: CONFIRM PRODUCTION CANARY")
+        return value
+
+    def clean_comment(self):
+        value = self.cleaned_data["comment"].strip()
+        if not value:
+            raise forms.ValidationError("Коментар обов'язковий.")
+        return value
+
+
+class CanaryScenarioForm(CanaryConfirmForm):
+    scenario = forms.ChoiceField(choices=CanaryCapability.Scenario.choices, label="Сценарій")
+    consent_id = forms.CharField(required=False, label="Consent ID")
+    plan_ref = forms.ModelChoiceField(queryset=Plan.objects.none(), required=False, label="Тариф")
 
 
 class RefundLatestPaymentForm(forms.Form):
@@ -336,6 +364,7 @@ def unmark_test_users(modeladmin, request, queryset):
 
 @admin.action(description="Експортувати CSV")
 def export_users_csv(modeladmin, request, queryset):
+    queryset = queryset.exclude(admin_state__is_production_canary=True)
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = 'attachment; filename="cashflow_users.csv"'
     writer = csv.writer(response)
@@ -521,7 +550,7 @@ class TelegramUserAdmin(AuditedModelAdmin):
         extra_context = extra_context or {}
         user = self.get_queryset(request).filter(pk=object_id).first()
         if user is not None:
-            extra_context["crm"] = self._build_crm_context(user)
+            extra_context["crm"] = self._build_crm_context(user, request=request)
         return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
     def get_queryset(self, request):
@@ -648,7 +677,7 @@ class TelegramUserAdmin(AuditedModelAdmin):
             return empty
         return value.strftime("%d.%m.%Y %H:%M")
 
-    def _crm_action_groups(self, obj: TelegramUser):
+    def _crm_action_groups(self, obj: TelegramUser, request=None):
         state = getattr(obj, "admin_state", None)
         status = state.status if state else UserAdminState.Status.ACTIVE
         subscription_status = state.subscription_status if state else UserAdminState.SubscriptionStatus.NONE
@@ -765,12 +794,53 @@ class TelegramUserAdmin(AuditedModelAdmin):
             },
         ]
 
+        canary_actions = []
+        is_production_canary = bool(state and state.is_production_canary)
+        can_manage_canary = bool(request and can_admin_action(request.user, "production_canary"))
+        canary_allowlisted = (
+            obj.tg_user_id in set(getattr(settings, "PRODUCTION_CANARY_TELEGRAM_IDS", ()))
+            if can_manage_canary
+            else None
+        )
+        canary_eligible = bool(getattr(settings, "PRODUCTION_CANARY_ENABLED", False) and canary_allowlisted and is_test_user and status == UserAdminState.Status.ACTIVE)
+        if is_production_canary:
+            canary_actions.append(
+                {
+                    "label": "Створити одноразове browser-посилання",
+                    "url": reverse("admin:users_telegramuser_production_canary_login", args=[obj.pk]),
+                    "variant": "secondary",
+                }
+            )
+            canary_actions.append(
+                {
+                    "label": "Вимкнути Production Canary",
+                    "url": reverse("admin:users_telegramuser_disable_production_canary", args=[obj.pk]),
+                    "variant": "danger",
+                }
+            )
+            canary_actions.extend([
+                {"label": "Ініціювати bind-сценарій", "url": reverse("admin:users_telegramuser_production_canary_bind", args=[obj.pk]), "variant": "secondary"},
+                {"label": "Завершити delayed-сценарій", "url": reverse("admin:users_telegramuser_production_canary_delayed", args=[obj.pk]), "variant": "secondary"},
+                {"label": "Ручне renewal/retry", "url": reverse("admin:users_telegramuser_production_canary_retry", args=[obj.pk]), "variant": "secondary"},
+                {"label": "Preview / reset", "url": reverse("admin:users_telegramuser_production_canary_reset", args=[obj.pk]), "variant": "danger"},
+            ])
+        elif getattr(settings, "PRODUCTION_CANARY_ENABLED", False) and canary_allowlisted and is_test_user:
+            canary_actions.append(
+                {
+                    "label": "Увімкнути Production Canary",
+                    "url": reverse("admin:users_telegramuser_enable_production_canary", args=[obj.pk]),
+                    "variant": "danger",
+                }
+            )
+
         groups = [
             {"title": "Щоденні дії", "items": daily_actions},
             {"title": "Онбординг", "items": onboarding_actions},
             {"title": "Підписка", "items": subscription_actions},
             {"title": "Статус", "items": status_actions},
         ]
+        if can_manage_canary:
+            groups.append({"title": "Production Canary", "items": canary_actions, "status": {"feature_enabled": bool(getattr(settings, "PRODUCTION_CANARY_ENABLED", False)), "allowlisted": canary_allowlisted, "test_user": is_test_user, "canary_eligible": canary_eligible, "active_eligibility": is_production_canary}})
 
         if is_hard_delete_candidate:
             groups.append(
@@ -792,7 +862,7 @@ class TelegramUserAdmin(AuditedModelAdmin):
             )
         return groups
 
-    def _build_crm_context(self, obj: TelegramUser):
+    def _build_crm_context(self, obj: TelegramUser, *, request=None):
         state = getattr(obj, "admin_state", None)
         status = state.status if state else UserAdminState.Status.ACTIVE
         subscription_status = state.subscription_status if state else UserAdminState.SubscriptionStatus.NONE
@@ -845,6 +915,7 @@ class TelegramUserAdmin(AuditedModelAdmin):
                 ("Підписка до", self._display_datetime(self.subscription_end_at(obj))),
                 ("Бот запущено", "Так" if obj.start_date else "Ні"),
                 ("Тестовий користувач", "Так" if state and state.is_test_user else "Ні"),
+                ("Production Canary", "Увімкнено" if state and state.is_production_canary else "Вимкнено"),
                 ("Створено", self._display_datetime(obj.created_at)),
                 ("Остання активність", self._display_datetime(obj.last_seen_at)),
             ],
@@ -859,7 +930,7 @@ class TelegramUserAdmin(AuditedModelAdmin):
                 ("Остання onboarding-подія", last_onboarding_event.crm_event_label if last_onboarding_event else "-"),
                 ("Остання помилка", self._display_value(state.last_parse_error if state else "")),
             ],
-            "action_groups": self._crm_action_groups(obj),
+            "action_groups": self._crm_action_groups(obj, request=request),
             "subscriptions": subscriptions,
             "message_logs": latest_logs,
             "recent_events": recent_events,
@@ -883,6 +954,16 @@ class TelegramUserAdmin(AuditedModelAdmin):
             "back_url": reverse("admin:users_telegramuser_change", args=[user.pk]),
         }
 
+    @admin_action_permission("production_canary")
+    def production_canary_reset_view(self, request, object_id):
+        user = get_object_or_404(TelegramUser, pk=object_id)
+        if request.method == "POST":
+            preview = execute_canary_reset(user=user, admin_user=request.user, tg_user_id=request.POST.get("tg_user_id"), preview_fingerprint=request.POST.get("preview_fingerprint", ""), confirmation=request.POST.get("confirmation", ""), comment=request.POST.get("comment", ""), request=request)
+            messages.success(request, f"Production Canary скинуто: {preview.as_dict()}")
+            return redirect("admin:users_telegramuser_change", object_id=user.pk)
+        preview = preview_canary_reset(user=user, admin_user=request.user, request=request)
+        return TemplateResponse(request, "admin/production_canary_reset.html", {**self.admin_site.each_context(request), "title": "Production Canary reset", "opts": self.model._meta, "object": user, "preview": preview.as_dict(), "preview_fingerprint": preview_fingerprint(preview), "back_url": reverse("admin:users_telegramuser_change", args=[user.pk])})
+
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
@@ -892,11 +973,19 @@ class TelegramUserAdmin(AuditedModelAdmin):
             path("<path:object_id>/force-charge/", self.admin_site.admin_view(self.force_charge_now_view), name="users_telegramuser_force_charge"),
             path("<path:object_id>/refund-latest-payment/", self.admin_site.admin_view(self.refund_latest_payment_view), name="users_telegramuser_refund_latest_payment"),
             path("<path:object_id>/reset-onboarding/", self.admin_site.admin_view(self.reset_onboarding_view), name="users_telegramuser_reset_onboarding"),
+            path("<path:object_id>/production-canary-reset/", self.admin_site.admin_view(self.production_canary_reset_view), name="users_telegramuser_production_canary_reset"),
             path("<path:object_id>/erase-user-data/", self.admin_site.admin_view(self.erase_user_data_view), name="users_telegramuser_erase_user_data"),
             path("<path:object_id>/hard-delete/", self.admin_site.admin_view(self.hard_delete_user_view), name="users_telegramuser_hard_delete"),
             path("<path:object_id>/add-note/", self.admin_site.admin_view(self.add_note_view), name="users_telegramuser_add_note"),
             path("<path:object_id>/mark-test-user/", self.admin_site.admin_view(self.mark_test_user_view), name="users_telegramuser_mark_test_user"),
             path("<path:object_id>/unmark-test-user/", self.admin_site.admin_view(self.unmark_test_user_view), name="users_telegramuser_unmark_test_user"),
+            path("<path:object_id>/enable-production-canary/", self.admin_site.admin_view(self.enable_production_canary_view), name="users_telegramuser_enable_production_canary"),
+            path("<path:object_id>/disable-production-canary/", self.admin_site.admin_view(self.disable_production_canary_view), name="users_telegramuser_disable_production_canary"),
+            path("<path:object_id>/production-canary-login/", self.admin_site.admin_view(self.production_canary_login_view), name="users_telegramuser_production_canary_login"),
+            path("<path:object_id>/production-canary-renew/", self.admin_site.admin_view(self.production_canary_renew_view), name="users_telegramuser_production_canary_renew"),
+            path("<path:object_id>/production-canary-bind/", self.admin_site.admin_view(self.production_canary_bind_view), name="users_telegramuser_production_canary_bind"),
+            path("<path:object_id>/production-canary-delayed/", self.admin_site.admin_view(self.production_canary_delayed_view), name="users_telegramuser_production_canary_delayed"),
+            path("<path:object_id>/production-canary-retry/", self.admin_site.admin_view(self.production_canary_renew_view), name="users_telegramuser_production_canary_retry"),
         ]
         return custom_urls + urls
 
@@ -1615,3 +1704,177 @@ class TelegramUserAdmin(AuditedModelAdmin):
             "submit_label": "Підтвердити",
         }
         return TemplateResponse(request, "admin/object_action_form.html", context)
+
+    @admin_action_permission("production_canary")
+    def enable_production_canary_view(self, request, object_id):
+        user = get_object_or_404(TelegramUser, pk=object_id)
+        form = CanaryConfirmForm(request.POST or None)
+        if request.method == "POST" and form.is_valid():
+            enable_production_canary(
+                user=user,
+                admin_user=request.user,
+                notes=form.cleaned_data["comment"],
+                request=request,
+            )
+            messages.success(request, "Production Canary увімкнено для користувача.")
+            return redirect("admin:users_telegramuser_change", object_id=user.pk)
+
+        context = self._object_action_context(
+            request,
+            user=user,
+            title="Увімкнути Production Canary",
+            form=form,
+            submit_label="Увімкнути",
+            help_text="Доступ діятиме лише для server-side allowlist і буде записаний в аудит.",
+        )
+        return TemplateResponse(request, "admin/object_action_form.html", context)
+
+    @admin_action_permission("production_canary")
+    def disable_production_canary_view(self, request, object_id):
+        user = get_object_or_404(TelegramUser, pk=object_id)
+        form = CanaryConfirmForm(request.POST or None)
+        if request.method == "POST" and form.is_valid():
+            disable_production_canary(
+                user=user,
+                admin_user=request.user,
+                reason=form.cleaned_data["comment"],
+                request=request,
+            )
+            messages.success(request, "Production Canary вимкнено; активні canary-сесії та capability відкликано.")
+            return redirect("admin:users_telegramuser_change", object_id=user.pk)
+
+        context = self._object_action_context(
+            request,
+            user=user,
+            title="Вимкнути Production Canary",
+            form=form,
+            submit_label="Вимкнути та відкликати доступ",
+            help_text="Дія відкличе всі активні production-canary capability та сесії цього користувача.",
+        )
+        return TemplateResponse(request, "admin/object_action_form.html", context)
+
+    @admin_action_permission("production_canary")
+    def production_canary_login_view(self, request, object_id):
+        user = get_object_or_404(TelegramUser, pk=object_id)
+        form = CanaryConfirmForm(request.POST or None)
+        if request.method == "POST" and form.is_valid():
+            token = issue_production_canary_browser_login(
+                user=user,
+                admin_user=request.user,
+                reason=form.cleaned_data["comment"],
+                request=request,
+            )
+            login_url = request.build_absolute_uri(reverse("miniapp:canary-browser-login-bootstrap")) + "#token=" + token
+            response = TemplateResponse(
+                request,
+                "admin/production_canary_login_result.html",
+                {
+                    **self.admin_site.each_context(request),
+                    "title": "Одноразове Production Canary посилання",
+                    "opts": self.model._meta,
+                    "object": user,
+                    "login_url": login_url,
+                },
+            )
+            response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, private"
+            response["Pragma"] = "no-cache"
+            response["Referrer-Policy"] = "no-referrer"
+            return response
+
+        context = self._object_action_context(
+            request,
+            user=user,
+            title="Створити одноразове Production Canary посилання",
+            form=form,
+            submit_label="Створити посилання",
+            help_text="Посилання буде показано один раз, не зберігатиметься і після першого входу стане недійсним.",
+        )
+        response = TemplateResponse(request, "admin/object_action_form.html", context)
+        response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, private"
+        response["Referrer-Policy"] = "no-referrer"
+        return response
+
+    @admin_action_permission("production_canary")
+    def production_canary_bind_view(self, request, object_id):
+        user = get_object_or_404(TelegramUser, pk=object_id)
+        form = CanaryScenarioForm(request.POST or None)
+        form.fields["plan_ref"].queryset = Plan.objects.all()
+        if request.method == "POST" and form.is_valid():
+            try:
+                result = init_canary_bind(
+                    user=user,
+                    consent_id=form.cleaned_data["consent_id"],
+                    plan=form.cleaned_data["plan_ref"],
+                    scenario=form.cleaned_data["scenario"],
+                    issued_by=request.user,
+                )
+                create_canary_audit(admin_user=request.user, request=request, action="scenario_delivered", target_user_id=user.tg_user_id, payment_id=result.payment_id, scenario=form.cleaned_data["scenario"], result="initiated", reason=form.cleaned_data["comment"])
+                response = TemplateResponse(
+                    request,
+                    "admin/production_canary_login_result.html",
+                    {
+                        **self.admin_site.each_context(request),
+                        "title": "Production Canary checkout",
+                        "object": user,
+                        "login_url": request.build_absolute_uri(result.page_url),
+                    },
+                )
+                response["Cache-Control"] = "no-store"
+                response["Referrer-Policy"] = "no-referrer"
+                return response
+            except Exception:
+                messages.error(request, "Не вдалося виконати Production Canary дію.")
+            return redirect("admin:users_telegramuser_change", object_id=user.pk)
+        return TemplateResponse(request, "admin/object_action_form.html", self._object_action_context(request, user=user, title="Ініціювати Production Canary bind-сценарій", form=form, submit_label="Ініціювати", help_text="POST, точний користувач, обов'язкові підтвердження та коментар."))
+
+    @admin_action_permission("production_canary")
+    def production_canary_delayed_view(self, request, object_id):
+        user = get_object_or_404(TelegramUser, pk=object_id)
+        form = CanaryConfirmForm(request.POST or None)
+        form.fields["capability_token"] = forms.CharField(required=True, label="Capability token")
+        if request.method == "POST" and form.is_valid():
+            try:
+                result = complete_delayed_canary(user=user, capability_token=form.cleaned_data["capability_token"], confirmed=form.cleaned_data["confirmation"] == "CONFIRM PRODUCTION CANARY")
+                create_canary_audit(admin_user=request.user, request=request, action="delayed_completed", target_user_id=user.tg_user_id, payment_id=result.payment_id, result="completed", reason=form.cleaned_data["comment"])
+                messages.success(request, "Delayed Production Canary сценарій завершено.")
+            except Exception:
+                messages.error(request, "Не вдалося виконати Production Canary дію.")
+            return redirect("admin:users_telegramuser_change", object_id=user.pk)
+        return TemplateResponse(request, "admin/object_action_form.html", self._object_action_context(request, user=user, title="Завершити delayed Production Canary сценарій", form=form, submit_label="Завершити", help_text="Токен приймається лише для цієї дії та не відображається у статусі."))
+
+    @admin_action_permission("production_canary")
+    def production_canary_renew_view(self, request, object_id):
+        user = get_object_or_404(TelegramUser, pk=object_id)
+        is_retry = getattr(getattr(request, "resolver_match", None), "url_name", "") == "users_telegramuser_production_canary_retry"
+        purpose = "billing_retry" if is_retry else "billing_renewal"
+        audit_action = "retry_initiated" if is_retry else "renewal_initiated"
+        form = CanaryConfirmForm(request.POST or None)
+        if request.method == "POST" and form.is_valid():
+            subscription = Subscription.objects.filter(
+                user_id=user.tg_user_id,
+                canary_owned=True,
+                provider="canary",
+            ).order_by("-created_at", "-pk").first()
+            if subscription is None:
+                messages.error(request, "У користувача немає підписки для canary renewal.")
+                return redirect("admin:users_telegramuser_change", object_id=user.pk)
+            _capability, token = issue_canary_capability(user=user, purpose=purpose, issued_by=request.user, metadata={"subscription_id": subscription.pk}, request=request)
+            result = confirm_canary_renewal(user=user, capability_token=token, confirmed=form.cleaned_data["confirmation"] == "CONFIRM PRODUCTION CANARY")
+            create_canary_audit(
+                admin_user=request.user,
+                request=request,
+                action=audit_action,
+                target_user_id=user.tg_user_id,
+                capability_id=_capability.pk,
+                payment_id=result["payment_id"],
+                scenario=_capability.scenario,
+                result=result["status"],
+                reason=form.cleaned_data["comment"],
+            )
+            messages.success(request, f"Canary renewal: {result['status']}.")
+            return redirect("admin:users_telegramuser_change", object_id=user.pk)
+        return TemplateResponse(
+            request,
+            "admin/object_action_form.html",
+            self._object_action_context(request, user=user, title="Підтвердити Production Canary renewal", form=form, submit_label="Підтвердити synthetic renewal", help_text="Лише synthetic event; Monobank і debit не викликаються."),
+        )

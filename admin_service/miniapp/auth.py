@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qsl
 
 from django.conf import settings
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.http import HttpRequest
 from django.utils import timezone
 
@@ -27,8 +27,12 @@ SESSION_AUTH_AT_KEY = "miniapp_auth_at"
 SESSION_AUTH_MODE_KEY = "miniapp_auth_mode"
 SESSION_RECORD_TOKEN_KEY = "miniapp_auth_session_token"
 BROWSER_AUTH_MODE = "browser"
+PRODUCTION_CANARY_AUTH_MODE = "production_canary"
 TELEGRAM_AUTH_MODE = "telegram"
 BROWSER_LOGIN_TOKEN_VERSION = 1
+ORDINARY_BROWSER_LOGIN_PURPOSE = "ordinary_browser_login"
+PRODUCTION_CANARY_BROWSER_LOGIN_PURPOSE = "production_canary_browser_login"
+ALLOWED_BROWSER_LOGIN_PURPOSES = frozenset({ORDINARY_BROWSER_LOGIN_PURPOSE, PRODUCTION_CANARY_BROWSER_LOGIN_PURPOSE})
 DEFAULT_BROWSER_LOGIN_TOKEN_TTL_SECONDS = 15 * 60
 DEFAULT_BROWSER_SESSION_AGE_SECONDS = 180 * 24 * 60 * 60
 DEFAULT_SENSITIVE_ACTION_AUTH_MAX_AGE_SECONDS = 5 * 60
@@ -58,6 +62,7 @@ class BrowserLoginIdentity:
     expires_at: int
     issued_at: int
     nonce: str
+    purpose: str = "ordinary_browser_login"
 
 
 def _build_data_check_string(payload: dict[str, str]) -> str:
@@ -82,7 +87,7 @@ def _b64url_decode(value: str) -> bytes:
 
 
 def _browser_login_secret() -> bytes:
-    secret = str(getattr(settings, "MINIAPP_BROWSER_LOGIN_SECRET", "") or settings.TELEGRAM_BOT_TOKEN or "").strip()
+    secret = str(getattr(settings, "MINIAPP_BROWSER_LOGIN_SECRET", "") or "").strip()
     if not secret:
         raise MiniAppAuthError("Browser login secret not configured.")
     return hmac.new(b"MiniAppBrowserLogin", secret.encode("utf-8"), hashlib.sha256).digest()
@@ -102,13 +107,15 @@ def _browser_login_token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def build_browser_login_token(tg_user_id: int, *, now: int | None = None, nonce: str | None = None) -> str:
+def build_browser_login_token(tg_user_id: int, *, now: int | None = None, nonce: str | None = None, purpose: str = ORDINARY_BROWSER_LOGIN_PURPOSE) -> str:
     try:
         user_id = int(tg_user_id)
     except (TypeError, ValueError) as exc:
         raise MiniAppAuthError("Browser login user id invalid.") from exc
     if user_id <= 0:
         raise MiniAppAuthError("Browser login user id missing.")
+    if purpose not in ALLOWED_BROWSER_LOGIN_PURPOSES:
+        raise MiniAppAuthError("Browser login purpose invalid.")
 
     issued_at = int(time.time() if now is None else now)
     expires_at = issued_at + _browser_login_token_ttl_seconds()
@@ -118,6 +125,7 @@ def build_browser_login_token(tg_user_id: int, *, now: int | None = None, nonce:
         "iat": issued_at,
         "exp": expires_at,
         "nonce": nonce or secrets.token_urlsafe(18),
+        "purpose": purpose,
     }
     payload_b64 = _b64url_encode(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8"))
     signature = hmac.new(_browser_login_secret(), payload_b64.encode("ascii"), hashlib.sha256).digest()
@@ -156,7 +164,8 @@ def validate_browser_login_token(token: str, *, now: int | None = None) -> Brows
     except (TypeError, ValueError) as exc:
         raise MiniAppAuthError("Browser login payload invalid.") from exc
     nonce = str(payload.get("nonce") or "").strip()
-    if tg_user_id <= 0 or issued_at <= 0 or expires_at <= 0 or len(nonce) < 16:
+    purpose = str(payload.get("purpose") or "").strip()
+    if tg_user_id <= 0 or issued_at <= 0 or expires_at <= 0 or len(nonce) < 16 or purpose not in ALLOWED_BROWSER_LOGIN_PURPOSES:
         raise MiniAppAuthError("Browser login payload invalid.")
 
     current = int(time.time() if now is None else now)
@@ -167,7 +176,7 @@ def validate_browser_login_token(token: str, *, now: int | None = None) -> Brows
     if expires_at - issued_at > _browser_login_token_ttl_seconds():
         raise MiniAppAuthError("Browser login token lifetime invalid.")
 
-    return BrowserLoginIdentity(tg_user_id=tg_user_id, expires_at=expires_at, issued_at=issued_at, nonce=nonce)
+    return BrowserLoginIdentity(tg_user_id=tg_user_id, expires_at=expires_at, issued_at=issued_at, nonce=nonce, purpose=purpose)
 
 
 def validate_telegram_init_data(init_data: str) -> TelegramMiniAppIdentity:
@@ -346,7 +355,7 @@ def get_session_user(request: HttpRequest) -> TelegramUser:
     if user is None:
         raise MiniAppSessionError("Mini App user not found.")
     auth_mode = request.session.get(SESSION_AUTH_MODE_KEY)
-    if auth_mode in {TELEGRAM_AUTH_MODE, BROWSER_AUTH_MODE, "telegram_oidc"}:
+    if auth_mode in {TELEGRAM_AUTH_MODE, BROWSER_AUTH_MODE, "telegram_oidc", PRODUCTION_CANARY_AUTH_MODE}:
         session_token = str(request.session.get(SESSION_RECORD_TOKEN_KEY) or "")
         if not session_token or not UserAuthSession.objects.filter(
             token_hash=hashlib.sha256(session_token.encode("utf-8")).hexdigest(),
@@ -361,25 +370,41 @@ def get_session_user(request: HttpRequest) -> TelegramUser:
     return user
 
 
-def consume_browser_login_token_with_identity(token: str) -> tuple[TelegramUser, BrowserLoginIdentity]:
+def consume_browser_login_token_with_identity(token: str, *, expected_purpose: str = "ordinary_browser_login") -> tuple[TelegramUser, BrowserLoginIdentity]:
     # Validation admits only the canonical signed spelling. Keep its existing
     # digest so already-consumed canonical links remain blocked after upgrades.
     token = str(token or "")
+    if expected_purpose not in ALLOWED_BROWSER_LOGIN_PURPOSES:
+        raise MiniAppAuthError("Browser login purpose invalid.")
     identity = validate_browser_login_token(token)
+    if identity.purpose != expected_purpose:
+        raise MiniAppAuthError("Browser login purpose invalid.")
     user = TelegramUser.objects.filter(tg_user_id=identity.tg_user_id).first()
     if user is None:
         raise MiniAppAuthError("Browser login user not found.")
 
     try:
-        BrowserLoginTokenUse.objects.create(
-            token_hash=_browser_login_token_hash(token),
-            tg_user_id=identity.tg_user_id,
-            expires_at=datetime.fromtimestamp(identity.expires_at, tz=UTC),
-        )
+        with transaction.atomic():
+            BrowserLoginTokenUse.objects.create(
+                token_hash=_browser_login_token_hash(token),
+                tg_user_id=identity.tg_user_id,
+                purpose=identity.purpose,
+                expires_at=datetime.fromtimestamp(identity.expires_at, tz=UTC),
+            )
     except IntegrityError as exc:
         raise MiniAppAuthError("Browser login link already used.") from exc
 
     return user, identity
+
+
+def authorize_browser_login_identity(identity: BrowserLoginIdentity, *, expected_purpose: str) -> TelegramUser:
+    """Check the bound account before the one-use row is created."""
+    if expected_purpose not in ALLOWED_BROWSER_LOGIN_PURPOSES or identity.purpose != expected_purpose:
+        raise MiniAppAuthError("Browser login purpose invalid.")
+    user = TelegramUser.objects.filter(tg_user_id=identity.tg_user_id).first()
+    if user is None:
+        raise MiniAppAuthError("Browser login unavailable.")
+    return user
 
 
 def consume_browser_login_token(token: str) -> TelegramUser:

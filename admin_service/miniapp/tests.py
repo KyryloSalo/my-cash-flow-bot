@@ -50,6 +50,7 @@ def _build_init_data(*, bot_token: str, tg_user_id: int, first_name: str = "Ihor
     DEBUG=True,
     MINIAPP_DEV_TG_USER_ID=1001,
     TELEGRAM_BOT_TOKEN="123456:test-miniapp-token",
+    MINIAPP_BROWSER_LOGIN_SECRET="synthetic-miniapp-browser-login-secret",
 )
 class MiniAppTests(TestCase):
     @classmethod

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Production Canary</title>
+</head>
+<body>
+  <main>
+    <h1>Production Canary</h1>
+    <p>Synthetic payment — no money is charged.</p>
+    <p>Operation: bind card</p>
+    <p>Scenario: {{ scenario }}</p>
+    <p>Amount: {{ amount }} {{ currency }}</p>
+    <form method="post" action="/app/canary/checkout/confirm">
+      {% csrf_token %}
+      <input type="hidden" name="confirmed" value="true">
+      <input type="hidden" name="review_digest" value="{{ review_digest }}">
+      <button type="submit">Confirm synthetic payment</button>
+    </form>
+    <a href="/app/">Cancel</a>
+  </main>
+</body>
+</html>

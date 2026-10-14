@@ -1,0 +1,17 @@
+{% extends "admin/base_site.html" %}
+{% block content_title %}{% endblock %}
+{% block extrahead %}
+{{ block.super }}
+<meta name="referrer" content="no-referrer">
+{% endblock %}
+{% block content %}
+<div class="action-shell" style="max-width:860px;display:grid;gap:18px">
+  <section class="module" style="padding:22px;border-radius:18px">
+    <h1>{{ title }}</h1>
+    <p><strong>{{ object.full_name }}</strong> · Telegram ID {{ object.tg_user_id }}</p>
+    <p>Скопіюйте посилання зараз. Після переходу воно стане недійсним і на цій сторінці повторно не показуватиметься.</p>
+    <p style="overflow-wrap:anywhere"><a href="{{ login_url }}" rel="noreferrer noopener">{{ login_url }}</a></p>
+    <p><a href="{% url 'admin:users_telegramuser_change' object.pk %}">Повернутися до користувача</a></p>
+  </section>
+</div>
+{% endblock %}

@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from subscriptions.models import Subscription
 from users.models import TelegramUser, UserAdminState
+from users.traffic import production_canary_exclusion_q
 
 SYSTEM_SEGMENTS: list[dict[str, str]] = [
     {"name": "All Users", "slug": "all_users", "description": "All users", "type": "system"},
@@ -47,7 +48,7 @@ def parse_manual_user_ids(raw_value) -> list[int]:
 
 
 def base_user_queryset() -> QuerySet[TelegramUser]:
-    return TelegramUser.objects.all().order_by("tg_user_id")
+    return TelegramUser.objects.all().exclude(production_canary_exclusion_q()).order_by("tg_user_id")
 
 
 class InvalidAudience(ValueError):
@@ -169,7 +170,7 @@ def users_for_target(
 ) -> QuerySet[TelegramUser]:
     validate_target(target_type=target_type, target_segment=target_segment, target_tag=target_tag,
                     target_topic=target_topic, manual_users=manual_users)
-    qs = base_user_queryset().exclude(admin_state__status=UserAdminState.Status.BANNED)
+    qs = base_user_queryset().exclude(admin_state__status=UserAdminState.Status.BANNED).exclude(production_canary_exclusion_q())
     if target_type == "manual_users":
         return qs.filter(tg_user_id__in=parse_manual_user_ids(manual_users))
     if target_type == "tag" and target_tag:

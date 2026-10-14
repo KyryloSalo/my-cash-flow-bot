@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from django.conf import settings
+from django.core.exceptions import PermissionDenied
 from django.db import connection, transaction
 from django.utils import timezone
 
@@ -16,9 +17,9 @@ from broadcasts.tasks import send_manual_message_task
 from categories.models import Category
 from common.audit import create_audit_log
 from common.admin_actions import authenticated_operator_id, require_non_operator_target, require_service_action
-from subscriptions.models import BillingProfile, Payment, PromoOfferClaim, Subscription, SubscriptionEvent
+from subscriptions.models import BillingConsent, BillingProfile, Payment, PromoOfferClaim, Subscription, SubscriptionEvent
 from transactions.models import Debt, DebtPayment, Transaction
-from users.models import Tag, TelegramUser, UserAdminState, UserTag
+from users.models import CanaryCapability, Tag, TelegramUser, UserAdminState, UserAuthSession, UserTag
 
 
 RESET_MODES = (
@@ -366,6 +367,129 @@ def unmark_user_as_test_user(
         target_user_id=user.tg_user_id,
         before=before,
         after=_test_mark_snapshot(state),
+    )
+    return state
+
+
+def _production_canary_snapshot(state: UserAdminState) -> dict:
+    return {
+        "is_production_canary": state.is_production_canary,
+        "canary_enabled_by_id": state.canary_enabled_by_id,
+        "canary_enabled_at": state.canary_enabled_at.isoformat() if state.canary_enabled_at else None,
+        "canary_disabled_by_id": state.canary_disabled_by_id,
+        "canary_disabled_at": state.canary_disabled_at.isoformat() if state.canary_disabled_at else None,
+    }
+
+
+def _require_production_canary_target(user: TelegramUser, state: UserAdminState) -> None:
+    if not bool(getattr(settings, "PRODUCTION_CANARY_ENABLED", False)):
+        raise PermissionDenied("Production canary is not available.")
+    allowlist = {int(value) for value in getattr(settings, "PRODUCTION_CANARY_TELEGRAM_IDS", [])}
+    if (
+        int(user.tg_user_id) not in allowlist
+        or not state.is_test_user
+        or state.status != UserAdminState.Status.ACTIVE
+        or state.is_blocked
+    ):
+        raise PermissionDenied("Production canary is not available.")
+
+
+@transaction.atomic
+def enable_production_canary(
+    *,
+    user: TelegramUser,
+    admin_user,
+    notes: str = "",
+    request=None,
+) -> UserAdminState:
+    require_service_action(admin_user, "production_canary", request=request)
+    state = UserAdminState.objects.select_for_update().filter(telegram_user=user).first()
+    if state is None:
+        raise PermissionDenied("Production canary is not available.")
+    _require_production_canary_target(user, state)
+    before = _production_canary_snapshot(state)
+    now = timezone.now()
+    state.is_production_canary = True
+    state.canary_enabled_at = now
+    state.canary_enabled_by = admin_user
+    state.canary_disabled_at = None
+    state.canary_disabled_by = None
+    state.canary_notes = str(notes or "")[:500]
+    state.save(
+        update_fields=[
+            "is_production_canary",
+            "canary_enabled_at",
+            "canary_enabled_by",
+            "canary_disabled_at",
+            "canary_disabled_by",
+            "canary_notes",
+            "updated_at",
+        ]
+    )
+    create_audit_log(
+        request=request,
+        admin_user=admin_user,
+        action="production_canary_enabled",
+        object_type="telegram_user",
+        object_id=user.pk,
+        target_user_id=user.tg_user_id,
+        mode="production_canary",
+        reason=notes,
+        before=before,
+        after=_production_canary_snapshot(state),
+    )
+    return state
+
+
+@transaction.atomic
+def disable_production_canary(
+    *,
+    user: TelegramUser,
+    admin_user,
+    reason: str = "",
+    request=None,
+) -> UserAdminState:
+    require_service_action(admin_user, "production_canary", request=request)
+    state = UserAdminState.objects.select_for_update().filter(telegram_user=user).first()
+    if state is None:
+        raise PermissionDenied("Production canary is not available.")
+    before = _production_canary_snapshot(state)
+    now = timezone.now()
+    revoked_capabilities = CanaryCapability.objects.filter(
+        telegram_user=user,
+        status__in=[CanaryCapability.Status.ISSUED, CanaryCapability.Status.CONSUMED],
+    ).update(status=CanaryCapability.Status.REVOKED)
+    revoked_sessions = UserAuthSession.objects.filter(
+        telegram_user=user,
+        auth_mode="production_canary",
+        revoked_at__isnull=True,
+    ).update(revoked_at=now)
+    state.is_production_canary = False
+    state.canary_disabled_at = now
+    state.canary_disabled_by = admin_user
+    state.save(
+        update_fields=[
+            "is_production_canary",
+            "canary_disabled_at",
+            "canary_disabled_by",
+            "updated_at",
+        ]
+    )
+    create_audit_log(
+        request=request,
+        admin_user=admin_user,
+        action="production_canary_disabled",
+        object_type="telegram_user",
+        object_id=user.pk,
+        target_user_id=user.tg_user_id,
+        mode="production_canary",
+        reason=reason,
+        before=before,
+        after={
+            **_production_canary_snapshot(state),
+            "revoked_capabilities": revoked_capabilities,
+            "revoked_sessions": revoked_sessions,
+        },
     )
     return state
 

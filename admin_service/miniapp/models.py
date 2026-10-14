@@ -11,6 +11,7 @@ from users.models import TelegramUser
 
 
 class BrowserLoginTokenUse(models.Model):
+    purpose = models.CharField(max_length=64, default="ordinary_browser_login", db_index=True)
     token_hash = models.CharField(max_length=64, unique=True)
     tg_user_id = models.BigIntegerField(db_index=True)
     expires_at = models.DateTimeField(db_index=True)
@@ -519,6 +520,7 @@ class AcquisitionSession(models.Model):
         default=AutomationStatus.UNKNOWN,
         db_index=True,
     )
+    canary_owned = models.BooleanField(default=False, db_index=True)
     linked_at = models.DateTimeField(blank=True, null=True)
     expires_at = models.DateTimeField(db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)

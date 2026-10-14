@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
@@ -179,6 +180,24 @@ class UserAdminState(models.Model):
         related_name="marked_test_users",
     )
     marked_as_test_at = models.DateTimeField(blank=True, null=True)
+    is_production_canary = models.BooleanField(default=False)
+    canary_enabled_at = models.DateTimeField(blank=True, null=True)
+    canary_enabled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="enabled_production_canaries",
+    )
+    canary_disabled_at = models.DateTimeField(blank=True, null=True)
+    canary_disabled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="disabled_production_canaries",
+    )
+    canary_notes = models.CharField(max_length=500, blank=True, default="")
     current_fsm_state = models.CharField(max_length=255, blank=True, default="")
     onboarding_payload = models.JSONField(default=dict, blank=True)
     last_user_input = models.TextField(blank=True, default="")
@@ -197,10 +216,85 @@ class UserAdminState(models.Model):
         verbose_name_plural = "Стан користувачів"
         permissions = [
             ("can_use_test_tools", "Може використовувати тестові та QA-інструменти"),
+            ("can_manage_production_canary", "Може керувати production canary"),
         ]
 
     def __str__(self) -> str:
         return f"{self.telegram_user_id}: {self.status}"
+
+
+class CanaryCapability(models.Model):
+    class Purpose(models.TextChoices):
+        LOGIN = "login", "Browser login"
+        BILLING_BIND = "billing_bind", "Billing bind"
+        BILLING_RECOVERY = "billing_recovery", "Billing recovery"
+        BILLING_RENEWAL = "billing_renewal", "Billing renewal"
+        RESET = "reset", "Reset"
+
+    class Status(models.TextChoices):
+        ISSUED = "issued", "Issued"
+        CONSUMED = "consumed", "Consumed"
+        EXPIRED = "expired", "Expired"
+        REVOKED = "revoked", "Revoked"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+
+    class Scenario(models.TextChoices):
+        SUCCESS = "success", "Success"
+        INSUFFICIENT_FUNDS = "insufficient_funds", "Insufficient funds"
+        DECLINED = "declined", "Declined"
+        PROCESSING = "processing", "Processing"
+        DELAYED_SUCCESS = "delayed_success", "Delayed success"
+        DELAYED_FAILURE = "delayed_failure", "Delayed failure"
+        ACTION_REQUIRED = "action_required", "Action required"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    telegram_user = models.ForeignKey(
+        TelegramUser,
+        on_delete=models.CASCADE,
+        to_field="tg_user_id",
+        db_column="telegram_user_id",
+        related_name="canary_capabilities",
+    )
+    purpose = models.CharField(max_length=32, choices=Purpose.choices)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ISSUED, db_index=True)
+    scenario = models.CharField(max_length=32, choices=Scenario.choices, default=Scenario.SUCCESS)
+    nonce_hash = models.CharField(max_length=64, unique=True)
+    issued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="issued_canary_capabilities",
+    )
+    issued_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+    consumed_at = models.DateTimeField(blank=True, null=True)
+    completed_at = models.DateTimeField(blank=True, null=True)
+    related_payment_id = models.BigIntegerField(blank=True, null=True, db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "canary_capabilities"
+        indexes = [
+            models.Index(fields=("telegram_user", "status", "expires_at"), name="canary_user_status_exp_idx"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self._state.adding:
+            return
+        original = type(self).objects.filter(pk=self.pk).values("telegram_user_id", "purpose", "status").first()
+        if not original:
+            return
+        if original["telegram_user_id"] != self.telegram_user_id or original["purpose"] != self.purpose:
+            raise ValidationError("Canary capability identity and purpose are immutable.")
+        terminal = {self.Status.CONSUMED, self.Status.EXPIRED, self.Status.REVOKED, self.Status.COMPLETED, self.Status.FAILED}
+        if original["status"] in terminal and self.status == self.Status.ISSUED:
+            raise ValidationError("A terminal canary capability cannot be reissued.")
+
+    def __str__(self) -> str:
+        return f"{self.telegram_user_id}:{self.purpose}:{self.status}:{self.id}"
 
 
 class AdminNote(models.Model):

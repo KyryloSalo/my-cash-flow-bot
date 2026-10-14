@@ -23,6 +23,7 @@ from subscriptions.models import (
     TrialRecoveryRecipient,
 )
 from users.models import TelegramUser, UserAdminState
+from users.traffic import production_canary_exclusion_q
 
 
 logger = logging.getLogger(__name__)
@@ -161,8 +162,7 @@ def _registered_user_queryset():
         status__in=PENDING_BIND_STATUSES,
     )
     return (
-        TelegramUser.objects.all()
-        .select_related("admin_state", "billing_profile")
+        TelegramUser.objects.exclude(production_canary_exclusion_q()).select_related("admin_state", "billing_profile")
         .annotate(has_successful_payment=Exists(successful_payment), has_pending_bind=Exists(pending_bind))
         .order_by("tg_user_id")
     )
