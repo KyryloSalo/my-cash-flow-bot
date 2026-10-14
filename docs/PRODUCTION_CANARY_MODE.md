@@ -34,7 +34,9 @@ The mode is disabled by default.
 | `PRODUCTION_CANARY_ALLOWED_SCENARIOS` | Explicit scenario allowlist. |
 | `MINIAPP_BROWSER_LOGIN_SECRET` | Dedicated browser-login signing secret; there is no bot-token fallback. |
 
-Keep the allowlist minimal. Changing configuration does not by itself enable a user: an authorized administrator must also complete the confirmed enable action.
+The source-controlled default allowlist contains only the reserved synthetic identity `777777`. The deployment migration creates that identity as an active test user with outbound messages disabled, but leaves `is_production_canary` disabled. Changing configuration or deploying the seed does not by itself enable the canary: an authorized administrator must still complete the confirmed enable action.
+
+Keep any environment override minimal. The reserved identity is intended only for the one-time Production Canary browser-login flow; a Telegram account is not required on the test device.
 
 ## Operator workflow
 

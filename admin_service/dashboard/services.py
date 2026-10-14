@@ -22,6 +22,7 @@ from subscriptions.recovery_reporting import recovered_recipient_queryset
 from users.models import TelegramUser
 
 
+
 ZERO = Decimal("0.00")
 MAX_CHART_BUCKETS = 31
 MAX_CUSTOM_PERIOD_DAYS = 366
@@ -349,7 +350,10 @@ def _exclude_test_users(qs, *, prefix: str, include_test_users: bool):
 
 
 def _canary_user_q(prefix: str = "") -> Q:
-    return Q(**{f"{prefix}admin_state__is_production_canary": True})
+    return (
+        Q(**{f"{prefix}admin_state__is_production_canary": True})
+        | Q(**{f"{prefix}admin_state__source": "production_canary_seed"})
+    )
 
 def _exclude_reporting_canaries(qs, *, prefix: str = ""):
     """Synthetic canary rows stay out of business automation/reporting by default."""
@@ -504,9 +508,15 @@ def build_current_user_metrics(*, include_test_users=False, now=None) -> dict:
     now = now or timezone.now()
     errors = []
     read = partial(safe, errors=errors)
-    users = _exclude_test_users(TelegramUser.objects.all(), prefix="", include_test_users=include_test_users)
-    subscriptions = _exclude_test_users(Subscription.objects.all(), prefix="user__", include_test_users=include_test_users)
-    payments = _exclude_test_users(Payment.objects.all(), prefix="user__", include_test_users=include_test_users)
+    users = _exclude_reporting_canaries(_exclude_test_users(
+        TelegramUser.objects.all(), prefix="", include_test_users=include_test_users,
+    ))
+    subscriptions = _exclude_reporting_canaries(_exclude_test_users(
+        Subscription.objects.all(), prefix="user__", include_test_users=include_test_users,
+    ), prefix="user__")
+    payments = _exclude_reporting_canaries(_exclude_test_users(
+        Payment.objects.all(), prefix="user__", include_test_users=include_test_users,
+    ), prefix="user__")
     _, segments, source_available = _subscription_snapshot(subscriptions, payments, now=now, read=read)
     total = read(users.count)
     available = source_available and total is not None and len(segments) <= total

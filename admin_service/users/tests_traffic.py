@@ -11,6 +11,10 @@ class FunnelTrafficExclusionTests(SimpleTestCase):
         MINIAPP_OPERATOR_TELEGRAM_IDS=[7002],
         ADMIN_TELEGRAM_IDS=[7003, -10012345],
         FUNNEL_EXCLUDED_TELEGRAM_IDS=[7004],
+        PRODUCTION_CANARY_TELEGRAM_IDS=[777777],
     )
     def test_only_individual_internal_ids_are_excluded(self) -> None:
-        self.assertEqual(funnel_excluded_telegram_ids(), {7001, 7002, 7003, 7004})
+        self.assertEqual(
+            funnel_excluded_telegram_ids(),
+            {7001, 7002, 7003, 7004, 777777},
+        )
