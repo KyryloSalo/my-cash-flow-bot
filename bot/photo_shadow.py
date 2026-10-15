@@ -228,6 +228,10 @@ async def analyze_shadow(image_bytes: bytes, *, mime_type: str, model: str, deta
     if len(image_bytes) > _MAX_IMAGE_BYTES:
         raise ValueError("Image is too large")
     key = ":".join((build_cache_key(image_bytes, config=PipelineConfig(), model=model, detail=detail).as_string(), normalized_mime))
+    durable = _load_durable(key)
+    if durable is not None:
+        _CACHE[key] = (time.monotonic(), durable)
+        return durable
     now = time.monotonic()
     cached = _CACHE.get(key)
     if cached and now - cached[0] < _CACHE_TTL_SECONDS:
@@ -236,6 +240,10 @@ async def analyze_shadow(image_bytes: bytes, *, mime_type: str, model: str, deta
         return cached[1]
     lock = _lock_for(key)
     async with lock:
+        durable = _load_durable(key)
+        if durable is not None:
+            _CACHE[key] = (time.monotonic(), durable)
+            return durable
         now = time.monotonic(); cached = _CACHE.get(key)
         if cached and now - cached[0] < _CACHE_TTL_SECONDS:
             _CACHE.move_to_end(key); return cached[1]
@@ -251,6 +259,7 @@ async def analyze_shadow(image_bytes: bytes, *, mime_type: str, model: str, deta
         _CACHE[key] = (time.monotonic(), result); _CACHE.move_to_end(key)
         while len(_CACHE) > _CACHE_MAX_ENTRIES:
             _CACHE.popitem(last=False)
+        _store_durable(key, result)
         logger.info("photo shadow complete: findings=%d accepted=%s", len(result.findings), result.accepted)
         return result
 

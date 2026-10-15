@@ -1436,7 +1436,10 @@ def build_ai_image_batch(user: TelegramUser, parsed: dict[str, object], *, batch
     """Build a review-only statement batch from normalized Vision output."""
     raw_items = parsed.get("statement_items") if isinstance(parsed.get("statement_items"), list) else []
     source = str(parsed.get("source") or "").strip().lower()
-    if not source and str(parsed.get("mode") or "").strip().lower() == "statement_expenses" and raw_items and not parsed.get("receipt_items"):
+    # ``statement_items`` is already normalized output from the Vision parser;
+    # older callers did not include additive mode/source metadata. Preserve
+    # that typed boundary while still rejecting receipt evidence from batches.
+    if not source and raw_items and not parsed.get("receipt_items"):
         source = "statement_transactions"
     # Batches are valid only for explicitly tagged statement transactions.
     if source != "statement_transactions" or parsed.get("receipt_items"):
