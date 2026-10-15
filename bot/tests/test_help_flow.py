@@ -150,6 +150,39 @@ class HelpFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(bot_main._CANCELLATION_RESISTANT_HELP_TASKS, set())
         self.assertEqual(bot_main._ACTIVE_HELP_TASKS_BY_USER, {})
 
+    async def test_main_menu_callback_timeout_does_not_block_later_updates(self) -> None:
+        context = self._make_context()
+        message = harness.DummyMessage()
+        query = harness.DummyQuery("menu:main", message)
+        update = SimpleNamespace(
+            effective_user=SimpleNamespace(id=123, username="tester"),
+            callback_query=query,
+            message=None,
+        )
+        release = asyncio.Event()
+
+        async def cancellation_resistant_callback(*_args, **_kwargs):
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                await release.wait()
+
+        with (
+            patch.object(bot_main, "HELP_CALLBACK_TIMEOUT_SECONDS", 0.01),
+            patch.object(bot_main, "HELP_CALLBACK_CANCELLATION_GRACE_SECONDS", 0.01),
+            patch.object(bot_main, "home_callback", new=cancellation_resistant_callback),
+        ):
+            await asyncio.wait_for(bot_main.home_navigation_callback(update, context), timeout=0.2)
+
+        self.assertIn("тимчасово не відповідає", message.replies[-1]["text"])
+        self.assertEqual(len(bot_main._CANCELLATION_RESISTANT_HELP_TASKS), 1)
+
+        release.set()
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        self.assertEqual(bot_main._CANCELLATION_RESISTANT_HELP_TASKS, set())
+        self.assertEqual(bot_main._ACTIVE_HELP_TASKS_BY_USER, {})
+
     async def test_help_callback_timeout_fences_later_updates_until_task_finishes(self) -> None:
         context = self._make_context()
         message = harness.DummyMessage()

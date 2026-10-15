@@ -8326,9 +8326,16 @@ def _observe_cancellation_resistant_help_task(user_id: int, task: asyncio.Task[N
         )
 
 
-async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def _run_bounded_navigation_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    callback: Any,
+    *,
+    label: str,
+    timeout_message: str,
+) -> None:
     user_id = int(update.effective_user.id) if update.effective_user is not None else None
-    handler_task = asyncio.create_task(_help_callback_impl(update, context))
+    handler_task = asyncio.create_task(callback(update, context))
     if user_id is not None:
         _ACTIVE_HELP_TASKS_BY_USER[user_id] = handler_task
     done, _ = await asyncio.wait({handler_task}, timeout=HELP_CALLBACK_TIMEOUT_SECONDS)
@@ -8362,12 +8369,14 @@ async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             )
         )
         logger.critical(
-            "Help callback did not stop within %.1fs after cancellation; continuing update processing",
+            "%s callback did not stop within %.1fs after cancellation; continuing update processing",
+            label,
             HELP_CALLBACK_CANCELLATION_GRACE_SECONDS,
         )
 
     logger.error(
-        "Help callback exceeded %.1fs and was cancelled for user_id=%s",
+        "%s callback exceeded %.1fs and was cancelled for user_id=%s",
+        label,
         HELP_CALLBACK_TIMEOUT_SECONDS,
         getattr(update.effective_user, "id", None),
     )
@@ -8376,14 +8385,35 @@ async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         try:
             await _reply_text_bounded(
                 query.message,
-                "Розділ допомоги тимчасово не відповідає. Поверніться до головного меню.",
+                timeout_message,
                 reply_markup=_kb_home_only(),
             )
         except Exception:
             logger.exception(
-                "Could not send help-timeout recovery message for user_id=%s",
+                "Could not send %s-timeout recovery message for user_id=%s",
+                label,
                 getattr(update.effective_user, "id", None),
             )
+
+
+async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _run_bounded_navigation_callback(
+        update,
+        context,
+        _help_callback_impl,
+        label="help",
+        timeout_message="Розділ допомоги тимчасово не відповідає. Поверніться до головного меню.",
+    )
+
+
+async def home_navigation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _run_bounded_navigation_callback(
+        update,
+        context,
+        home_callback,
+        label="home navigation",
+        timeout_message="Головне меню тимчасово не відповідає. Спробуйте /start ще раз.",
+    )
 
 
 async def guard_cancellation_resistant_help_task(
@@ -17794,6 +17824,7 @@ def build_app() -> Application:
     app.add_handler(CallbackQueryHandler(onb_privacy, pattern=r"^onb:privacy:"))
     app.add_handler(CallbackQueryHandler(onboarding_callback_fallback, pattern=r"^onb:(confirm:|edit:|acct:last4:)"))
     app.add_handler(CallbackQueryHandler(help_callback, pattern=r"^help:"))
+    app.add_handler(CallbackQueryHandler(home_navigation_callback, pattern=r"^(menu:main|home:show)$"))
     app.add_handler(CallbackQueryHandler(home_callback, pattern=r"^(billing:continue$|menu:|home:|accounts:|expense:start$|income:start$|transfer:start$|reports:start$|categories:start$|debts:start$|settings:start$|family:start$|export:start$|txvoid:)"))
     app.add_handler(CallbackQueryHandler(family_callback, pattern=r"^family:"))
     app.add_handler(CallbackQueryHandler(saving_callback, pattern=r"^saving:"))
