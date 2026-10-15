@@ -1,6 +1,7 @@
 """Shadow-only, fail-closed photo evidence pipeline."""
 from __future__ import annotations
 import hashlib, re
+from io import BytesIO
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -10,16 +11,43 @@ _TYPE={"expense":{"expense","purchase","payment","витрата","оплата"
 @dataclass(frozen=True)
 class Evidence: id:str; field:str; raw_text:str; value:str; region:str|None=None
 @dataclass(frozen=True)
-class ExtractionPass: source:str; evidence:tuple[Evidence,...]=()
+class ExtractionPass:
+    source: str
+    evidence: tuple[Evidence,...] = ()
+    line_items: tuple[dict[str,Any],...] = ()
+    receipt_total: Decimal|None = None
+    transaction_date: Any = None
+    merchant: str|None = None
+    raw_evidence: dict[str,Any]|None = None
 @dataclass(frozen=True)
 class PipelineConfig: preprocessing_version:str="photo-preprocess-v1"; prompt_version:str="photo-evidence-v1"; schema_version:str="photo-schema-v1"
+
+@dataclass(frozen=True)
+class ImageQuality:
+    width: int; height: int; blur_score: float; contrast: float; clipped_edges: bool; glare_ratio: float
+
+def assess_image_quality(image_bytes: bytes) -> ImageQuality:
+    """Return non-secret, deterministic quality signals for trace/review."""
+    try:
+        from PIL import Image, ImageStat
+        with Image.open(BytesIO(image_bytes)) as image:
+            gray = image.convert("L")
+            stat = ImageStat.Stat(gray)
+            pixels = list(gray.resize((min(256, gray.width), min(256, gray.height))).getdata())
+            clipped = sum(p <= 2 or p >= 253 for p in pixels) / max(1, len(pixels))
+            # Variance is a conservative blur proxy; it is only a signal, not a gate.
+            variance = float(stat.var[0])
+            glare = sum(p >= 250 for p in pixels) / max(1, len(pixels))
+            return ImageQuality(image.width, image.height, round(variance, 3), round(stat.stddev[0], 3), clipped > .08, round(glare, 4))
+    except Exception as exc:
+        raise ValueError("Malformed or unsupported image") from exc
 @dataclass(frozen=True)
 class CacheKey:
     original_sha256:str; preprocessing_version:str; model:str; detail:str; prompt_version:str; schema_version:str
     def as_string(self)->str:return ":".join((self.original_sha256,self.preprocessing_version,self.model,self.detail,self.prompt_version,self.schema_version))
 @dataclass(frozen=True)
 class ReconciliationResult:
-    accepted:bool; requires_review:bool; amount:Decimal|None; currency:str|None; status:str|None; transaction_type:str|None; evidence_ids:tuple[str,...]; findings:tuple[str,...]; trace:dict[str,Any]
+    accepted:bool; requires_review:bool; amount:Decimal|None; currency:str|None; status:str|None; transaction_type:str|None; evidence_ids:tuple[str,...]; findings:tuple[str,...]; trace:dict[str,Any]; transaction_date:Any=None; merchant:str|None=None; receipt_level:str|None=None; line_items:tuple[dict[str,Any],...]=(); receipt_total:Decimal|None=None; raw_evidence:tuple[dict[str,Any],...]=()
 def plan_vertical_tiles(*,height:int,tile_height:int,overlap:float=.2)->tuple[tuple[int,int],...]:
     if height<=0:raise ValueError("height must be positive")
     if tile_height<=0:raise ValueError("tile_height must be positive")
@@ -73,6 +101,8 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
     sources = [extraction.source.strip() for extraction in passes]
     if len(set(sources) - {""}) < 2:
         findings.append("insufficient_distinct_sources")
+    if any(source.startswith("full-") for source in sources) and len([source for source in sources if source.startswith("full-")]) < 2:
+        findings.append("insufficient_independent_full_passes")
     if any(not source for source in sources) or len(sources) != len(set(sources)):
         findings.append("invalid_source")
     identifiers = [item.id for extraction in passes for item in extraction.evidence]
@@ -83,14 +113,14 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
     for extraction in passes:
         for field in values:
             items = [item for item in extraction.evidence if item.field == field]
-            if not items:
+            if not items and not extraction.source.startswith("crop-"):
                 findings.append("pass_evidence_incomplete")
             for item in items:
                 raw, claimed = item.raw_text.strip(), item.value.strip()
                 if field == "amount":
                     parsed = parse_raw_amount(raw)
                     try:
-                        claimed_matches = bool(re.fullmatch(r"[0-9]+(?:\.[0-9]{1,2})?", claimed)) and Decimal(claimed) == parsed
+                        claimed_matches = bool(re.fullmatch(r"[0-9]+(?:\.[0-9]{1,2})?", claimed)) and parsed is not None and Decimal(claimed) == parsed
                     except InvalidOperation:
                         claimed_matches = False
                 elif field == "currency":
@@ -117,9 +147,5 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
 
     findings = tuple(dict.fromkeys(findings))
     accepted = not findings
-    return ReconciliationResult(
-        accepted, not accepted, single("amount"), single("currency"), single("status"), single("type"),
-        tuple(identifiers) if accepted else (), findings,
-        {"stage": "reconciliation", "pass_count": len(passes), "distinct_source_count": len(set(sources)),
-         "finding_count": len(findings)},
-    )
+    representative = next((item for item in passes if item.source.startswith("full-") and (item.merchant or item.transaction_date or item.line_items)), passes[0] if passes else None)
+    return ReconciliationResult(accepted, not accepted, single("amount"), single("currency"), single("status"), single("type"), tuple(identifiers) if accepted else (), findings, {"stage":"reconciliation", "pass_count":len(passes), "full_pass_count":len([p for p in passes if p.source.startswith("full-")]), "finding_count":len(findings)}, representative.transaction_date if representative else today, representative.merchant if representative else None, "L1" if accepted else None, representative.line_items if representative else (), representative.receipt_total if representative else None, tuple(item.raw_evidence or {} for item in passes))

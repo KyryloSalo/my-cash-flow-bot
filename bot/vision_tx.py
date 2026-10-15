@@ -99,6 +99,13 @@ class ScreenshotAnalysis:
     currency_evidence_text: str | None = None
     currency_context_text: str | None = None
     currency_resolution: str | None = None
+    receipt_items: tuple["ReceiptItemAnalysis", ...] = ()
+    receipt_date: date | None = None
+    receipt_merchant: str | None = None
+    receipt_total: Decimal | None = None
+    field_findings: tuple[str, ...] = ()
+    needs_review: bool = False
+    arithmetic_warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -109,6 +116,17 @@ class StatementItemAnalysis:
     currency: str
     category_hint: str | None
     comment: str | None
+    confidence: float
+
+
+@dataclass(frozen=True)
+class ReceiptItemAnalysis:
+    name: str
+    quantity: Decimal | None
+    unit_price: Decimal | None
+    total: Decimal | None
+    currency: str
+    evidence: str | None
     confidence: float
 
 
@@ -150,6 +168,20 @@ def serialize_miniapp_screenshot_analysis(analysis: ScreenshotAnalysis) -> dict[
         "card_last4": analysis.card_last4,
         "statement_items": [_item_payload(item) for item in analysis.statement_items],
         "skipped_items_count": int(analysis.skipped_items_count or 0),
+        "receipt_items": [
+            {"name": item.name, "quantity": str(item.quantity) if item.quantity is not None else None,
+             "unit_price": f"{item.unit_price:.2f}" if item.unit_price is not None else None,
+             "amount": f"{item.total:.2f}" if item.total is not None else None,
+             "total": f"{item.total:.2f}" if item.total is not None else None,
+             "currency": item.currency, "evidence": item.evidence, "confidence": float(item.confidence)}
+            for item in analysis.receipt_items
+        ],
+        "receipt_date": analysis.receipt_date.isoformat() if analysis.receipt_date else None,
+        "receipt_merchant": analysis.receipt_merchant,
+        "receipt_total": f"{analysis.receipt_total:.2f}" if analysis.receipt_total is not None else None,
+        "field_findings": list(analysis.field_findings),
+        "needs_review": bool(analysis.needs_review),
+        "arithmetic_warnings": list(analysis.arithmetic_warnings),
     }
 
 
@@ -332,6 +364,14 @@ def _statement_item_schema() -> dict[str, Any]:
     }
 
 
+def _receipt_item_schema() -> dict[str, Any]:
+    return {"type": "object", "additionalProperties": False, "properties": {
+        "name": {"type": "string"}, "quantity": {"type": ["number", "null"]},
+        "unit_price": {"type": ["number", "null"]}, "total": {"type": ["number", "null"]},
+        "currency": {"type": "string"}, "evidence": {"type": "string"}, "confidence": {"type": "number"},
+    }, "required": ["name", "quantity", "unit_price", "total", "currency", "evidence", "confidence"]}
+
+
 def _schema() -> dict[str, Any]:
     return {
         "type": "object",
@@ -385,6 +425,11 @@ def _schema() -> dict[str, Any]:
                 "description": "Expense rows extracted from a statement/history screenshot.",
                 "items": _statement_item_schema(),
             },
+            "receipt_date": {"type": "string"}, "receipt_merchant": {"type": "string"},
+            "receipt_total": {"type": ["number", "null"]},
+            "receipt_items": {"type": "array", "items": _receipt_item_schema()},
+            "field_findings": {"type": "array", "items": {"type": "string"}},
+            "needs_review": {"type": "boolean"}, "arithmetic_warnings": {"type": "array", "items": {"type": "string"}},
         },
         "required": [
             "mode_candidate",
@@ -404,6 +449,7 @@ def _schema() -> dict[str, Any]:
             "card_last4",
             "skipped_rows_count",
             "items",
+            "receipt_date", "receipt_merchant", "receipt_total", "receipt_items", "field_findings", "needs_review", "arithmetic_warnings",
         ],
     }
 
@@ -444,6 +490,7 @@ def _prompt(
         "If amount or type is not clear, keep amount as null or type as an empty string and lower confidence.\n"
         "Never include full card or account numbers. If visible, keep only last 4 digits in card_last4.\n"
         "Use a short sanitized comment for the preview.\n"
+        "For receipts, extract receipt_date, receipt_merchant, receipt_total, and receipt_items only when clearly visible. Never invent missing items. receipt_items is optional L2 evidence and may be empty when valid L1 fields exist. If L2 is unclear or arithmetic does not reconcile, preserve valid L1, set needs_review true, and add a warning.\n"
         f"Today is {today.isoformat()}.\n"
         f"Default currency is {default_currency}.\n"
         f"Known account labels: {_json_text(account_labels)}\n"
@@ -621,6 +668,32 @@ def _should_prefer_default_for_weak_symbol_conflict(result: ScreenshotAnalysis, 
     return True
 
 
+def _parse_receipt_fields(raw: dict[str, Any], *, today: date, default_currency: str) -> tuple[tuple[ReceiptItemAnalysis, ...], date | None, str | None, Decimal | None, tuple[str, ...], bool, tuple[str, ...]]:
+    findings = tuple(str(item).strip()[:200] for item in (raw.get("field_findings") or []) if str(item).strip()) if isinstance(raw.get("field_findings"), list) else ()
+    warnings = tuple(str(item).strip()[:200] for item in (raw.get("arithmetic_warnings") or []) if str(item).strip()) if isinstance(raw.get("arithmetic_warnings"), list) else ()
+    items: list[ReceiptItemAnalysis] = []
+    malformed = False
+    for item in raw.get("receipt_items") if isinstance(raw.get("receipt_items"), list) else []:
+        if not isinstance(item, dict):
+            malformed = True; continue
+        name = _normalize_text(item.get("name"), limit=160)
+        total = _normalize_amount(item.get("total"))
+        if not name or total is None:
+            malformed = True; continue
+        items.append(ReceiptItemAnalysis(name=name, quantity=_normalize_amount(item.get("quantity")), unit_price=_normalize_amount(item.get("unit_price")), total=total, currency=_normalize_currency_value(item.get("currency"), default=default_currency), evidence=_normalize_text(item.get("evidence"), limit=240), confidence=_normalize_confidence(item.get("confidence"))))
+    receipt_date = _normalize_date(raw.get("receipt_date"), today=today) if raw.get("receipt_date") else None
+    total = _normalize_amount(raw.get("receipt_total"))
+    needs_review = bool(raw.get("needs_review")) or malformed or bool(warnings) or (bool(raw.get("receipt_items")) and total is None)
+    if malformed:
+        warnings = warnings + ("Some receipt line items were malformed and were omitted.",)
+    if items and total is not None:
+        summed = sum((item.total for item in items if item.total is not None), Decimal("0"))
+        if abs(summed - total) > Decimal("0.02"):
+            warnings = warnings + ("Receipt line-item sum does not match receipt total.",)
+            needs_review = True
+    return tuple(items), receipt_date, _normalize_text(raw.get("receipt_merchant"), limit=160), total, findings, needs_review, warnings
+
+
 def _parse_response(
     payload: dict[str, Any],
     *,
@@ -659,6 +732,7 @@ def _parse_response(
     )
     skipped_items_count = _normalize_non_negative_int(raw.get("skipped_rows_count")) + normalized_skipped
     raw_response = raw if config.OPENAI_SCREENSHOT_STORE_RAW else None
+    receipt_items, receipt_date, receipt_merchant, receipt_total, field_findings, needs_review, arithmetic_warnings = _parse_receipt_fields(raw, today=today, default_currency=effective_dominant_currency)
 
     transaction_date = _normalize_date(raw.get("transaction_date"), today=today)
     tx_type = _normalize_type(raw.get("type"))
@@ -714,6 +788,13 @@ def _parse_response(
         currency_evidence_kind=currency_evidence_kind,
         currency_evidence_text=currency_evidence_text,
         currency_context_text=currency_context_text,
+        receipt_items=receipt_items,
+        receipt_date=receipt_date,
+        receipt_merchant=receipt_merchant,
+        receipt_total=receipt_total,
+        field_findings=field_findings,
+        needs_review=needs_review,
+        arithmetic_warnings=arithmetic_warnings,
     )
     candidate_currency = normalize_currency(_analysis_currency(analysis))
     item_currency_conflict = any(normalize_currency(item.currency) != context_currency for item in analysis.statement_items)
@@ -799,6 +880,45 @@ async def analyze_screenshot(
     expense_categories: list[CategoryOption],
     income_categories: list[CategoryOption],
 ) -> ScreenshotAnalysis:
+    if config.PHOTO_PIPELINE_ENABLED:
+        from photo_shadow import analyze_photo
+        evidence = await analyze_photo(image_bytes, mime_type=mime_type, model=config.OPENAI_VISION_MODEL,
+                                       detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL))
+        if not evidence.accepted or evidence.amount is None or evidence.currency is None:
+            raise OpenAIVisionInvalidResponseError("Photo evidence requires review")
+        receipt_items = tuple(
+            ReceiptItemAnalysis(
+                name=str(item.get("description") or item.get("name") or ""),
+                quantity=None,
+                unit_price=None,
+                total=item.get("amount") if isinstance(item.get("amount"), Decimal) else None,
+                currency=evidence.currency,
+                evidence=None,
+                confidence=1.0,
+            )
+            for item in evidence.line_items
+            if isinstance(item, dict)
+        )
+        arithmetic_warnings = []
+        if any(item.get("receipt_items_incomplete") for item in evidence.raw_evidence):
+            arithmetic_warnings.append("receipt_items_incomplete")
+        if evidence.receipt_total is not None:
+            if evidence.receipt_total != evidence.amount:
+                arithmetic_warnings.append("receipt_total_conflict")
+            if receipt_items and sum((item.total or Decimal("0") for item in receipt_items), Decimal("0")) != evidence.receipt_total:
+                arithmetic_warnings.append("receipt_items_total_mismatch")
+        return ScreenshotAnalysis(
+            transaction_date=evidence.transaction_date or today, type=evidence.transaction_type,
+            amount=evidence.amount, currency=evidence.currency, account_hint=None,
+            category_hint=None, comment=evidence.merchant, confidence=1.0,
+            bank_name=None, card_last4=None, model=config.OPENAI_VISION_MODEL,
+            detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL), used_fallback=False,
+            raw_response={"evidence_ids": evidence.evidence_ids, "trace": evidence.trace, "raw_evidence": evidence.raw_evidence},
+            receipt_items=receipt_items, receipt_date=evidence.transaction_date,
+            receipt_merchant=evidence.merchant, receipt_total=evidence.receipt_total,
+            field_findings=evidence.findings, needs_review=evidence.requires_review or bool(arithmetic_warnings),
+            arithmetic_warnings=tuple(arithmetic_warnings),
+        )
     result = await _analyze_screenshot_legacy(
         image_bytes, mime_type=mime_type, today=today, default_currency=default_currency,
         accounts=accounts, expense_categories=expense_categories, income_categories=income_categories,
