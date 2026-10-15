@@ -1,6 +1,7 @@
 """Shadow-only, fail-closed photo evidence pipeline."""
 from __future__ import annotations
 import hashlib, re
+from io import BytesIO
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -20,6 +21,26 @@ class ExtractionPass:
     raw_evidence: dict[str,Any]|None = None
 @dataclass(frozen=True)
 class PipelineConfig: preprocessing_version:str="photo-preprocess-v1"; prompt_version:str="photo-evidence-v1"; schema_version:str="photo-schema-v1"
+
+@dataclass(frozen=True)
+class ImageQuality:
+    width: int; height: int; blur_score: float; contrast: float; clipped_edges: bool; glare_ratio: float
+
+def assess_image_quality(image_bytes: bytes) -> ImageQuality:
+    """Return non-secret, deterministic quality signals for trace/review."""
+    try:
+        from PIL import Image, ImageStat
+        with Image.open(BytesIO(image_bytes)) as image:
+            gray = image.convert("L")
+            stat = ImageStat.Stat(gray)
+            pixels = list(gray.resize((min(256, gray.width), min(256, gray.height))).getdata())
+            clipped = sum(p <= 2 or p >= 253 for p in pixels) / max(1, len(pixels))
+            # Variance is a conservative blur proxy; it is only a signal, not a gate.
+            variance = float(stat.var[0])
+            glare = sum(p >= 250 for p in pixels) / max(1, len(pixels))
+            return ImageQuality(image.width, image.height, round(variance, 3), round(stat.stddev[0], 3), clipped > .08, round(glare, 4))
+    except Exception as exc:
+        raise ValueError("Malformed or unsupported image") from exc
 @dataclass(frozen=True)
 class CacheKey:
     original_sha256:str; preprocessing_version:str; model:str; detail:str; prompt_version:str; schema_version:str
