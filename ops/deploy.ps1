@@ -52,46 +52,65 @@ $transportArgs = @("-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "Stri
 $sshArgs = @("-p", "$ServerPort") + $transportArgs
 $scpArgs = @("-P", "$ServerPort") + $transportArgs
 $destination = "${ServerUser}@${ServerHost}"
-$remote = & $sshClient @sshArgs $destination 'mktemp -d /tmp/mcf-release.XXXXXXXX'
+$prepareRemoteCommand = "set -eu; find /tmp -maxdepth 1 -type d -user '$ServerUser' -name 'mcf-release.*' -mmin +10 -exec rm -rf -- {} +; mktemp -d /tmp/mcf-release.XXXXXXXX"
+$remote = & $sshClient @sshArgs $destination $prepareRemoteCommand
 if ($LASTEXITCODE -ne 0 -or $remote -notmatch '^/tmp/mcf-release\.[A-Za-z0-9]+$') { throw "Verified SSH staging creation failed" }
-& $scpClient @scpArgs $zip "${destination}:${remote}/release.zip"
-if ($LASTEXITCODE -ne 0) { throw "Source upload failed" }
-& $scpClient @scpArgs $images "${destination}:${remote}/images.tar"
-if ($LASTEXITCODE -ne 0) { throw "Image upload failed" }
-& $scpClient @scpArgs $evidencePath "${destination}:${remote}/release-evidence.json"
-if ($LASTEXITCODE -ne 0) { throw "Evidence upload failed" }
-& $scpClient @scpArgs $builder "${destination}:${remote}/release_artifact.py"
-if ($LASTEXITCODE -ne 0) { throw "Validator upload failed" }
-$backupRemoteArgument = ""
-if ($BackupReceiptPath) {
-    if (-not (Test-Path -LiteralPath $BackupReceiptPath -PathType Leaf)) { throw "Backup receipt is missing" }
-    $backupReceipt = Get-Content -LiteralPath $BackupReceiptPath -Raw | ConvertFrom-Json
-    if ($backupReceipt.off_host_verified -ne $true -or $backupReceipt.backup_filename -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
-        throw "Invalid off-host backup receipt"
+
+function Remove-RemoteStagingDirectory([string]$RemotePath) {
+    if ($RemotePath -notmatch '^/tmp/mcf-release\.[A-Za-z0-9]+$') { return }
+    $previousCleanupErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & $sshClient @sshArgs $destination "rm -rf -- '$RemotePath'"
+        $cleanupExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousCleanupErrorActionPreference
     }
-    $backupCiphertext = Join-Path (Split-Path -Parent $BackupReceiptPath) $backupReceipt.backup_filename
-    if (-not (Test-Path -LiteralPath $backupCiphertext -PathType Leaf)) { throw "Encrypted backup is missing" }
-    $backupHash = (Get-FileHash -LiteralPath $backupCiphertext -Algorithm SHA256).Hash.ToLower()
-    if ($backupHash -ne $backupReceipt.server_backup_sha256 -or $backupHash -ne $backupReceipt.off_host_sha256) {
-        throw "Off-host backup checksum mismatch"
-    }
-    & $scpClient @scpArgs $backupCiphertext "${destination}:${remote}/$($backupReceipt.backup_filename)"
-    if ($LASTEXITCODE -ne 0) { throw "Encrypted backup upload failed" }
-    & $scpClient @scpArgs $BackupReceiptPath "${destination}:${remote}/backup-receipt.json"
-    if ($LASTEXITCODE -ne 0) { throw "Backup receipt upload failed" }
-    $backupRemoteArgument = " --backup-receipt '$remote/backup-receipt.json'"
+    if ($cleanupExitCode -ne 0) { Write-Warning "Remote staging cleanup failed for validated temporary path" }
 }
-$sourceSha = $evidence.source_sha256
-$remoteCommand = "set -eu; python3 '$remote/release_artifact.py' install --archive '$remote/release.zip' --sha256 '$sourceSha' --target '$remote/stage'; bash '$remote/stage/deploy_v0_on_vps.sh' --confirm-production '$remote' --source-sha256 '$sourceSha'$backupRemoteArgument"
-$previousErrorActionPreference = $ErrorActionPreference
+
 try {
-    # OpenSSH writes normal remote progress to stderr. Judge the rollout by its
-    # native exit code instead of converting progress output into an exception.
-    $ErrorActionPreference = "Continue"
-    & $sshClient @sshArgs $destination $remoteCommand
-    $rolloutExitCode = $LASTEXITCODE
+    & $scpClient @scpArgs $zip "${destination}:${remote}/release.zip"
+    if ($LASTEXITCODE -ne 0) { throw "Source upload failed" }
+    & $scpClient @scpArgs $images "${destination}:${remote}/images.tar"
+    if ($LASTEXITCODE -ne 0) { throw "Image upload failed" }
+    & $scpClient @scpArgs $evidencePath "${destination}:${remote}/release-evidence.json"
+    if ($LASTEXITCODE -ne 0) { throw "Evidence upload failed" }
+    & $scpClient @scpArgs $builder "${destination}:${remote}/release_artifact.py"
+    if ($LASTEXITCODE -ne 0) { throw "Validator upload failed" }
+    $backupRemoteArgument = ""
+    if ($BackupReceiptPath) {
+        if (-not (Test-Path -LiteralPath $BackupReceiptPath -PathType Leaf)) { throw "Backup receipt is missing" }
+        $backupReceipt = Get-Content -LiteralPath $BackupReceiptPath -Raw | ConvertFrom-Json
+        if ($backupReceipt.off_host_verified -ne $true -or $backupReceipt.backup_filename -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
+            throw "Invalid off-host backup receipt"
+        }
+        $backupCiphertext = Join-Path (Split-Path -Parent $BackupReceiptPath) $backupReceipt.backup_filename
+        if (-not (Test-Path -LiteralPath $backupCiphertext -PathType Leaf)) { throw "Encrypted backup is missing" }
+        $backupHash = (Get-FileHash -LiteralPath $backupCiphertext -Algorithm SHA256).Hash.ToLower()
+        if ($backupHash -ne $backupReceipt.server_backup_sha256 -or $backupHash -ne $backupReceipt.off_host_sha256) {
+            throw "Off-host backup checksum mismatch"
+        }
+        & $scpClient @scpArgs $backupCiphertext "${destination}:${remote}/$($backupReceipt.backup_filename)"
+        if ($LASTEXITCODE -ne 0) { throw "Encrypted backup upload failed" }
+        & $scpClient @scpArgs $BackupReceiptPath "${destination}:${remote}/backup-receipt.json"
+        if ($LASTEXITCODE -ne 0) { throw "Backup receipt upload failed" }
+        $backupRemoteArgument = " --backup-receipt '$remote/backup-receipt.json'"
+    }
+    $sourceSha = $evidence.source_sha256
+    $remoteCommand = "set -eu; python3 '$remote/release_artifact.py' install --archive '$remote/release.zip' --sha256 '$sourceSha' --target '$remote/stage'; bash '$remote/stage/deploy_v0_on_vps.sh' --confirm-production '$remote' --source-sha256 '$sourceSha'$backupRemoteArgument"
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        # OpenSSH writes normal remote progress to stderr. Judge the rollout by its
+        # native exit code instead of converting progress output into an exception.
+        $ErrorActionPreference = "Continue"
+        & $sshClient @sshArgs $destination $remoteCommand
+        $rolloutExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($rolloutExitCode -ne 0) { throw "Rollout failed: serving/writers are stopped; inspect approved incident runbook. No automatic database downgrade." }
 } finally {
-    $ErrorActionPreference = $previousErrorActionPreference
+    Remove-RemoteStagingDirectory $remote
 }
-if ($rolloutExitCode -ne 0) { throw "Rollout failed: serving/writers are stopped; inspect approved incident runbook. No automatic database downgrade." }
 Write-Host "Validated release ready. Record real deployment evidence and version under release policy."
