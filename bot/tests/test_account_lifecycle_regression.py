@@ -77,14 +77,18 @@ if "telegram" not in sys.modules:
     class _Stub:
         pass
 
+    class ApplicationHandlerStop(Exception):
+        pass
+
     ext_stub.Application = _Stub
+    ext_stub.ApplicationHandlerStop = ApplicationHandlerStop
     ext_stub.CallbackQueryHandler = _Stub
     ext_stub.CommandHandler = _Stub
     ext_stub.ContextTypes = types.SimpleNamespace(DEFAULT_TYPE=object)
     ext_stub.Defaults = _Stub
     ext_stub.ConversationHandler = _Stub
     ext_stub.MessageHandler = _Stub
-    ext_stub.filters = types.SimpleNamespace(TEXT=object(), COMMAND=object(), VOICE=object())
+    ext_stub.filters = types.SimpleNamespace(ALL=object(), TEXT=object(), COMMAND=object(), VOICE=object())
     sys.modules["telegram.ext"] = ext_stub
 
 if "httpx" not in sys.modules:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 import unittest
@@ -15,6 +16,10 @@ bot_main = harness.bot_main
 
 
 class HelpFlowTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        bot_main._CANCELLATION_RESISTANT_HELP_TASKS.clear()
+        bot_main._ACTIVE_HELP_TASKS_BY_USER.clear()
+
     @staticmethod
     def _keyboard_rows(markup):
         inline_keyboard = getattr(markup, "inline_keyboard", None)
@@ -112,6 +117,89 @@ class HelpFlowTests(unittest.IsolatedAsyncioTestCase):
             self._button_labels(reply["reply_markup"])[-3:],
             ["Contact support", "⬅️ Back", "🏠 Home"],
         )
+
+    async def test_help_callback_timeout_does_not_block_later_updates(self) -> None:
+        context = self._make_context()
+        message = harness.DummyMessage()
+        query = harness.DummyQuery("help:back", message)
+        update = SimpleNamespace(
+            effective_user=SimpleNamespace(id=123, username="tester"),
+            callback_query=query,
+            message=None,
+        )
+        release = asyncio.Event()
+
+        async def cancellation_resistant_callback(*_args, **_kwargs):
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                await release.wait()
+
+        with (
+            patch.object(bot_main, "HELP_CALLBACK_TIMEOUT_SECONDS", 0.01),
+            patch.object(bot_main, "HELP_CALLBACK_CANCELLATION_GRACE_SECONDS", 0.01),
+            patch.object(bot_main, "_help_callback_impl", new=cancellation_resistant_callback),
+        ):
+            await asyncio.wait_for(bot_main.help_callback(update, context), timeout=0.2)
+
+        self.assertIn("тимчасово не відповідає", message.replies[-1]["text"])
+        self.assertEqual(len(bot_main._CANCELLATION_RESISTANT_HELP_TASKS), 1)
+        release.set()
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        self.assertEqual(bot_main._CANCELLATION_RESISTANT_HELP_TASKS, set())
+        self.assertEqual(bot_main._ACTIVE_HELP_TASKS_BY_USER, {})
+
+    async def test_help_callback_timeout_fences_later_updates_until_task_finishes(self) -> None:
+        context = self._make_context()
+        message = harness.DummyMessage()
+        query = harness.DummyQuery("help:back", message)
+        update = SimpleNamespace(
+            effective_user=SimpleNamespace(id=123, username="tester"),
+            callback_query=query,
+            message=None,
+        )
+        release = asyncio.Event()
+
+        async def cancellation_resistant_callback(*_args, **_kwargs):
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                await release.wait()
+
+        with (
+            patch.object(bot_main, "HELP_CALLBACK_TIMEOUT_SECONDS", 0.01),
+            patch.object(bot_main, "HELP_CALLBACK_CANCELLATION_GRACE_SECONDS", 0.01),
+            patch.object(bot_main, "_help_callback_impl", new=cancellation_resistant_callback),
+        ):
+            await asyncio.wait_for(bot_main.help_callback(update, context), timeout=0.2)
+
+        with self.assertRaises(Exception) as raised:
+            await bot_main.guard_cancellation_resistant_help_task(update, context)
+        self.assertEqual(raised.exception.__class__.__name__, "ApplicationHandlerStop")
+
+        release.set()
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await bot_main.guard_cancellation_resistant_help_task(update, context)
+
+    async def test_help_callback_propagates_inner_timeout_error(self) -> None:
+        context = self._make_context()
+        message = harness.DummyMessage()
+        query = harness.DummyQuery("help:back", message)
+        update = SimpleNamespace(
+            effective_user=SimpleNamespace(id=123, username="tester"),
+            callback_query=query,
+            message=None,
+        )
+
+        with patch.object(
+            bot_main,
+            "_help_callback_impl",
+            new=AsyncMock(side_effect=TimeoutError("downstream timeout")),
+        ):
+            with self.assertRaisesRegex(TimeoutError, "downstream timeout"):
+                await bot_main.help_callback(update, context)
 
     async def test_help_callback_home_is_available_for_paywall_user_without_onboarding_check(self) -> None:
         conn = harness.LedgerConn(

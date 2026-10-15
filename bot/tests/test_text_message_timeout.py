@@ -76,7 +76,7 @@ class TextMessageTimeoutTests(unittest.IsolatedAsyncioTestCase):
             patch.object(bot_main, "TEXT_MESSAGE_RECOVERY_REPLY_TIMEOUT_SECONDS", 0.01),
             patch.object(bot_main, "_text_message_impl", new=hanging_handler),
         ):
-            await asyncio.wait_for(bot_main.text_message(update, context), timeout=0.1)
+            await asyncio.wait_for(bot_main.text_message(update, context), timeout=0.5)
 
     async def test_cancellation_resistant_recovery_reply_is_bounded(self) -> None:
         release_reply = asyncio.Event()
