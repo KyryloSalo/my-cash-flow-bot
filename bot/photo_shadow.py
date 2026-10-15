@@ -21,7 +21,7 @@ from decimal import Decimal
 from PIL import Image, ImageOps
 
 import config
-from photo_pipeline import Evidence, ExtractionPass, PipelineConfig, ReconciliationResult, build_cache_key, reconcile_extractions, plan_vertical_tiles, parse_raw_amount
+from photo_pipeline import Evidence, ExtractionPass, PipelineConfig, ReconciliationResult, build_cache_key, reconcile_extractions, plan_vertical_tiles, parse_raw_amount, assess_image_quality
 
 logger = logging.getLogger("mcf.photo_shadow")
 _CACHE_TTL_SECONDS = 45.0
@@ -160,6 +160,14 @@ def _normalize_mime_type(mime_type: str) -> str:
     return "image/jpeg" if normalized == "image/jpg" else normalized
 
 
+def _preprocess_variants(canvas: Image.Image) -> tuple[bytes, ...]:
+    """Build bounded deterministic color/contrast/grayscale inputs; retain color first."""
+    variants: list[bytes] = []
+    for image, quality in ((canvas, 90), (ImageOps.autocontrast(canvas.convert("L")).convert("RGB"), 88)):
+        buf = BytesIO(); image.save(buf, format="JPEG", quality=quality, optimize=True); variants.append(buf.getvalue())
+    return tuple(variants)
+
+
 def _lock_for(key: str) -> asyncio.Lock:
     digest = hashlib.sha256(key.encode("utf-8")).digest()
     return _LOCKS[int.from_bytes(digest[:8], "big") % _LOCK_STRIPES]
@@ -277,7 +285,8 @@ async def analyze_photo(image_bytes: bytes, *, mime_type: str, model: str, detai
             canvas = Image.new("RGB", image.size, "white"); canvas.paste(image, mask=image.getchannel("A"))
             if max(canvas.size) > 6000:
                 scale = 6000 / max(canvas.size); canvas = canvas.resize((max(1,round(canvas.width*scale)),max(1,round(canvas.height*scale))), Image.Resampling.LANCZOS)
-            out = BytesIO(); canvas.save(out, format="JPEG", quality=90, optimize=True); canonical = out.getvalue()
+            variants = _preprocess_variants(canvas)
+            canonical = variants[0]
     except (OSError, ValueError) as exc: raise ValueError("Malformed or unsupported image") from exc
     key = build_cache_key(image_bytes, config=PipelineConfig(), model=model, detail=detail).as_string() + ":active"
     durable = _load_durable(key)
@@ -294,14 +303,15 @@ async def analyze_photo(image_bytes: bytes, *, mime_type: str, model: str, detai
         crops=[]
         for top,bottom in boxes:
             buf=BytesIO(); canvas.crop((0,top,canvas.width,bottom)).save(buf,format="JPEG",quality=88,optimize=True); crops.append(buf.getvalue())
+        quality = assess_image_quality(image_bytes)
         passes = await asyncio.gather(
             _request(canonical,mime_type="image/jpeg",model=model,detail=detail,source="full-canonical-a"),
-            _request(canonical,mime_type="image/jpeg",model=model,detail=detail,source="full-canonical-b"),
+            _request(variants[1],mime_type="image/jpeg",model=model,detail=detail,source="full-enhanced"),
             *[_request(blob,mime_type="image/jpeg",model=model,detail=detail,source=f"crop-{i}") for i,blob in enumerate(crops)],
         )
         result = reconcile_extractions(tuple(passes))
         trace = dict(result.trace)
-        trace.update({"pipeline":"evidence","preprocessing":"exif-transpose-alpha-white-jpeg","tile_overlap":.2,"tile_plan":boxes,"submitted_passes":len(passes)})
+        trace.update({"pipeline":"evidence","preprocessing":"exif-transpose-alpha-white-jpeg+autocontrast-grayscale","quality":asdict(quality),"tile_overlap":.2,"tile_plan":boxes,"submitted_passes":len(passes),"detail":detail})
         result = ReconciliationResult(**{**result.__dict__, "trace": trace, "receipt_level": "L1" if result.accepted else None})
         _CACHE[key] = (time.monotonic(), result)
         _store_durable(key, result)
