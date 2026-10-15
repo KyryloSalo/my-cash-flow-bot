@@ -123,6 +123,21 @@ class UserOidcTokenUse(models.Model):
         return f"{self.provider}:{self.subject}:{self.token_hash[:12]}"
 
 
+class UserOidcAuthorizationFlow(models.Model):
+    state_hash = models.CharField(max_length=64, primary_key=True)
+    nonce = models.CharField(max_length=128)
+    code_verifier = models.CharField(max_length=128)
+    return_to = models.TextField(default="/app/")
+    issued_at = models.DateTimeField()
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        db_table = "user_oidc_authorization_flows"
+
+    def __str__(self) -> str:
+        return f"telegram_oidc:{self.state_hash[:12]}"
+
+
 class UserAdminState(models.Model):
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"

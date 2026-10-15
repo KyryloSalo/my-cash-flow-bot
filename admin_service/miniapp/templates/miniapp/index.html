@@ -6142,14 +6142,24 @@
 
       function openTelegramOidcRecovery(event) {
         if (event && typeof event.preventDefault === "function") event.preventDefault();
+        const authorizationUrl = telegramOidcUrlForCurrentRoute();
         if (isStandaloneMode()) {
-          const authWindow = window.open(telegramOidcRecoveryUrl, "vydnoTelegramLogin");
+          const authWindow = window.open(authorizationUrl, "vydnoTelegramLogin");
           if (authWindow) {
             try { authWindow.opener = null; } catch (_error) {}
             return;
           }
         }
-        window.location.assign(telegramOidcRecoveryUrl);
+        window.location.assign(authorizationUrl);
+      }
+
+      function telegramOidcUrlForCurrentRoute() {
+        const authorizationUrl = new URL(telegramOidcRecoveryUrl, window.location.origin);
+        const returnPath = window.location.pathname + window.location.search;
+        if (returnPath.startsWith("/app/") && !returnPath.startsWith("/app/auth/telegram/")) {
+          authorizationUrl.searchParams.set("next", returnPath);
+        }
+        return authorizationUrl.href;
       }
 
       function setupBrowserLoginRecovery() {

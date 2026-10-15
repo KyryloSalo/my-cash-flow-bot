@@ -18,7 +18,7 @@ django.setup()
 
 from django.core.checks import Tags, run_checks
 from django.db import connection
-from django.test import Client, SimpleTestCase, override_settings
+from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
 from common.test_helpers import ensure_telegram_user_table
@@ -54,7 +54,7 @@ def build_telegram_init_data(*, bot_token: str, tg_user_id: int, allows_write_to
     TELEGRAM_OIDC_CLIENT_SECRET="synthetic-oidc-secret-not-for-deployment",
     TELEGRAM_OIDC_REDIRECT_URI="https://vydno.capital/app/auth/telegram/callback",
 )
-class TelegramOidcStartTests(SimpleTestCase):
+class TelegramOidcStartTests(TestCase):
     @override_settings(
         TELEGRAM_OIDC_CLIENT_ID="123456789",
         TELEGRAM_OIDC_CLIENT_SECRET="",
@@ -131,6 +131,41 @@ class TelegramOidcStartTests(SimpleTestCase):
         self.assertContains(response, 'data-error-code="telegram_oidc_state_invalid"', status_code=400)
         self.assertNotIn("miniapp_oidc_flow", client.session)
         self.assertEqual(response.headers["Cache-Control"], "no-store, no-cache, must-revalidate, max-age=0, private")
+
+    @patch("miniapp.views.verify_id_token")
+    @patch("miniapp.views.exchange_authorization_code")
+    def test_callback_survives_browser_session_handoff(self, exchange, verify) -> None:
+        from miniapp.telegram_oidc import AuthenticatedTelegramIdentity
+
+        verify.return_value = AuthenticatedTelegramIdentity(
+            provider="telegram_oidc",
+            subject="stable-subject-oidc-handoff",
+            tg_user_id=9091,
+            first_name="Browser",
+            last_name="Handoff",
+            username="browser_handoff",
+            claims={"id": 9091, "sub": "stable-subject-oidc-handoff", "exp": int(time.time()) + 3600},
+        )
+        exchange.return_value = "synthetic.jwt.browser-handoff"
+        origin_client = Client()
+        start = origin_client.get(
+            "/app/auth/telegram/start",
+            {"next": "/app/family/join/INVITE_TOKEN/"},
+        )
+        state = parse_qs(urlparse(start.headers["Location"]).query)["state"][0]
+        flow = dict(origin_client.session["miniapp_oidc_flow"])
+
+        callback_client = Client()
+        response = callback_client.get(
+            "/app/auth/telegram/callback",
+            {"state": state, "code": "cross-browser-code"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/app/family/join/INVITE_TOKEN/")
+        exchange.assert_called_once_with(code="cross-browser-code", code_verifier=flow["code_verifier"])
+        verify.assert_called_once_with("synthetic.jwt.browser-handoff", expected_nonce=flow["nonce"])
+        self.assertEqual(callback_client.session["miniapp_tg_user_id"], 9091)
 
     @patch("miniapp.telegram_oidc.urlopen")
     def test_code_exchange_uses_basic_auth_and_original_pkce_verifier(self, mock_urlopen) -> None:
