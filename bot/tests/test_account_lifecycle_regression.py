@@ -652,6 +652,10 @@ class AccountLifecycleRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("current_fsm_state", query)
         self.assertIn("onboarding_payload", query)
         self.assertIn("pending_admin_reset_mode", query)
+        self.assertIn("canary_notes", query)
+        self.assertIn("is_production_canary", query)
+        self.assertIn("canary_notes", query.split("ON CONFLICT", 1)[0])
+        self.assertIn("is_production_canary", query.split("ON CONFLICT", 1)[0])
         self.assertEqual(args, (123, "paywall", "billing"))
 
     async def test_accounts_add_opens_type_chooser(self) -> None:

@@ -105,6 +105,8 @@ async def log_bot_event(
                   last_bot_response,
                   last_parse_error,
                   pending_admin_reset_mode,
+                  canary_notes,
+                  is_production_canary,
                   created_at,
                   updated_at
                 )
@@ -131,6 +133,8 @@ async def log_bot_event(
                   '',
                   '',
                   '',
+                  '',
+                  false,
                   now(),
                   now()
                 )
@@ -214,6 +218,8 @@ async def sync_onboarding_debug_state(
               last_parse_error,
               last_onboarding_event_at,
               pending_admin_reset_mode,
+              canary_notes,
+              is_production_canary,
               created_at,
               updated_at
             )
@@ -241,6 +247,8 @@ async def sync_onboarding_debug_state(
               $6,
               now(),
               '',
+              '',
+              false,
               now(),
               now()
             )
