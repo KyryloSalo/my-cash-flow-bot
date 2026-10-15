@@ -6,7 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ops.photo_recognition_benchmark import run_benchmark
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from photo_recognition_benchmark import run_benchmark
 
 
 class PhotoBenchmarkTests(unittest.TestCase):
@@ -44,7 +45,7 @@ class PhotoBenchmarkTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             manifest = Path(d) / "manifest.json"
             manifest.write_text(json.dumps({"version": 1, "suite": "not-release", "cases": [{"id": "missing", "image": "no.jpg", "sha256": "0" * 64, "extractions": "x.json", "expected": {"accepted": True, "findings_include": [], "findings_exclude": []}}]}), encoding="utf-8")
-            result = subprocess.run([sys.executable, "-m", "ops.photo_recognition_benchmark", str(manifest)], capture_output=True, text=True)
+            result = subprocess.run([sys.executable, "-m", "photo_recognition_benchmark", str(manifest)], cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("missing corpus", result.stdout.lower())
             self.assertIn("accuracy", result.stdout.lower())
