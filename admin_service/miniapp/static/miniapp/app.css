@@ -3789,7 +3789,13 @@ body.calm-fintech-v2 {
   background: var(--mint);
 }
 
-.calm-fintech-v2 .nav-btn--add,
+.calm-fintech-v2 .nav-btn--add {
+  border: 1px solid var(--line);
+  color: var(--ink-muted);
+  background: var(--surface-soft);
+  box-shadow: none;
+}
+
 .calm-fintech-v2 .nav-btn--add.is-active {
   border: 0;
   color: #fff;
