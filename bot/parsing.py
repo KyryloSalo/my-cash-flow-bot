@@ -280,6 +280,7 @@ def _parse_amount_words(text: str) -> float | None:
         "семь": 7,
         "восемь": 8,
         "девять": 9,
+
     }
     teens = {
         # UA
@@ -303,6 +304,7 @@ def _parse_amount_words(text: str) -> float | None:
         "семнадцать": 17,
         "восемнадцать": 18,
         "девятнадцать": 19,
+
     }
     tens = {
         # UA
@@ -322,6 +324,9 @@ def _parse_amount_words(text: str) -> float | None:
         "семьдесят": 70,
         "восемьдесят": 80,
         "девяносто": 90,
+        # The production STT occasionally code-switches this one Russian
+        # number word while leaving the rest of the amount unchanged.
+        "seventy": 70,
     }
     hundreds = {
         # UA
@@ -873,7 +878,19 @@ def build_miniapp_text_parse_payload(*, text: str, today: date, default_currency
     # The mini-app endpoint creates one draft. Never merge fields from a
     # multi-operation voice transcript into one transaction.
     if len(parse_message_batch(raw_text, today=today, default_currency=default_currency)) >= 2:
-        raise ValueError("Введено кілька операцій — додайте їх окремо")
+        return {
+            "is_candidate_tx": False,
+            "intent": None,
+            "amount": None,
+            "currency": (default_currency or "UAH").upper(),
+            "currency_explicit": False,
+            "category_slug": None,
+            "date": today.isoformat(),
+            "date_explicit": False,
+            "comment": raw_text,
+            "missing_fields": ["operation"],
+            "clarification_message": "Введено кілька операцій — додайте їх окремо",
+        }
 
     normalized_currency = str(default_currency or "").strip().upper()
     if not re.fullmatch(r"[A-Z]{3,10}", normalized_currency):

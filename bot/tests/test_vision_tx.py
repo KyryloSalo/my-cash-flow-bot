@@ -107,6 +107,31 @@ class VisionTxParseTests(unittest.TestCase):
         self.assertEqual(analysis.statement_items[0].comment, "Coffee shop")
         self.assertEqual(analysis.skipped_items_count, 3)
 
+    def test_statement_model_exclusion_annotations_are_dropped_from_model_output(self) -> None:
+        for comment in (
+            "Hetzner (rejected shown, not taken as expense)",
+            "FIREFLIES.AI payment (insufficient funds; excluded)",
+        ):
+            analysis = _parse_response(
+                self._payload({
+                    "mode_candidate": "statement_expenses", "transaction_date": "", "type": "",
+                    "amount": None, "currency": "EUR", "dominant_currency": "EUR",
+                    "account_hint": "", "category_hint": "", "comment": "statement",
+                    "confidence": 0.9, "bank_name": "monobank", "card_last4": "",
+                    "skipped_rows_count": 0,
+                    "items": [
+                        {"transaction_date": "2026-09-18", "type": "expense", "amount": -43.09,
+                         "currency": "EUR", "category_hint": "hosting", "comment": comment, "confidence": .1},
+                        {"transaction_date": "2026-09-17", "type": "expense", "amount": -17.51,
+                         "currency": "EUR", "category_hint": "software", "comment": "OpenAI", "confidence": .9},
+                    ],
+                }), today=date(2026, 10, 14), default_currency="EUR", model="test-model",
+                detail="high", used_fallback=False,
+            )
+            self.assertEqual(analysis.mode, "single_tx")
+            self.assertEqual(analysis.amount, Decimal("17.51"))
+            self.assertEqual(analysis.skipped_items_count, 1)
+
     def test_ambiguous_transfer_and_currency_context_do_not_suppress_expense(self) -> None:
         for comment in ("Переказ на картку", "Оплата Failed Foods", "З гривневого рахунку — оплата FIREFLIES"):
             analysis = _parse_response(self._payload({"mode_candidate": "single_tx", "transaction_date": "2026-10-01", "type": "expense", "amount": -100, "currency": "UAH", "dominant_currency": "UAH", "account_hint": "", "category_hint": "", "comment": comment, "confidence": .9, "bank_name": "monobank", "card_last4": "", "skipped_rows_count": 0, "items": []}), today=date(2026, 10, 14), default_currency="UAH", model="test-model", detail="high", used_fallback=False)
@@ -120,8 +145,24 @@ class VisionTxParseTests(unittest.TestCase):
         merchant = _parse_response(self._payload({"mode_candidate": "single_tx", "transaction_date": "2026-10-01", "type": "expense", "amount": -100, "currency": "UAH", "dominant_currency": "UAH", "account_hint": "", "category_hint": "", "comment": "Failed Foods", "confidence": .9, "bank_name": "monobank", "card_last4": "", "skipped_rows_count": 0, "items": []}), today=date(2026, 10, 14), default_currency="UAH", model="test-model", detail="high", used_fallback=False)
         self.assertEqual(merchant.mode, "single_tx")
 
+        excluded_merchant = _parse_response(
+            self._payload({
+                "mode_candidate": "single_tx", "transaction_date": "2026-10-01", "type": "expense",
+                "amount": -100, "currency": "UAH", "dominant_currency": "UAH", "account_hint": "",
+                "category_hint": "restaurant", "comment": "Excluded Cafe", "confidence": .9,
+                "bank_name": "monobank", "card_last4": "", "skipped_rows_count": 0, "items": [],
+            }), today=date(2026, 10, 14), default_currency="UAH", model="test-model",
+            detail="high", used_fallback=False,
+        )
+        self.assertEqual(excluded_merchant.mode, "single_tx")
+
     def test_single_rejected_or_explicit_own_account_row_is_unsupported(self) -> None:
-        for comment in ("Платіж відхилено: Недостатньо коштів", "Переказ на свою картку"):
+        for comment in (
+            "Платіж відхилено: Недостатньо коштів",
+            "Переказ на свою картку",
+            "Зняття готівки в банкоматі",
+            "Cash withdrawal at ATM",
+        ):
             analysis = _parse_response(
                 self._payload({
                     "mode_candidate": "single_tx", "transaction_date": "2026-10-01", "type": "expense",

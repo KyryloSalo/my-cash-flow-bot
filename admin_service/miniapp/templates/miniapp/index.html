@@ -3305,7 +3305,7 @@
           return Promise.resolve(null);
         }
         if (suggestion.mode !== "transaction") {
-          setAiVoiceStatus(tr("aiVoiceUnrecognized"), "error");
+          setAiVoiceStatus(suggestion.message || tr("aiVoiceUnrecognized"), suggestion.message ? "muted" : "error");
           return Promise.resolve(null);
         }
         return loadTransactionOptions(false).then(function () {
@@ -4126,7 +4126,7 @@
               return null;
             }
             if (suggestion.mode !== "transaction") {
-              setAiTextStatus(tr("aiTextUnrecognized"), "error");
+              setAiTextStatus(suggestion.message || tr("aiTextUnrecognized"), suggestion.message ? "muted" : "error");
               return null;
             }
             return loadTransactionOptions(false).then(function () {

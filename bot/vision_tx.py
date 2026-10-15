@@ -250,10 +250,24 @@ def _normalize_non_negative_int(value: Any) -> int:
     return max(0, number)
 
 
-_REJECTED_EVIDENCE = re.compile(r"(?i)(?:недостатньо\s+коштів|платіж\s+відхилено|платеж\s+отклонен|відхилено|отклонен|(?:payment|transaction|платіж|платеж)\s+(?:was\s+)?(?:\bdeclined\b|\brejected\b|\bfailed\b)|(?:\bdeclined\b|\brejected\b|\bfailed\b)\s+(?:payment|transaction))")
+_REJECTED_EVIDENCE = re.compile(
+    r"(?i)(?:"
+    r"недостатньо\s+коштів|платіж\s+відхилено|платеж\s+отклонен|відхилено|отклонен|"
+    r"\binsufficient\s+funds\b|\bnot\s+taken\s+as\s+(?:an?\s+)?expense\b|"
+    r"(?:payment|transaction|платіж|платеж)\s+(?:was\s+)?(?:\bdeclined\b|\brejected\b|\bfailed\b)|"
+    r"(?:\bdeclined\b|\brejected\b|\bfailed\b)\s+(?:payment|transaction|shown)"
+    r")"
+)
 # Only explicit ownership is safe to discard. Generic card transfers and currency/account
 # context are ambiguous in expense-only screenshots and must remain eligible expenses.
-_OWN_ACCOUNT_EVIDENCE = re.compile(r"(?i)(?:поповнення\s+власної\s+банки|на\s+свою\s+картку|на\s+свою\s+карту|з\s+білої\s+картки|перевод\s+на\s+свою\s+карту|\bown\s+account\b|\binternal\s+transfer\b)")
+_OWN_ACCOUNT_EVIDENCE = re.compile(
+    r"(?i)(?:"
+    r"поповнення\s+власної\s+банки|на\s+свою\s+картку|на\s+свою\s+карту|"
+    r"з\s+білої\s+картки|перевод\s+на\s+свою\s+карту|"
+    r"зняття\s+готівки(?:\s+в\s+банкоматі)?|снятие\s+наличных(?:\s+в\s+банкомате)?|"
+    r"\bcash\s+withdrawal\b|\bown\s+account\b|\binternal\s+transfer\b"
+    r")"
+)
 
 
 def _is_nonexpense_evidence(*values: Any) -> bool:

@@ -27,7 +27,13 @@ async def transcribe_audio_bytes(
         raise ValueError("Audio is required")
 
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
-    data = {"model": OPENAI_STT_MODEL}
+    data = {
+        "model": OPENAI_STT_MODEL,
+        "prompt": (
+            "Transcribe verbatim in the language spoken. Preserve number words as spoken; "
+            "do not translate them or silently resolve shorthand amounts. Preserve currency names."
+        ),
+    }
     files = {"file": (filename, audio_bytes, mime_type)}
 
     async with httpx.AsyncClient(timeout=30) as client:
