@@ -84,6 +84,57 @@ class VisionTxParseTests(unittest.TestCase):
         self.assertEqual(analysis.statement_items[1].currency, "TRY")
         self.assertEqual(analysis.skipped_items_count, 0)
 
+    def test_statement_rejected_and_own_account_rows_are_dropped_from_model_output(self) -> None:
+        analysis = _parse_response(
+            self._payload({
+                "mode_candidate": "statement_expenses", "transaction_date": "", "type": "",
+                "amount": None, "currency": "UAH", "dominant_currency": "UAH",
+                "account_hint": "", "category_hint": "", "comment": "statement",
+                "confidence": 0.9, "bank_name": "monobank", "card_last4": "",
+                "skipped_rows_count": 1,
+                "items": [
+                    {"transaction_date": "2026-10-01", "type": "expense", "amount": -50,
+                     "currency": "UAH", "category_hint": "coffee", "comment": "Coffee shop", "confidence": .9},
+                    {"transaction_date": "2026-10-01", "type": "expense", "amount": -100,
+                     "currency": "UAH", "category_hint": "", "comment": "Недостатньо коштів", "confidence": .9},
+                    {"transaction_date": "2026-10-01", "type": "expense", "amount": -200,
+                     "currency": "UAH", "category_hint": "", "comment": "Поповнення власної банки", "confidence": .9},
+                ],
+            }), today=date(2026, 10, 14), default_currency="UAH", model="test-model",
+            detail="high", used_fallback=False,
+        )
+        self.assertEqual(len(analysis.statement_items), 1)
+        self.assertEqual(analysis.statement_items[0].comment, "Coffee shop")
+        self.assertEqual(analysis.skipped_items_count, 3)
+
+    def test_ambiguous_transfer_and_currency_context_do_not_suppress_expense(self) -> None:
+        for comment in ("Переказ на картку", "Оплата Failed Foods", "З гривневого рахунку — оплата FIREFLIES"):
+            analysis = _parse_response(self._payload({"mode_candidate": "single_tx", "transaction_date": "2026-10-01", "type": "expense", "amount": -100, "currency": "UAH", "dominant_currency": "UAH", "account_hint": "", "category_hint": "", "comment": comment, "confidence": .9, "bank_name": "monobank", "card_last4": "", "skipped_rows_count": 0, "items": []}), today=date(2026, 10, 14), default_currency="UAH", model="test-model", detail="high", used_fallback=False)
+            self.assertEqual(analysis.mode, "single_tx")
+            self.assertEqual(analysis.amount, Decimal("100"))
+
+    def test_failed_status_requires_status_context_not_merchant_substring(self) -> None:
+        for comment in ("Payment failed", "Платіж failed", "Payment was declined"):
+            analysis = _parse_response(self._payload({"mode_candidate": "single_tx", "transaction_date": "2026-10-01", "type": "expense", "amount": -100, "currency": "UAH", "dominant_currency": "UAH", "account_hint": "", "category_hint": "", "comment": comment, "confidence": .9, "bank_name": "monobank", "card_last4": "", "skipped_rows_count": 0, "items": []}), today=date(2026, 10, 14), default_currency="UAH", model="test-model", detail="high", used_fallback=False)
+            self.assertEqual(analysis.mode, "unsupported")
+        merchant = _parse_response(self._payload({"mode_candidate": "single_tx", "transaction_date": "2026-10-01", "type": "expense", "amount": -100, "currency": "UAH", "dominant_currency": "UAH", "account_hint": "", "category_hint": "", "comment": "Failed Foods", "confidence": .9, "bank_name": "monobank", "card_last4": "", "skipped_rows_count": 0, "items": []}), today=date(2026, 10, 14), default_currency="UAH", model="test-model", detail="high", used_fallback=False)
+        self.assertEqual(merchant.mode, "single_tx")
+
+    def test_single_rejected_or_explicit_own_account_row_is_unsupported(self) -> None:
+        for comment in ("Платіж відхилено: Недостатньо коштів", "Переказ на свою картку"):
+            analysis = _parse_response(
+                self._payload({
+                    "mode_candidate": "single_tx", "transaction_date": "2026-10-01", "type": "expense",
+                    "amount": -100, "currency": "UAH", "dominant_currency": "UAH",
+                    "account_hint": "", "category_hint": "", "comment": comment,
+                    "confidence": .9, "bank_name": "monobank", "card_last4": "",
+                    "skipped_rows_count": 0, "items": [],
+                }), today=date(2026, 10, 14), default_currency="UAH", model="test-model",
+                detail="high", used_fallback=False,
+            )
+            self.assertEqual(analysis.mode, "unsupported")
+            self.assertIsNone(analysis.amount)
+
     def test_single_tx_accepts_negative_amount_and_currency_symbol(self) -> None:
         analysis = _parse_response(
             self._payload(

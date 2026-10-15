@@ -276,6 +276,12 @@ class ParsingAcceptanceTests(unittest.TestCase):
         self.assertEqual(msg.intent, "expense")
         self.assertEqual(msg.category_id, "utilities")
 
+    def test_ambiguous_sin_dash_amount_is_not_silently_parsed(self) -> None:
+        msg = parse_message("КОМУНАЛКА СИН-300", today=TODAY, default_currency="UAH")
+        self.assertIsNone(msg.amount)
+        self.assertEqual(msg.category_id, "utilities")
+        self.assertIn("amount", msg.missing_fields)
+
     def test_turkcell_maps_to_telecom(self) -> None:
         msg = parse_message("Turkcell 450", today=TODAY, default_currency="UAH")
         self.assertEqual(msg.intent, "expense")
