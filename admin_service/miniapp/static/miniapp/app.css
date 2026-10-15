@@ -67,7 +67,7 @@ textarea {
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0 auto;
-  padding: max(16px, var(--safe-top)) max(16px, var(--safe-right)) calc(var(--nav-height) + 20px) max(16px, var(--safe-left));
+  padding: max(16px, var(--safe-top)) max(16px, var(--safe-right)) calc(var(--nav-height) + 40px) max(16px, var(--safe-left));
   position: relative;
 }
 
@@ -1982,11 +1982,11 @@ button.transaction,
   min-height: 52px;
   margin-top: 0;
   justify-self: center;
-  border: 1px solid rgba(121, 231, 196, 0.62);
+  border: 1px solid var(--border);
   border-radius: 17px;
-  color: #052019;
-  background: linear-gradient(145deg, var(--green-2), var(--green));
-  box-shadow: 0 9px 24px rgba(12, 105, 81, 0.28);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: none;
 }
 
 .nav-btn--add svg {
@@ -1999,6 +1999,10 @@ button.transaction,
   color: #041a15;
   background: linear-gradient(145deg, #8cebcf, #4bdcaf);
   box-shadow: 0 10px 28px rgba(12, 105, 81, 0.34);
+}
+
+.settings-save-action {
+  margin-top: 14px;
 }
 
 .period-trigger:focus-visible,
@@ -3358,7 +3362,7 @@ body.calm-fintech-v2 {
 
 .calm-fintech-v2 .app {
   max-width: 680px;
-  padding: max(18px, var(--safe-top)) max(18px, var(--safe-right)) calc(var(--nav-height) + 24px) max(18px, var(--safe-left));
+  padding: max(18px, var(--safe-top)) max(18px, var(--safe-right)) calc(var(--nav-height) + 40px) max(18px, var(--safe-left));
 }
 
 .calm-fintech-v2 .app::before {
@@ -3860,7 +3864,7 @@ body.calm-fintech-v2 {
 @media (max-width: 520px) {
   .calm-fintech-v2 .app {
     max-width: 100%;
-    padding: max(16px, var(--safe-top)) max(16px, var(--safe-right)) calc(var(--nav-height) + 20px) max(16px, var(--safe-left));
+    padding: max(16px, var(--safe-top)) max(16px, var(--safe-right)) calc(var(--nav-height) + 40px) max(16px, var(--safe-left));
   }
 
   .calm-fintech-v2 .topbar {
