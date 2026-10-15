@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -789,6 +790,37 @@ def _needs_fallback(result: ScreenshotAnalysis, *, default_currency: str) -> boo
 
 
 async def analyze_screenshot(
+    image_bytes: bytes,
+    *,
+    mime_type: str,
+    today: date,
+    default_currency: str,
+    accounts: list[AccountOption],
+    expense_categories: list[CategoryOption],
+    income_categories: list[CategoryOption],
+) -> ScreenshotAnalysis:
+    result = await _analyze_screenshot_legacy(
+        image_bytes, mime_type=mime_type, today=today, default_currency=default_currency,
+        accounts=accounts, expense_categories=expense_categories, income_categories=income_categories,
+    )
+    if config.PHOTO_PIPELINE_SHADOW_ENABLED:
+        try:
+            from photo_shadow import analyze_shadow
+
+            # Bounded, awaited work: no detached tasks retain uploaded photo bytes.
+            shadow = await asyncio.wait_for(
+                analyze_shadow(image_bytes, mime_type=mime_type, model=config.OPENAI_VISION_MODEL,
+                               detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL)),
+                timeout=10.0,
+            )
+            logger.info("Photo shadow accepted=%s findings=%s", shadow.accepted, ",".join(shadow.findings))
+        except Exception:
+            # Provider errors can contain sensitive source content; never log them.
+            logger.warning("Photo shadow unavailable; legacy result preserved")
+    return result
+
+
+async def _analyze_screenshot_legacy(
     image_bytes: bytes,
     *,
     mime_type: str,
