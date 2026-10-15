@@ -591,6 +591,10 @@
                 <input id="aiImageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.heic,.heif">
               </label>
               <div class="file-picker-name" id="aiImageFileName">Файл не вибрано.</div>
+              <div class="ai-image-review" id="aiImageReview" hidden>
+                <img id="aiImagePreview" alt="Оригінальне фото чека" loading="lazy">
+                <div class="ai-image-findings" id="aiImageFindings" aria-live="polite"></div>
+              </div>
               <button class="secondary-action" id="aiImageParseBtn" type="submit">Розпізнати</button>
               <div class="form-status" id="aiImageStatus" hidden aria-live="polite"></div>
             </form>
@@ -616,6 +620,7 @@
               <span id="aiImageBatchAccountLabel">Рахунок для операцій</span>
               <select id="aiImageBatchAccount"></select>
             </label>
+            <div class="ai-image-batch-total" id="aiImageBatchTotal" aria-live="polite"></div>
             <div class="ai-image-batch-list" id="aiImageBatchList"></div>
             <div class="form-status" id="aiImageBatchStatus" hidden aria-live="polite"></div>
           </article>
@@ -3136,6 +3141,9 @@
           form: document.getElementById("aiImageForm"),
           input: document.getElementById("aiImageInput"),
           fileName: document.getElementById("aiImageFileName"),
+          review: document.getElementById("aiImageReview"),
+          preview: document.getElementById("aiImagePreview"),
+          findings: document.getElementById("aiImageFindings"),
           button: document.getElementById("aiImageParseBtn"),
           status: document.getElementById("aiImageStatus")
         };
@@ -3586,6 +3594,23 @@
         el.account.disabled = aiImageBatchState.busy || !accounts.length;
       }
 
+      function renderAiImageBatchTotal() {
+        const el = aiImageBatchElements(); const batch = aiImageBatchState.batch;
+        if (!el.total || !batch) return;
+        let sumMinor = 0; let valid = true;
+        (batch.items || []).forEach(function (item) {
+          if (item.status === "skipped") return;
+          const raw = String((item.suggestion || {}).amount || "").replace(",", ".").trim();
+          if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) { valid = false; return; }
+          const minor = Math.round(Number(raw) * 100);
+          if (!Number.isSafeInteger(minor) || minor < 0) valid = false; else sumMinor += minor;
+        });
+        const statedRaw = String(batch.receipt_total || "").replace(",", ".").trim();
+        const statedMinor = /^\d+(?:\.\d{1,2})?$/.test(statedRaw) ? Math.round(Number(statedRaw) * 100) : NaN;
+        const money = function (minor) { return (minor / 100).toFixed(2); };
+        el.total.textContent = valid ? "Items total: " + money(sumMinor) + (Number.isSafeInteger(statedMinor) ? " / Receipt total: " + money(statedMinor) : "") : "Enter valid non-negative amounts before review.";
+      }
+
       function renderAiImageBatch() {
         const el = aiImageBatchElements();
         const batch = aiImageBatchState.batch;
@@ -3605,6 +3630,7 @@
           skipped: skipped
         });
         renderAiImageBatchAccount();
+        renderAiImageBatchTotal();
         el.list.innerHTML = "";
         items.forEach(function (item, index) {
           const suggestion = item.suggestion || {};
@@ -3613,15 +3639,18 @@
           const content = document.createElement("div");
           content.className = "ai-image-batch-copy";
           const heading = document.createElement("strong");
-          const amount = suggestion.amount ? String(suggestion.amount) + " " + String(suggestion.currency || "") : "-";
-          heading.textContent = String(index + 1) + ". " + amount.trim();
-          const detail = document.createElement("span");
-          detail.textContent = suggestion.comment || suggestion.transaction_date || "-";
-          const state = document.createElement("small");
-          state.textContent = batchItemStatusText(item.status);
-          content.appendChild(heading);
-          content.appendChild(detail);
-          content.appendChild(state);
+          heading.textContent = String(index + 1) + ". " + String(suggestion.currency || batch.currency || "");
+          const name = document.createElement("input");
+          name.type = "text"; name.className = "ai-image-batch-name"; name.value = String(suggestion.comment || suggestion.name || "");
+          name.placeholder = "Merchant / item"; name.disabled = item.status !== "pending" || aiImageBatchState.busy;
+          name.addEventListener("input", function () { suggestion.comment = name.value; });
+          const amount = document.createElement("input");
+          amount.type = "text"; amount.inputMode = "decimal"; amount.className = "ai-image-batch-amount"; amount.value = String(suggestion.amount || "");
+          amount.disabled = item.status !== "pending" || aiImageBatchState.busy;
+          amount.addEventListener("input", function () { suggestion.amount = amount.value; renderAiImageBatchTotal(); });
+          const detail = document.createElement("span"); detail.textContent = suggestion.transaction_date || "-";
+          const state = document.createElement("small"); state.textContent = batchItemStatusText(item.status);
+          content.appendChild(heading); content.appendChild(name); content.appendChild(amount); content.appendChild(detail); content.appendChild(state);
           row.appendChild(content);
           if (item.status === "pending") {
             const actions = document.createElement("div");
@@ -3681,7 +3710,7 @@
         setAiImageBatchStatus("", "muted");
         ensureSession()
           .then(function () {
-            return postJson(aiImageBatchItemUrl, { batch_id: batch.batch_id, item_id: itemId, action: "review" });
+            return postJson(aiImageBatchItemUrl, { batch_id: batch.batch_id, item_id: itemId, action: "review", comment: String((batch.items.find(function (entry) { return String(entry.id) === String(itemId); }) || {}).suggestion?.comment || ""), amount: String((batch.items.find(function (entry) { return String(entry.id) === String(itemId); }) || {}).suggestion?.amount || "") });
           })
           .then(function (payload) {
             const suggestion = payload.suggestion || {};
@@ -4058,6 +4087,46 @@
         if (!el.fileName) return;
         const file = el.input && el.input.files ? el.input.files[0] : null;
         el.fileName.textContent = file ? file.name : tr("aiImageNoFile");
+        if (el.review) el.review.hidden = !file;
+        if (el.preview) {
+          if (file && window.URL && typeof URL.createObjectURL === "function") {
+            if (el.preview.dataset.objectUrl) URL.revokeObjectURL(el.preview.dataset.objectUrl);
+            const url = URL.createObjectURL(file);
+            el.preview.src = url;
+            el.preview.dataset.objectUrl = url;
+          } else {
+            if (el.preview.dataset.objectUrl && window.URL && typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(el.preview.dataset.objectUrl);
+            delete el.preview.dataset.objectUrl;
+            el.preview.removeAttribute("src");
+          }
+        }
+      }
+
+      function renderAiImageFindings(suggestion) {
+        const el = aiImageElements();
+        if (!el.findings) return;
+        el.findings.innerHTML = "";
+        const fields = suggestion && suggestion.field_findings;
+        const warnings = (suggestion && suggestion.arithmetic_warnings) || [];
+        const needs = (suggestion && suggestion.needs_review) || [];
+        const values = [];
+        if (Array.isArray(fields)) fields.forEach(function (finding) {
+          if (!finding || typeof finding !== "object") return;
+          const label = finding.field || finding.name || "field";
+          const message = finding.message || finding.finding || "Needs review";
+          values.push(String(label) + ": " + String(message));
+        });
+        if (Array.isArray(needs)) needs.forEach(function (item) { values.push("Needs review: " + String(item)); });
+        if (Array.isArray(warnings)) warnings.forEach(function (item) { values.push("Arithmetic warning: " + String(item)); });
+        if (suggestion && suggestion.needs_review_bool) values.push("Needs review: recognition requires confirmation");
+        if (Array.isArray(suggestion && suggestion.receipt_items)) suggestion.receipt_items.forEach(function (item) {
+          if (!item || typeof item !== "object") { values.push("Receipt line item: needs review"); return; }
+          const label = item.name || item.merchant || "Receipt item";
+          const amount = item.total || item.amount || item.unit_price || "";
+          values.push("Receipt line item: " + String(label) + (amount === "" ? "" : " — " + String(amount)));
+        });
+        if (suggestion && suggestion.receipt_total !== null && suggestion.receipt_total !== undefined && suggestion.receipt_total !== "") values.push("Receipt total: " + String(suggestion.receipt_total));
+        values.forEach(function (text) { const p = document.createElement("p"); p.textContent = text; el.findings.appendChild(p); });
       }
 
       function setSuggestionSelectValue(selectNode, value) {
@@ -4160,6 +4229,7 @@
           .then(function () { return postFormData(aiImageParseUrl, formData); })
           .then(function (payload) {
             const suggestion = payload.suggestion || {};
+            renderAiImageFindings(suggestion);
             if (suggestion.mode === "batch") {
               return loadTransactionOptions(false).then(function () {
                 aiImageBatchState.accountId = "";
