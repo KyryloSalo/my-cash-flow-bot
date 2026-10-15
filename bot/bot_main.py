@@ -8306,7 +8306,106 @@ def _kb_accounts_empty_menu() -> InlineKeyboardMarkup:
     )
 
 
+HELP_CALLBACK_TIMEOUT_SECONDS = 10.0
+HELP_CALLBACK_CANCELLATION_GRACE_SECONDS = 1.0
+_CANCELLATION_RESISTANT_HELP_TASKS: set[asyncio.Task[None]] = set()
+_ACTIVE_HELP_TASKS_BY_USER: dict[int, asyncio.Task[None]] = {}
+
+
+def _observe_cancellation_resistant_help_task(user_id: int, task: asyncio.Task[None]) -> None:
+    _CANCELLATION_RESISTANT_HELP_TASKS.discard(task)
+    if _ACTIVE_HELP_TASKS_BY_USER.get(user_id) is task:
+        _ACTIVE_HELP_TASKS_BY_USER.pop(user_id, None)
+    if task.cancelled():
+        return
+    error = task.exception()
+    if error is not None:
+        logger.error(
+            "Cancellation-resistant help callback eventually failed",
+            exc_info=(type(error), error, error.__traceback__),
+        )
+
+
 async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = int(update.effective_user.id) if update.effective_user is not None else None
+    handler_task = asyncio.create_task(_help_callback_impl(update, context))
+    if user_id is not None:
+        _ACTIVE_HELP_TASKS_BY_USER[user_id] = handler_task
+    done, _ = await asyncio.wait({handler_task}, timeout=HELP_CALLBACK_TIMEOUT_SECONDS)
+    if handler_task in done:
+        try:
+            await handler_task
+        finally:
+            if user_id is not None and _ACTIVE_HELP_TASKS_BY_USER.get(user_id) is handler_task:
+                _ACTIVE_HELP_TASKS_BY_USER.pop(user_id, None)
+        return
+
+    handler_task.cancel()
+    cancelled, _ = await asyncio.wait(
+        {handler_task},
+        timeout=HELP_CALLBACK_CANCELLATION_GRACE_SECONDS,
+    )
+    if handler_task in cancelled:
+        try:
+            await handler_task
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if user_id is not None and _ACTIVE_HELP_TASKS_BY_USER.get(user_id) is handler_task:
+                _ACTIVE_HELP_TASKS_BY_USER.pop(user_id, None)
+    else:
+        _CANCELLATION_RESISTANT_HELP_TASKS.add(handler_task)
+        handler_task.add_done_callback(
+            lambda task, active_user_id=user_id: _observe_cancellation_resistant_help_task(
+                int(active_user_id) if active_user_id is not None else -1,
+                task,
+            )
+        )
+        logger.critical(
+            "Help callback did not stop within %.1fs after cancellation; continuing update processing",
+            HELP_CALLBACK_CANCELLATION_GRACE_SECONDS,
+        )
+
+    logger.error(
+        "Help callback exceeded %.1fs and was cancelled for user_id=%s",
+        HELP_CALLBACK_TIMEOUT_SECONDS,
+        getattr(update.effective_user, "id", None),
+    )
+    query = update.callback_query
+    if query and query.message:
+        try:
+            await _reply_text_bounded(
+                query.message,
+                "Розділ допомоги тимчасово не відповідає. Поверніться до головного меню.",
+                reply_markup=_kb_home_only(),
+            )
+        except Exception:
+            logger.exception(
+                "Could not send help-timeout recovery message for user_id=%s",
+                getattr(update.effective_user, "id", None),
+            )
+
+
+async def guard_cancellation_resistant_help_task(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    del context
+    user = update.effective_user
+    if user is None:
+        return
+    active_task = _ACTIVE_HELP_TASKS_BY_USER.get(int(user.id))
+    if active_task is None:
+        return
+    if active_task.done():
+        _ACTIVE_HELP_TASKS_BY_USER.pop(int(user.id), None)
+        return
+    from telegram.ext import ApplicationHandlerStop
+
+    raise ApplicationHandlerStop
+
+
+async def _help_callback_impl(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     if not q:
         return
@@ -17683,6 +17782,8 @@ def build_app() -> Application:
         allow_reentry=True,
     )
 
+    app.add_handler(CallbackQueryHandler(guard_cancellation_resistant_help_task), group=-1)
+    app.add_handler(MessageHandler(filters.ALL, guard_cancellation_resistant_help_task), group=-1)
     app.add_handler(onboarding)
     app.add_handler(CommandHandler("menu", menu_command))
     app.add_handler(CommandHandler("help", help_command))
