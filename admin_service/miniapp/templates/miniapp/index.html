@@ -1399,23 +1399,23 @@
                 <option value="America/New_York"></option>
               </datalist>
             </label>
-            <button class="primary-action" id="achievementSettingsSave" type="button">Зберегти</button>
+            <button class="primary-action settings-save-action" id="achievementSettingsSave" type="button">Зберегти</button>
             <p class="form-status" id="achievementSettingsStatus" hidden aria-live="polite"></p>
           </article>
 
           <article class="card card-pad" id="soundSettingsCard">
             <div class="section-head">
               <div>
-                <h2>Звуки / Sounds</h2>
-                <p>Тихі сигнали підтвердження зберігаються лише на цьому пристрої.</p>
+                <h2 id="soundSettingsHeading">Звуки</h2>
+                <p id="soundSettingsCaption">Тихі сигнали підтвердження зберігаються лише на цьому пристрої.</p>
               </div>
             </div>
             <div class="sound-settings-grid">
-              <label class="settings-toggle"><input id="soundEnabledSetting" type="checkbox"><span>Звуки інтерфейсу / Interface sounds</span></label>
-              <label class="settings-toggle"><input id="achievementSoundsEnabledSetting" type="checkbox"><span>Звуки досягнень / Achievement sounds</span></label>
-              <label class="settings-toggle"><input id="hapticsEnabledSetting" type="checkbox"><span>Вібрація / Haptics</span></label>
+              <label class="settings-toggle"><input id="soundEnabledSetting" type="checkbox"><span id="soundEnabledSettingLabel">Звуки інтерфейсу</span></label>
+              <label class="settings-toggle"><input id="achievementSoundsEnabledSetting" type="checkbox"><span id="achievementSoundsEnabledSettingLabel">Звуки досягнень</span></label>
+              <label class="settings-toggle"><input id="hapticsEnabledSetting" type="checkbox"><span id="hapticsEnabledSettingLabel">Вібрація</span></label>
             </div>
-            <button class="secondary-action" id="soundPreviewButton" type="button">Прослухати / Preview</button>
+            <button class="secondary-action" id="soundPreviewButton" type="button">Прослухати</button>
             <p class="form-status" id="soundSettingsStatus" hidden aria-live="polite"></p>
           </article>
 
@@ -4593,6 +4593,10 @@
         return account && account.goal_status === "spent";
       }
 
+      function goalDisplayProgress(account) {
+        return goalIsClosed(account) ? 100 : goalProgress(account);
+      }
+
       function goalScopeLabel() {
         const scope = moneyState.options && moneyState.options.scope;
         return scope && scope.type === "family" ? tr("goalFamily") : tr("goalPersonal");
@@ -4600,18 +4604,20 @@
 
       function createGoalCard(account, compact) {
         const row = document.createElement("button");
-        const progress = goalProgress(account);
+        const progress = goalDisplayProgress(account);
         const closed = goalIsClosed(account);
         const spent = goalIsSpent(account);
         const progressWidth = goalProgressWidth(progress);
-        const currentAmount = account.balance && account.balance.display ? account.balance.display : "0";
         const goalAmount = account.goal_amount && account.goal_amount.display ? account.goal_amount.display : "—";
+        const currentAmount = closed
+          ? goalAmount
+          : (account.balance && account.balance.display ? account.balance.display : "0");
         row.type = "button";
         row.className = (compact ? "overview-goal-item" : "money-goal-row") + (closed ? " is-closed" : "");
         row.dataset.accountId = String(account.id);
         row.innerHTML =
           "<span class=\"goal-card-head\"><span><strong>" + goalEscapeHtml(account.goal_name || account.label || tr("goalsConfigure")) + "</strong><small>" + goalEscapeHtml(account.label || "") + "</small></span><span class=\"goal-scope-badge\">" + goalEscapeHtml(goalScopeLabel()) + "</span></span>" +
-          "<span class=\"goal-amount-row\"><strong>" + goalEscapeHtml(currentAmount) + "</strong><small>" + goalEscapeHtml(tr("goalAmountJoiner") + " " + goalAmount) + "</small><b>" + String(progress) + "%</b></span>" +
+          "<span class=\"goal-amount-row\"><strong>" + goalEscapeHtml(currentAmount) + "</strong><small>" + goalEscapeHtml(closed ? tr(spent ? "goalSpent" : "goalClosed") : tr("goalAmountJoiner") + " " + goalAmount) + "</small><b>" + String(progress) + "%</b></span>" +
           "<span class=\"goal-progress-track\" role=\"progressbar\" aria-label=\"" + goalEscapeHtml(tr("goalProgress")) + "\" aria-valuemin=\"0\" aria-valuemax=\"" + String(Math.max(100, progress)) + "\" aria-valuenow=\"" + String(progress) + "\"><span style=\"width:" + String(progressWidth) + "%\"></span></span>" +
           (closed ? "<small class=\"goal-closed-note\">" + goalEscapeHtml(tr(spent ? "goalSpent" : "goalClosed")) + "</small>" : (account.goal_date ? "<small class=\"goal-date\">" + goalEscapeHtml(shortDate(account.goal_date)) + "</small>" : ""));
         row.addEventListener("click", function () {
@@ -7526,6 +7532,7 @@
             savings: "Savings prompts", savingsCaption: "Suggest a transfer after income without moving money automatically.", askAfterIncome: "Suggest saving after income", defaultPercent: "Default percentage", salaryOnly: "Only after salary income", minIncome: "Minimum income amount", targetAccount: "Default savings account", noTarget: "No default account", saveSavings: "Save savings settings", savingsSaved: "Savings settings saved.",
             billing: "Subscription and payment", billingCaption: "Access status and payment method.", status: "Status", card: "Card", renewal: "Next renewal", noCard: "No linked card", active: "Active", readOnly: "Read-only", blocked: "Access needs renewal", until: "Until", bind: "Link card", rebind: "Update card", restore: "Restore access", continuePayment: "Open Monobank", retry: "Retry payment", disable: "Turn off auto-renewal", keep: "Keep enabled", confirmDisable: "Confirm", disablePrompt: "Confirm turning off auto-renewal. Access remains active until the end of the paid period.", billingReady: "Continue in Monobank to complete this step.", retryStarted: "Payment retry started.", autoRenewOff: "Auto-renewal is disabled.",
             billingExpense: "Subscription expense", billingExpenseCaption: "A paid renewal is ready to record after your confirmation.", amount: "Amount", date: "Date", account: "Account", category: "Category", reviewExpense: "Review expense", confirmExpense: "Confirm expense", cancelExpense: "Cancel draft", expenseReady: "Review and confirm the expense.", expenseRecorded: "Subscription expense recorded.",
+            sounds: "Sounds", soundsCaption: "Quiet confirmation signals are stored only on this device.", interfaceSounds: "Interface sounds", achievementSounds: "Achievement sounds", haptics: "Haptics", previewSounds: "Preview",
             help: "Help", helpCaption: "Support for data, access, or payment.", topics: "Browse help topics", backToTopics: "Back to topics", support: "Contact support", logout: "Sign out on this device", signedOut: "You have been signed out on this device.", signedOutHelp: "Open the Mini App from Telegram to sign in again."
           };
         }
@@ -7536,6 +7543,7 @@
           savings: "Налаштування накопичень", savingsCaption: "Пропонуємо переказ після доходу, але не рухаємо гроші автоматично.", askAfterIncome: "Пропонувати відкласти після доходу", defaultPercent: "Основний відсоток", salaryOnly: "Лише після доходу із категорією «Зарплата»", minIncome: "Мінімальна сума доходу", targetAccount: "Рахунок накопичень за замовчуванням", noTarget: "Без рахунку за замовчуванням", saveSavings: "Зберегти налаштування накопичень", savingsSaved: "Налаштування накопичень збережено.",
           billing: "Підписка та оплата", billingCaption: "Статус доступу й спосіб оплати.", status: "Статус", card: "Картка", renewal: "Наступне продовження", noCard: "Картку не прив'язано", active: "Активний", readOnly: "Лише перегляд", blocked: "Потрібно відновити доступ", until: "До", bind: "Прив'язати картку", rebind: "Оновити картку", restore: "Відновити доступ", continuePayment: "Відкрити Monobank", retry: "Повторити оплату", disable: "Вимкнути автопродовження", keep: "Залишити увімкненим", confirmDisable: "Підтвердити", disablePrompt: "Підтвердьте вимкнення автопродовження. Доступ залишиться активним до кінця вже оплаченого періоду.", billingReady: "Продовжте в Monobank, щоб завершити цю дію.", retryStarted: "Повторну оплату запущено.", autoRenewOff: "Автопродовження вимкнено.",
           billingExpense: "Витрата за підписку", billingExpenseCaption: "Оплачене продовження готове до запису після вашого підтвердження.", amount: "Сума", date: "Дата", account: "Рахунок", category: "Категорія", reviewExpense: "Перевірити витрату", confirmExpense: "Підтвердити витрату", cancelExpense: "Скасувати чернетку", expenseReady: "Перевірте й підтвердьте витрату.", expenseRecorded: "Витрату за підписку записано.",
+          sounds: "Звуки", soundsCaption: "Тихі сигнали підтвердження зберігаються лише на цьому пристрої.", interfaceSounds: "Звуки інтерфейсу", achievementSounds: "Звуки досягнень", haptics: "Вібрація", previewSounds: "Прослухати",
           help: "Допомога", helpCaption: "Підтримка щодо даних, доступу або оплати.", topics: "Переглянути теми допомоги", backToTopics: "До всіх тем", support: "Написати в підтримку", logout: "Вийти з цього пристрою", signedOut: "На цьому пристрої виконано вихід.", signedOutHelp: "Відкрийте Mini App із Telegram, щоб увійти знову."
         };
       }
@@ -7616,6 +7624,12 @@
         setText("settingsSavingsMinIncomeLabel", copy.minIncome);
         setText("settingsSavingsTargetLabel", copy.targetAccount);
         setText("settingsSavingsSave", copy.saveSavings);
+        setText("soundSettingsHeading", copy.sounds);
+        setText("soundSettingsCaption", copy.soundsCaption);
+        setText("soundEnabledSettingLabel", copy.interfaceSounds);
+        setText("achievementSoundsEnabledSettingLabel", copy.achievementSounds);
+        setText("hapticsEnabledSettingLabel", copy.haptics);
+        setText("soundPreviewButton", copy.previewSounds);
         setText("settingsBillingHeading", copy.billing);
         setText("settingsBillingCaption", copy.billingCaption);
         setText("settingsBillingStatusLabel", copy.status);

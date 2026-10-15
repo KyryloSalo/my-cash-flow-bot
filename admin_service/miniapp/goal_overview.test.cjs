@@ -77,3 +77,21 @@ test("overview shows only active financial goals", () => {
   assert.equal(overviewGoalsList.hidden, false);
   assert.equal(overviewGoalsEmpty.hidden, true);
 });
+
+test("closed goals keep a completed visual state after their balance is spent", () => {
+  const context = vm.createContext({
+    goalProgress: (account) => Math.round((Number(account.balance.value) / Number(account.goal_amount.value)) * 100),
+    goalIsClosed: (account) => account.goal_status === "funded" || account.goal_status === "spent",
+  });
+
+  vm.runInContext(
+    `${functionSource("goalDisplayProgress", "goalScopeLabel")}\nthis.goalDisplayProgress = goalDisplayProgress;`,
+    context,
+  );
+
+  assert.equal(context.goalDisplayProgress({
+    balance: { value: "0" },
+    goal_amount: { value: "1250" },
+    goal_status: "spent",
+  }), 100);
+});
