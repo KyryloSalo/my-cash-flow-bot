@@ -207,8 +207,10 @@ class InstallCoachFrontendContractTests(SimpleTestCase):
             "function showDashboard", 1
         )[0]
         self.assertIn("isStandaloneMode()", opener)
-        self.assertIn('window.open(telegramOidcRecoveryUrl, "vydnoTelegramLogin")', opener)
-        self.assertIn("window.location.assign(telegramOidcRecoveryUrl)", opener)
+        self.assertIn("telegramOidcUrlForCurrentRoute()", opener)
+        self.assertIn('window.open(authorizationUrl, "vydnoTelegramLogin")', opener)
+        self.assertIn("window.location.assign(authorizationUrl)", opener)
+        self.assertIn('authorizationUrl.searchParams.set("next", returnPath)', self.source)
         self.assertIn('recoveryLink.hidden = !browserLoginRequired || isStandaloneMode()', self.source)
 
         session = self.source.split("function ensureSession()", 1)[1].split("function buildQuery", 1)[0]

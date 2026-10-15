@@ -13,12 +13,12 @@ from urllib.request import Request, urlopen
 
 import jwt
 from django.conf import settings
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.http import HttpRequest
 from jwt import InvalidTokenError, PyJWKClient
 from jwt.exceptions import PyJWKClientError
 
-from users.models import UserOidcTokenUse
+from users.models import UserOidcAuthorizationFlow, UserOidcTokenUse
 
 OIDC_FLOW_SESSION_KEY = "miniapp_oidc_flow"
 TELEGRAM_OIDC_AUTH_MODE = "telegram_oidc"
@@ -82,13 +82,27 @@ def begin_authorization(request: HttpRequest, *, return_to: str | None = None, n
     code_verifier = secrets.token_urlsafe(64)
     code_challenge = _b64url(hashlib.sha256(code_verifier.encode("ascii")).digest())
 
+    issued_at = int(time.time() if now is None else now)
+    ttl = max(60, int(getattr(settings, "TELEGRAM_OIDC_FLOW_TTL_SECONDS", 600) or 600))
+    state_hash = hashlib.sha256(state.encode("ascii")).hexdigest()
+    safe_return_to = safe_return_path(return_to)
     request.session[OIDC_FLOW_SESSION_KEY] = {
-        "state_hash": hashlib.sha256(state.encode("ascii")).hexdigest(),
+        "state_hash": state_hash,
         "nonce": nonce,
         "code_verifier": code_verifier,
-        "return_to": safe_return_path(return_to),
-        "issued_at": int(time.time() if now is None else now),
+        "return_to": safe_return_to,
+        "issued_at": issued_at,
     }
+    current_time = datetime.fromtimestamp(issued_at, tz=UTC)
+    UserOidcAuthorizationFlow.objects.filter(expires_at__lte=current_time).delete()
+    UserOidcAuthorizationFlow.objects.create(
+        state_hash=state_hash,
+        nonce=nonce,
+        code_verifier=code_verifier,
+        return_to=safe_return_to,
+        issued_at=current_time,
+        expires_at=datetime.fromtimestamp(issued_at + ttl, tz=UTC),
+    )
 
     params = {
         "client_id": client_id,
@@ -115,22 +129,43 @@ def consume_pending_authorization(
     now: int | None = None,
 ) -> PendingAuthorization:
     flow = request.session.pop(OIDC_FLOW_SESSION_KEY, None)
-    if not isinstance(flow, dict):
-        raise TelegramOidcError("Login session is missing.", code="telegram_oidc_flow_missing")
-
     provided_state = str(state or "")
-    expected_state_hash = str(flow.get("state_hash") or "")
     provided_state_hash = hashlib.sha256(provided_state.encode("utf-8")).hexdigest()
-    if not provided_state or not expected_state_hash or not secrets.compare_digest(provided_state_hash, expected_state_hash):
+    if not provided_state:
         raise TelegramOidcError("Login state is invalid.", code="telegram_oidc_state_invalid")
 
     current = int(time.time() if now is None else now)
+    with transaction.atomic():
+        persisted_flow = (
+            UserOidcAuthorizationFlow.objects.select_for_update()
+            .filter(state_hash=provided_state_hash)
+            .first()
+        )
+        if persisted_flow is not None:
+            flow = {
+                "state_hash": persisted_flow.state_hash,
+                "nonce": persisted_flow.nonce,
+                "code_verifier": persisted_flow.code_verifier,
+                "return_to": persisted_flow.return_to,
+                "issued_at": int(persisted_flow.issued_at.timestamp()),
+                "expires_at": int(persisted_flow.expires_at.timestamp()),
+            }
+            persisted_flow.delete()
+
+    if not isinstance(flow, dict):
+        raise TelegramOidcError("Login session is missing.", code="telegram_oidc_flow_missing")
+
+    expected_state_hash = str(flow.get("state_hash") or "")
+    if not expected_state_hash or not secrets.compare_digest(provided_state_hash, expected_state_hash):
+        raise TelegramOidcError("Login state is invalid.", code="telegram_oidc_state_invalid")
+
     try:
         issued_at = int(flow.get("issued_at") or 0)
     except (TypeError, ValueError) as exc:
         raise TelegramOidcError("Login session is invalid.", code="telegram_oidc_flow_invalid") from exc
     ttl = max(60, int(getattr(settings, "TELEGRAM_OIDC_FLOW_TTL_SECONDS", 600) or 600))
-    if issued_at <= 0 or issued_at > current + 60 or current - issued_at >= ttl:
+    expires_at = int(flow.get("expires_at") or (issued_at + ttl))
+    if issued_at <= 0 or issued_at > current + 60 or current >= expires_at:
         raise TelegramOidcError("Login session has expired.", code="telegram_oidc_flow_expired")
 
     authorization_code = str(code or "").strip()
