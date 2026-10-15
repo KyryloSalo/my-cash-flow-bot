@@ -1350,14 +1350,31 @@ def _pick_ai_image_category(user: TelegramUser, *, kind: str, category_hint: obj
 
 def build_ai_image_suggestion(user: TelegramUser, parsed: dict[str, object]) -> dict[str, object]:
     mode = str(parsed.get("mode") or "").strip().lower()
-    if mode == "statement_expenses":
+    # Receipt L2 evidence belongs to one transaction.  It must never be
+    # interpreted as a statement batch, even when the model also supplied rows.
+    receipt_items = parsed.get("receipt_items") if isinstance(parsed.get("receipt_items"), list) else []
+    statement_items = parsed.get("statement_items") if isinstance(parsed.get("statement_items"), list) else []
+    source = str(parsed.get("source") or "").strip().lower()
+    if not source and mode == "statement_expenses" and statement_items and not receipt_items:
+        source = "statement_transactions"
+    if mode == "statement_expenses" and receipt_items and statement_items:
+        # Ambiguous mixed evidence is deliberately rejected rather than
+        # silently creating the wrong set of transactions.
+        return {"mode": "unrecognized", "needs_review": True, "source": source}
+    if mode == "statement_expenses" and statement_items and source == "statement_transactions":
         return {
             "mode": "batch",
-            "item_count": len(parsed.get("statement_items") or []),
+            "item_count": len(statement_items),
             "skipped_items_count": int(parsed.get("skipped_items_count") or 0),
+            "receipt_total": parsed.get("receipt_total"),
+            "source": source,
+            "field_findings": parsed.get("field_findings") if isinstance(parsed.get("field_findings"), list) else [],
+            "needs_review": parsed.get("needs_review") if isinstance(parsed.get("needs_review"), list) else [],
+            "needs_review_bool": bool(parsed.get("needs_review")),
+            "arithmetic_warnings": parsed.get("arithmetic_warnings") if isinstance(parsed.get("arithmetic_warnings"), list) else [],
         }
     kind = str(parsed.get("type") or "").strip().lower()
-    if mode != "single_tx" or kind not in SUPPORTED_NORMAL_TRANSACTION_KINDS:
+    if mode not in {"single_tx", "statement_expenses"} or kind not in SUPPORTED_NORMAL_TRANSACTION_KINDS:
         return {"mode": "unrecognized"}
 
     locale = locale_for_user(user)
@@ -1403,14 +1420,26 @@ def build_ai_image_suggestion(user: TelegramUser, parsed: dict[str, object]) -> 
         "comment": str(parsed.get("comment") or "").strip()[:500],
         "missing_fields": missing_fields,
         "confidence": float(parsed.get("confidence") or 0),
+        # Optional additive runtime metadata; older bot responses remain valid.
+        "field_findings": parsed.get("field_findings") if isinstance(parsed.get("field_findings"), list) else [],
+        "needs_review": parsed.get("needs_review") if isinstance(parsed.get("needs_review"), list) else [],
+        "needs_review_bool": bool(parsed.get("needs_review")),
+        "arithmetic_warnings": parsed.get("arithmetic_warnings") if isinstance(parsed.get("arithmetic_warnings"), list) else [],
+        "receipt_items": receipt_items,
+        "receipt_total": parsed.get("receipt_total"),
+        "source": source,
         "message": mt("Перевірте заповнені поля перед підтвердженням.", "Review the populated fields before confirming.", locale),
     }
 
 
 def build_ai_image_batch(user: TelegramUser, parsed: dict[str, object], *, batch_id: str) -> dict[str, object]:
     """Build a review-only statement batch from normalized Vision output."""
-    raw_items = parsed.get("statement_items")
-    if not isinstance(raw_items, list):
+    raw_items = parsed.get("statement_items") if isinstance(parsed.get("statement_items"), list) else []
+    source = str(parsed.get("source") or "").strip().lower()
+    if not source and str(parsed.get("mode") or "").strip().lower() == "statement_expenses" and raw_items and not parsed.get("receipt_items"):
+        source = "statement_transactions"
+    # Batches are valid only for explicitly tagged statement transactions.
+    if source != "statement_transactions" or parsed.get("receipt_items"):
         raw_items = []
 
     items: list[dict[str, object]] = []
@@ -1434,8 +1463,11 @@ def build_ai_image_batch(user: TelegramUser, parsed: dict[str, object], *, batch
                 "card_last4": parsed.get("card_last4"),
                 "category_hint": raw_item.get("category_hint"),
                 "transaction_date": raw_item.get("transaction_date"),
-                "comment": raw_item.get("comment"),
+                "comment": raw_item.get("name") or raw_item.get("merchant") or raw_item.get("comment"),
                 "confidence": raw_item.get("confidence"),
+                "field_findings": raw_item.get("field_findings") or parsed.get("field_findings"),
+                "needs_review": raw_item.get("needs_review") or parsed.get("needs_review"),
+                "arithmetic_warnings": raw_item.get("arithmetic_warnings") or parsed.get("arithmetic_warnings"),
             },
         )
         if suggestion.get("mode") != "transaction":
@@ -1456,6 +1488,10 @@ def build_ai_image_batch(user: TelegramUser, parsed: dict[str, object], *, batch
         "batch_id": batch_id,
         "currency": _normalize_currency(parsed.get("dominant_currency") or parsed.get("currency"), default=_base_currency(user)),
         "currency_explicit": bool(parsed.get("currency_explicit")),
+        "receipt_total": parsed.get("receipt_total"),
+        "field_findings": parsed.get("field_findings") if isinstance(parsed.get("field_findings"), list) else [],
+        "needs_review": parsed.get("needs_review") if isinstance(parsed.get("needs_review"), list) else [],
+        "arithmetic_warnings": parsed.get("arithmetic_warnings") if isinstance(parsed.get("arithmetic_warnings"), list) else [],
         "items": items,
         "item_count": len(items),
         "skipped_items_count": skipped_items_count,
