@@ -27,6 +27,13 @@ class DeployPolicyTests(unittest.TestCase):
         self.assertIn('$ErrorActionPreference = $previousErrorActionPreference', text)
         self.assertIn('if ($rolloutExitCode -ne 0)', text)
 
+    def test_client_reclaims_stale_remote_staging_and_always_cleans_its_own(self):
+        text = (CODE / 'ops' / 'deploy.ps1').read_text(encoding='utf-8')
+
+        self.assertIn("-name 'mcf-release.*' -mmin +10", text)
+        self.assertIn("Remove-RemoteStagingDirectory $remote", text)
+        self.assertIn('finally {', text)
+
     def test_github_production_deploy_is_manual_exact_sha_and_pinned(self):
         workflow = (CODE / '.github' / 'workflows' / 'production.yml').read_text(encoding='utf-8')
         known_hosts = (CODE / 'ops' / 'known_hosts.production').read_text(encoding='utf-8')
