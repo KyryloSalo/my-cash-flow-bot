@@ -6,6 +6,7 @@ import hmac
 import json
 import os
 import time
+from contextlib import ExitStack
 from types import SimpleNamespace
 from unittest import TestCase as UnitTestCase
 from unittest.mock import patch
@@ -1006,3 +1007,76 @@ class TelegramRegistrationBootstrapTests(UnitTestCase):
             callbacks[1].content.decode("utf-8"),
         )
         self.assertEqual(UserAuthSession.objects.filter(telegram_user_id=9006).count(), 1)
+
+
+@override_settings(
+    ALLOWED_HOSTS=["testserver"],
+    SECURE_SSL_REDIRECT=False,
+    SESSION_ENGINE="django.contrib.sessions.backends.signed_cookies",
+)
+class TelegramOidcCallbackDiagnosticsTests(SimpleTestCase):
+    @patch("miniapp.views.consume_pending_authorization")
+    def test_callback_error_displays_support_code_without_request_credentials(self, consume) -> None:
+        from miniapp.telegram_oidc import TelegramOidcError
+
+        consume.side_effect = TelegramOidcError(
+            "Do not display exception details.", code="telegram_oidc_state_invalid"
+        )
+
+        response = Client().get(
+            "/app/auth/telegram/callback",
+            {"state": "private-synthetic-state", "code": "private-synthetic-code"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(
+            response,
+            "<p>Код помилки: <code>telegram_oidc_state_invalid</code></p>",
+            status_code=400,
+        )
+        self.assertNotContains(response, "private-synthetic", status_code=400)
+        self.assertNotContains(response, "Do not display exception details.", status_code=400)
+
+    def test_callback_logs_failure_stage_and_code_without_credentials(self) -> None:
+        from miniapp.telegram_oidc import TelegramOidcError
+        from users.registration import RegistrationClosed, RegistrationIdentityConflict
+
+        pending = SimpleNamespace(
+            code="private-synthetic-code",
+            code_verifier="private-synthetic-verifier",
+            nonce="private-synthetic-nonce",
+            return_to="/app/",
+        )
+        steps = {
+            "consume_pending_authorization": pending,
+            "exchange_authorization_code": "private-synthetic-id-token",
+            "verify_id_token": SimpleNamespace(),
+            "consume_id_token_once": None,
+            "bootstrap_telegram_identity": None,
+        }
+        cases = (
+            ("consume_pending_authorization", "consume", TelegramOidcError("private-synthetic-detail", code="telegram_oidc_state_invalid"), 400),
+            ("exchange_authorization_code", "exchange", TelegramOidcError("private-synthetic-detail", code="telegram_oidc_exchange_failed"), 400),
+            ("verify_id_token", "verify", TelegramOidcError("private-synthetic-detail", code="telegram_oidc_token_invalid"), 400),
+            ("consume_id_token_once", "consume_token", TelegramOidcError("private-synthetic-detail", code="telegram_oidc_token_replayed"), 400),
+            ("bootstrap_telegram_identity", "bootstrap", RegistrationClosed("private-synthetic-detail"), 503),
+            ("bootstrap_telegram_identity", "bootstrap", RegistrationIdentityConflict("private-synthetic-detail"), 409),
+        )
+        for failing_step, stage, error, status in cases:
+            with self.subTest(stage=stage, error=type(error).__name__), ExitStack() as stack:
+                mocks = {
+                    name: stack.enter_context(patch(f"miniapp.views.{name}", return_value=value))
+                    for name, value in steps.items()
+                }
+                mocks[failing_step].side_effect = error
+                with self.assertLogs("miniapp.views", level="WARNING") as captured:
+                    response = Client().get(
+                        "/app/auth/telegram/callback",
+                        {"state": "private-synthetic-state", "code": "private-synthetic-code"},
+                    )
+
+                self.assertEqual(response.status_code, status)
+                expected_code = getattr(error, "code", "registration_closed" if status == 503 else "telegram_oidc_identity_conflict")
+                self.assertIn(f"stage={stage}", captured.output[0])
+                self.assertIn(f"code={expected_code}", captured.output[0])
+                self.assertNotIn("private-synthetic", "\n".join(captured.output))
