@@ -4035,6 +4035,8 @@ async def _sync_access_scope_state(
               last_bot_response,
               last_parse_error,
               pending_admin_reset_mode,
+              canary_notes,
+              is_production_canary,
               created_at,
               updated_at
             )
@@ -4060,6 +4062,8 @@ async def _sync_access_scope_state(
               '',
               '',
               '',
+              '',
+              false,
               now(),
               now()
             )
@@ -4104,6 +4108,8 @@ async def _sync_access_scope_state(
               last_bot_response,
               last_parse_error,
               pending_admin_reset_mode,
+              canary_notes,
+              is_production_canary,
               created_at,
               updated_at
             )
@@ -4129,6 +4135,8 @@ async def _sync_access_scope_state(
               '',
               '',
               '',
+              '',
+              false,
               now(),
               now()
             )
@@ -4167,6 +4175,8 @@ async def _sync_access_scope_state(
           last_bot_response,
           last_parse_error,
           pending_admin_reset_mode,
+          canary_notes,
+          is_production_canary,
           created_at,
           updated_at
         )
@@ -4192,6 +4202,8 @@ async def _sync_access_scope_state(
           '',
           '',
           '',
+          '',
+          false,
           now(),
           now()
         )
