@@ -72,10 +72,10 @@ Use manual server access only for an explicitly approved incident. Any emergency
 
 ## Current verified release
 
-As of October 13, 2026:
+As of October 15, 2026:
 
-- version: `0.35.11`;
-- deployed SHA: `e2ff3eef59e91f77523a96fe11a2b940ca797049`;
-- validation run: `38431439054`;
-- production run: `38432260261`;
+- version: `0.37.7`;
+- deployed SHA: `f9a684b94619cb9e03f92011697d736ca67db5bf`;
+- validation run: `38758313559`;
+- production run: `38761953079`;
 - deployment readback: `passed`.
