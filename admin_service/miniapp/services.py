@@ -1208,7 +1208,11 @@ def build_ai_text_suggestion(user: TelegramUser, parsed: dict[str, object]) -> d
             "money_mode": "debts" if kind == "debt" else "accounts",
         }
     if kind not in SUPPORTED_NORMAL_TRANSACTION_KINDS or not bool(parsed.get("is_candidate_tx")):
-        return {"mode": "unrecognized"}
+        suggestion: dict[str, object] = {"mode": "unrecognized"}
+        clarification_message = str(parsed.get("clarification_message") or "").strip()
+        if clarification_message:
+            suggestion["message"] = clarification_message
+        return suggestion
 
     base_currency = _base_currency(user)
     currency = _normalize_currency(parsed.get("currency"), default=base_currency)

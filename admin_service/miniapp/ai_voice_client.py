@@ -14,6 +14,20 @@ class MiniAppAiVoiceError(Exception):
         self.status = status
 
 
+def _http_error_detail(exc: HTTPError) -> str | None:
+    try:
+        payload = json.loads(exc.read().decode("utf-8"))
+    except (AttributeError, UnicodeDecodeError, json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    detail = payload.get("detail")
+    if not isinstance(detail, str):
+        return None
+    detail = detail.strip()
+    return detail[:500] or None
+
+
 def request_ai_voice_parse(*, audio_bytes: bytes, mime_type: str, default_currency: str) -> dict[str, object]:
     token = str(settings.BILLING_INTERNAL_TOKEN or "").strip()
     if not token:
@@ -41,7 +55,8 @@ def request_ai_voice_parse(*, audio_bytes: bytes, mime_type: str, default_curren
             body = response.read()
     except HTTPError as exc:
         if exc.code in {400, 413}:
-            raise MiniAppAiVoiceError("Voice message could not be processed.", status=400) from exc
+            message = _http_error_detail(exc) or "Voice message could not be processed."
+            raise MiniAppAiVoiceError(message, status=400) from exc
         raise MiniAppAiVoiceError("Voice recognition is temporarily unavailable.") from exc
     except (URLError, TimeoutError, OSError) as exc:
         raise MiniAppAiVoiceError("Voice recognition is temporarily unavailable.") from exc

@@ -18,6 +18,14 @@ def test_voice_kopecks_are_decimal_not_additive_words() -> None:
     assert parse_amount("шесть тысяч семьсот семьдесят пять гривен тридцать пять копеек") == 6775.35
 
 
+def test_voice_mixed_language_stt_number_words_keep_the_tens() -> None:
+    assert parse_amount("шесть тысяч семьсот seventy пять гривен тридцать пять копеек") == 6775.35
+
+
+def test_unsupported_english_compound_amount_fails_closed() -> None:
+    assert parse_amount("one hundred twenty UAH") is None
+
+
 def test_invalid_kopecks_fail_closed() -> None:
     assert parse_amount("сто гривен сто копеек") is None
 
@@ -60,16 +68,15 @@ def test_curly_apostrophe_compound_amount_requires_clarification() -> None:
 
 
 def test_multi_operation_voice_is_rejected_as_one_draft() -> None:
-    try:
-        build_miniapp_text_parse_payload(
-            text="Нож 150 гривен, такси 430 гривен",
-            today=TODAY,
-            default_currency="UAH",
-        )
-    except ValueError as exc:
-        assert "окремо" in str(exc).lower() or "separately" in str(exc).lower()
-    else:
-        raise AssertionError("multi-operation input must not become one draft")
+    parsed = build_miniapp_text_parse_payload(
+        text="Нож 150 гривен, такси 430 гривен",
+        today=TODAY,
+        default_currency="UAH",
+    )
+    assert parsed["is_candidate_tx"] is False
+    assert parsed["amount"] is None
+    assert parsed["missing_fields"] == ["operation"]
+    assert "окремо" in parsed["clarification_message"]
 
 
 def test_explicit_currency_amounts_remain_exact() -> None:

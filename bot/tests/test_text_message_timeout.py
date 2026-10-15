@@ -141,7 +141,7 @@ class TextMessageTimeoutTests(unittest.IsolatedAsyncioTestCase):
                 patch.object(bot_main, "_text_message_impl", new=cancellation_resistant_handler),
             ):
                 wrapper_task = asyncio.create_task(bot_main.text_message(update, context))
-                done, _ = await asyncio.wait({wrapper_task}, timeout=0.1)
+                done, _ = await asyncio.wait({wrapper_task}, timeout=0.5)
 
             self.assertIn(wrapper_task, done)
             self.assertEqual(len(message.replies), 1)

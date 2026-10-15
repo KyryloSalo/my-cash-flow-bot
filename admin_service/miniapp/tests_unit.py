@@ -863,6 +863,38 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertEqual(parser_client.call_args.kwargs["mime_type"], "audio/ogg")
         builder.assert_called_once_with(fake_user, parsed)
 
+    def test_ai_voice_parse_returns_safe_clarification_for_multiple_operations(self) -> None:
+        request = self.factory.post(
+            "/app/api/ai-voice/parse",
+            data={"audio": SimpleUploadedFile("voice.ogg", b"OggSvoice-data", content_type="audio/ogg")},
+        )
+        request.session = FakeSession()
+        fake_user = SimpleNamespace(tg_user_id=1001, base_currency="UAH")
+        parsed = {
+            "is_candidate_tx": False,
+            "intent": None,
+            "amount": None,
+            "missing_fields": ["operation"],
+            "clarification_message": "Введено кілька операцій — додайте їх окремо",
+        }
+
+        with (
+            patch.object(views, "_authorized_write_user_or_blocked", return_value=(fake_user, {"mode": "active"})),
+            patch.object(
+                views,
+                "request_ai_voice_parse",
+                return_value={"transcript": "Ніж 150 гривень, таксі 430 гривень", "parsed": parsed},
+            ),
+        ):
+            response = views.ai_voice_parse(request)
+
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["suggestion"]["mode"], "unrecognized")
+        self.assertEqual(payload["suggestion"]["message"], parsed["clarification_message"])
+        self.assertNotIn("audio", request.session)
+        self.assertNotIn("draft", request.session)
+
     def test_ai_voice_parse_rejects_unsupported_upload_without_calling_internal_parser(self) -> None:
         request = self.factory.post(
             "/app/api/ai-voice/parse",
