@@ -145,15 +145,16 @@ _CATEGORY_KEY_PATTERNS_INCOME[1] = (
 
 _CATEGORY_KEY_PATTERNS_EXPENSE: list[tuple[re.Pattern[str], CategoryKey]] = [
     (re.compile(r"(?i)\b(taxi|uber|bolt taxi|bolt|bitaksi|uklon|таксі|такси)\b"), "taxi"),
-    (re.compile(r"(?i)\b(internet|mobile|phone|vodafone|kyivstar|lifecell|turkcell|turk telekom|türk telekom|інтернет|зв[’']?язок)\b"), "telecom_internet"),
+    (re.compile(r"(?i)\b(internet|mobile|phone|phone\w*|vodafone|kyivstar|lifecell|turkcell|turk telekom|türk telekom|інтернет|телефон\w*|зв[’']?язок)\b"), "telecom_internet"),
     (re.compile(r"(?i)\b(subscription|apple|google|netflix|spotify|youtube|chatgpt|openai|hosting|domain|підписк)\b"), "subscriptions_services"),
     (re.compile(r"(?i)\b(pharmacy|аптека|doctor|лікар|clinic|hospital|стоматолог|аналізи)\b"), "health"),
     (re.compile(r"(?i)\b(rent|kira|оренда|аренда|квартира|landlord)\b"), "rent"),
     (re.compile(r"(?i)\b(utilities|fatura|electricity|water|gas|комуналка|коммуналка|світл[ао]?|вода|газ|опалення|квартплата|осбб|aidat)\b"), "utilities"),
     (re.compile(r"(?i)\b(супермаркет|market|grocery|groceries|migros|bim|a101|sok|şok|продукт(и|і)|атб|сільпо|магазин|хліб|хлеб|молоко)\b"), "groceries"),
     (re.compile(r"(?i)\b(cafe|restaurant|restoran|glovo|bolt food|yemeksepeti|кава|кофе|кафе|ресторан|доставка їжі)\b"), "cafes_restaurants_delivery"),
-    (re.compile(r"(?i)\b(побут|household|home|ikea|ремонт|посуд|меблі|хімія)\b"), "home_household"),
+    (re.compile(r"(?i)\b(побут|побутов\w*|household|home|ikea|ремонт|посуд|меблі|хімія)\b"), "home_household"),
     (re.compile(r"(?i)\b(metro|автобус|bus|tram|train|fuel|бензин|пальне|parking|паркування|транспорт)\b"), "transport"),
+    (re.compile(r"(?i)\b(наушник\w*|headphones|earbuds)\b"), "other"),
     (re.compile(r"(?i)\b(clothes|clothing|shoes|sneakers|zara|hm|lc waikiki|defacto|одяг|взуття)\b"), "clothes_shoes"),
     (re.compile(r"(?i)\b(barber|barbershop|salon|косметика|манікюр|стрижка|догляд)\b"), "beauty_care"),
     (re.compile(r"(?i)\b(cinema|кіно|games|steam|concert|gym|спорт|хобі|подорож|відпочинок)\b"), "entertainment_leisure"),
@@ -166,7 +167,25 @@ def _norm(text: str) -> str:
 
 
 def parse_amount(text: str) -> float | None:
-    m = _AMOUNT_RE.search(text or "")
+    raw_text = (text or "").replace("’", "'").replace("`", "'")
+    numeric_kopeck_match = re.search(
+        r"(?i)\b(?P<major>\d[\d\s.,]*)\s*(?:грн\w*|грив\w*|uah|usd|доллар\w*|долар\w*|eur|евро|євро)\s+(?P<minor>\d{1,2})\s+коп(?:ійка|ійок|ійки|еек|ейки)?\b",
+        raw_text,
+    )
+    if numeric_kopeck_match:
+        major = float(numeric_kopeck_match.group("major").replace(" ", "").replace(",", "."))
+        minor = int(numeric_kopeck_match.group("minor"))
+        if 0 <= minor < 100:
+            return round(major + minor / 100, 2)
+        return None
+    # Spoken forms such as “сім триста” and “дванадцять п'ятсот” are
+    # ambiguous colloquialisms, not the literal 7/12 plus 300/500.
+    if re.search(
+        r"(?i)\b(?:сім|семь|дванадцять|двенадцать)\s+(?:триста|п'ятсот|пятьсот)\b",
+        raw_text,
+    ):
+        return None
+    m = _AMOUNT_RE.search(raw_text)
     if not m:
         return _parse_amount_words(text or "")
     raw = m.group("amount")
@@ -212,6 +231,19 @@ def _parse_amount_words(text: str) -> float | None:
     t = (text or "").lower()
     if not t:
         return None
+
+    # Preserve kopecks as a fractional component. The old additive word
+    # parser treated “6775 гривен 35 копеек” as 6775 + 35 = 6810.
+    kopeck_match = re.search(
+        r"(?is)^(?P<major>.+?)\s+(?:грив\w*|uah|доллар\w*|евро|євро)\s+(?P<minor>[a-zа-яіїєґ' -]+?)\s+коп(?:ійка|ійок|ійки|еек|ейки)?\b",
+        t,
+    )
+    if kopeck_match:
+        major = _parse_amount_words(kopeck_match.group("major"))
+        minor = _parse_amount_words(kopeck_match.group("minor"))
+        if major is None or minor is None or not 0 <= minor < 100:
+            return None
+        return round(major + (minor / 100), 2)
 
     t = t.replace("’", "'").replace("`", "'")
     tokens = re.findall(r"[a-zа-яіїєґ']+", t, flags=re.IGNORECASE)
@@ -837,6 +869,11 @@ def build_miniapp_text_parse_payload(*, text: str, today: date, default_currency
         raise ValueError("Text is required")
     if len(raw_text) > MINIAPP_TEXT_MAX_LENGTH:
         raise ValueError("Text is too long")
+
+    # The mini-app endpoint creates one draft. Never merge fields from a
+    # multi-operation voice transcript into one transaction.
+    if len(parse_message_batch(raw_text, today=today, default_currency=default_currency)) >= 2:
+        raise ValueError("Введено кілька операцій — додайте їх окремо")
 
     normalized_currency = str(default_currency or "").strip().upper()
     if not re.fullmatch(r"[A-Z]{3,10}", normalized_currency):

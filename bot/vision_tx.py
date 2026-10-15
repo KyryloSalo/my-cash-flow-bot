@@ -250,7 +250,18 @@ def _normalize_non_negative_int(value: Any) -> int:
     return max(0, number)
 
 
-def _normalize_date(value: Any, *, today: date) -> date:
+_REJECTED_EVIDENCE = re.compile(r"(?i)(?:недостатньо\s+коштів|платіж\s+відхилено|платеж\s+отклонен|відхилено|отклонен|(?:payment|transaction|платіж|платеж)\s+(?:was\s+)?(?:\bdeclined\b|\brejected\b|\bfailed\b)|(?:\bdeclined\b|\brejected\b|\bfailed\b)\s+(?:payment|transaction))")
+# Only explicit ownership is safe to discard. Generic card transfers and currency/account
+# context are ambiguous in expense-only screenshots and must remain eligible expenses.
+_OWN_ACCOUNT_EVIDENCE = re.compile(r"(?i)(?:поповнення\s+власної\s+банки|на\s+свою\s+картку|на\s+свою\s+карту|з\s+білої\s+картки|перевод\s+на\s+свою\s+карту|\bown\s+account\b|\binternal\s+transfer\b)")
+
+
+def _is_nonexpense_evidence(*values: Any) -> bool:
+    evidence = " ".join(str(value or "") for value in values)
+    return bool(_REJECTED_EVIDENCE.search(evidence) or _OWN_ACCOUNT_EVIDENCE.search(evidence))
+
+
+def _normalize_date(value: Any, *, today: date) -> date | None:
     text = str(value or "").strip()
     if not text:
         return today
@@ -400,8 +411,11 @@ def _prompt(
         "For single_tx, fill the top-level transaction fields for one transaction.\n"
         "For statement_expenses, return only expense rows in items.\n"
         "Bank history screens with multiple debit rows are supported and should usually be statement_expenses.\n"
-        "Skip income, refunds, transfers, cash operations, balances, totals, headers, and unclear rows from items.\n"
+        "Skip income, refunds, transfers, cash operations, balances, totals, headers, service rows, rejected/declined/failed payments, and unclear rows from items.\n"
         "Count skipped rows in skipped_rows_count.\n"
+        "A red error icon or text such as Недостатньо коштів means rejected/declined: never return it as a completed expense.\n"
+        "Only skip a transfer when the screenshot explicitly proves it is between the user's own accounts (for example, На свою картку, На свою карту, own account, or internal transfer). Generic Переказ на картку and З гривневого рахунку are ambiguous and must not by themselves suppress an otherwise valid expense.\n"
+        "Do not classify a row as expense or income from its sign alone.\n"
         "Each statement item must keep its own date and use type expense.\n"
         "If the UI shows debit amounts with a leading minus sign, still return positive amount magnitudes in JSON.\n"
         "If the screenshot uses the hryvnia sign (U+20B4), return UAH. If it uses the Turkish lira sign (U+20BA) or TL, return TRY. If it uses the euro sign (U+20AC), return EUR.\n"
@@ -493,6 +507,10 @@ def _parse_statement_items(
 
         tx_type = _normalize_type(raw_item.get("type"))
         if tx_type not in {None, "expense"}:
+            skipped += 1
+            continue
+
+        if _is_nonexpense_evidence(raw_item.get("category_hint"), raw_item.get("comment")):
             skipped += 1
             continue
 
@@ -637,6 +655,10 @@ def _parse_response(
         raw.get("account_hint"),
         raw.get("comment"),
     )
+
+    if _is_nonexpense_evidence(raw.get("category_hint"), raw.get("comment"), raw.get("account_hint")):
+        amount = None
+        tx_type = None
 
     mode = "unsupported"
     if len(statement_items) >= 2:
