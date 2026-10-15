@@ -695,6 +695,7 @@ def _telegram_oidc_error_response(error: TelegramOidcError, *, status: int = 400
   <main>
     <h1>Не вдалося увійти через Telegram</h1>
     <p>Спробуйте ще раз. Якщо проблема повторюється, отримайте одноразове посилання в боті.</p>
+    <p>Код помилки: <code>{escape(error.code)}</code></p>
     <a href="/app/auth/telegram/start">Спробувати ще раз</a>
     <a href="{escape(BILLING_BOT_URL)}?start=app_login">Увійти через бота</a>
   </main>
@@ -708,18 +709,23 @@ def _telegram_oidc_error_response(error: TelegramOidcError, *, status: int = 400
 @never_cache
 @require_GET
 def telegram_oidc_callback(request: HttpRequest) -> HttpResponse:
+    stage = "consume"
     try:
         pending = consume_pending_authorization(
             request,
             state=request.GET.get("state"),
             code=request.GET.get("code"),
         )
+        stage = "exchange"
         id_token = exchange_authorization_code(
             code=pending.code,
             code_verifier=pending.code_verifier,
         )
+        stage = "verify"
         identity = verify_id_token(id_token, expected_nonce=pending.nonce)
+        stage = "consume_token"
         consume_id_token_once(id_token, identity)
+        stage = "bootstrap"
         registration = bootstrap_telegram_identity(
             identity,
             source="telegram_oidc",
@@ -732,8 +738,10 @@ def telegram_oidc_callback(request: HttpRequest) -> HttpResponse:
                 pass
             else:
                 return redirect(DEFAULT_RETURN_PATH)
+        logger.warning("Telegram OIDC callback rejected stage=%s code=%s", stage, exc.code)
         return _telegram_oidc_error_response(exc)
     except RegistrationClosed:
+        logger.warning("Telegram OIDC callback rejected stage=%s code=registration_closed", stage)
         return _telegram_oidc_error_response(
             TelegramOidcError(
                 "Registration is temporarily closed.",
@@ -742,6 +750,7 @@ def telegram_oidc_callback(request: HttpRequest) -> HttpResponse:
             status=503,
         )
     except RegistrationIdentityConflict:
+        logger.warning("Telegram OIDC callback rejected stage=%s code=telegram_oidc_identity_conflict", stage)
         return _telegram_oidc_error_response(
             TelegramOidcError(
                 "Telegram identity could not be safely linked.",
