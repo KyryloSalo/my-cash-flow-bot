@@ -16294,7 +16294,143 @@ async def _handle_saving_text(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(f"Нагадаю {remind_at.strftime('%d.%m %H:%M')}.", reply_markup=kb_saving_plan_actions(task_id))
 
 
+TEXT_MESSAGE_TIMEOUT_SECONDS = 30.0
+TEXT_MESSAGE_CANCELLATION_GRACE_SECONDS = 1.0
+TEXT_MESSAGE_RECOVERY_REPLY_TIMEOUT_SECONDS = 5.0
+_CANCELLATION_RESISTANT_TEXT_TASKS: set[asyncio.Task[None]] = set()
+_ACTIVE_TEXT_TASKS_BY_USER: dict[int, asyncio.Task[None]] = {}
+_CANCELLATION_RESISTANT_REPLY_TASKS: set[asyncio.Task[Any]] = set()
+
+
+def _observe_cancellation_resistant_text_task(task: asyncio.Task[None], user_id: int | None) -> None:
+    _CANCELLATION_RESISTANT_TEXT_TASKS.discard(task)
+    if user_id is not None and _ACTIVE_TEXT_TASKS_BY_USER.get(user_id) is task:
+        _ACTIVE_TEXT_TASKS_BY_USER.pop(user_id, None)
+    if task.cancelled():
+        return
+    error = task.exception()
+    if error is not None:
+        logger.error(
+            "Cancellation-resistant text handler eventually failed",
+            exc_info=(type(error), error, error.__traceback__),
+        )
+
+
+def _observe_cancellation_resistant_reply_task(task: asyncio.Task[Any]) -> None:
+    _CANCELLATION_RESISTANT_REPLY_TASKS.discard(task)
+    if task.cancelled():
+        return
+    error = task.exception()
+    if error is not None:
+        logger.error(
+            "Cancellation-resistant text recovery reply eventually failed",
+            exc_info=(type(error), error, error.__traceback__),
+        )
+
+
+async def _reply_text_bounded(message: Any, text: str, *, reply_markup: Any) -> None:
+    reply_task = asyncio.create_task(message.reply_text(text, reply_markup=reply_markup))
+    done, _ = await asyncio.wait(
+        {reply_task},
+        timeout=TEXT_MESSAGE_RECOVERY_REPLY_TIMEOUT_SECONDS,
+    )
+    if reply_task in done:
+        await reply_task
+        return
+
+    reply_task.cancel()
+    _CANCELLATION_RESISTANT_REPLY_TASKS.add(reply_task)
+    reply_task.add_done_callback(_observe_cancellation_resistant_reply_task)
+    logger.error(
+        "Text recovery reply did not stop within %.1fs; continuing update processing",
+        TEXT_MESSAGE_RECOVERY_REPLY_TIMEOUT_SECONDS,
+    )
+
+
 async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    user_id = getattr(user, "id", None)
+    active_task = (
+        _ACTIVE_TEXT_TASKS_BY_USER.get(user_id)
+        if isinstance(user_id, int)
+        else None
+    )
+    if active_task is not None:
+        if active_task.done():
+            _ACTIVE_TEXT_TASKS_BY_USER.pop(user_id, None)
+        else:
+            if update.message:
+                try:
+                    await _reply_text_bounded(
+                        update.message,
+                        "Попередня операція ще обробляється. Не повторюйте її, доки не перевірите поточний стан через головне меню.",
+                        reply_markup=_kb_home_only(),
+                    )
+                except Exception:
+                    logger.exception(
+                        "Could not send overlapping-text warning for user_id=%s",
+                        user_id,
+                    )
+            return
+
+    handler_task = asyncio.create_task(_text_message_impl(update, context))
+    if isinstance(user_id, int):
+        _ACTIVE_TEXT_TASKS_BY_USER[user_id] = handler_task
+    done, _ = await asyncio.wait({handler_task}, timeout=TEXT_MESSAGE_TIMEOUT_SECONDS)
+    if handler_task in done:
+        if isinstance(user_id, int) and _ACTIVE_TEXT_TASKS_BY_USER.get(user_id) is handler_task:
+            _ACTIVE_TEXT_TASKS_BY_USER.pop(user_id, None)
+        await handler_task
+        return
+
+    handler_task.cancel()
+    cancelled, _ = await asyncio.wait(
+        {handler_task},
+        timeout=TEXT_MESSAGE_CANCELLATION_GRACE_SECONDS,
+    )
+    if handler_task in cancelled:
+        if isinstance(user_id, int) and _ACTIVE_TEXT_TASKS_BY_USER.get(user_id) is handler_task:
+            _ACTIVE_TEXT_TASKS_BY_USER.pop(user_id, None)
+        try:
+            await handler_task
+        except asyncio.CancelledError:
+            pass
+    else:
+        _CANCELLATION_RESISTANT_TEXT_TASKS.add(handler_task)
+        handler_task.add_done_callback(
+            lambda task: _observe_cancellation_resistant_text_task(task, user_id)
+        )
+        logger.critical(
+            "Text handler did not stop within %.1fs after cancellation for user_id=%s; continuing update processing",
+            TEXT_MESSAGE_CANCELLATION_GRACE_SECONDS,
+            getattr(update.effective_user, "id", None),
+        )
+
+    logger.error(
+        "Text update exceeded %.1fs and was cancelled for user_id=%s",
+        TEXT_MESSAGE_TIMEOUT_SECONDS,
+        getattr(user, "id", None),
+    )
+    if update.message:
+        try:
+            recovery_text = (
+                "Обробка операції ще може тривати. Не повторюйте її, доки не перевірите поточний стан через головне меню."
+                if handler_task not in cancelled
+                else "Обробку повідомлення перервано через перевищення часу. Перед повторенням перевірте поточний стан через головне меню."
+            )
+            await _reply_text_bounded(
+                update.message,
+                recovery_text,
+                reply_markup=_kb_home_only(),
+            )
+        except Exception:
+            logger.exception(
+                "Could not send text-timeout recovery message for user_id=%s",
+                getattr(user, "id", None),
+            )
+
+
+async def _text_message_impl(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     if not user or not update.message or not update.message.text:
         return
