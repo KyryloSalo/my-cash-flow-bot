@@ -52,16 +52,42 @@ $transportArgs = @("-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "Stri
 $sshArgs = @("-p", "$ServerPort") + $transportArgs
 $scpArgs = @("-P", "$ServerPort") + $transportArgs
 $destination = "${ServerUser}@${ServerHost}"
-$remote = & $sshClient @sshArgs $destination 'mktemp -d /tmp/mcf-release.XXXXXXXX'
-if ($LASTEXITCODE -ne 0 -or $remote -notmatch '^/tmp/mcf-release\.[A-Za-z0-9]+$') { throw "Verified SSH staging creation failed" }
+# One-time cleanup of the exact orphan recorded by failed production run
+# 38720060373. Avoid wildcard/age cleanup, which could delete an active rollout.
+$knownFailedStagingCleanup = "rm -rf -- '/tmp/mcf-release.z5rIi8c2'"
+& $sshClient @sshArgs $destination $knownFailedStagingCleanup
+if ($LASTEXITCODE -ne 0) { throw "Known failed staging cleanup failed" }
+$remote = "/tmp/mcf-release.$([guid]::NewGuid().ToString('N'))"
+$remoteCleanup = "rm -rf -- '$remote'"
+$remoteCreate = "mkdir -m 700 -- '$remote'"
+& $sshClient @sshArgs $destination $remoteCreate
+if ($LASTEXITCODE -ne 0) {
+    & $sshClient @sshArgs $destination $remoteCleanup | Out-Null
+    throw "Verified SSH staging creation failed"
+}
+$deploymentError = $null
+$cleanupExitCode = 0
+try {
 & $scpClient @scpArgs $zip "${destination}:${remote}/release.zip"
-if ($LASTEXITCODE -ne 0) { throw "Source upload failed" }
+if ($LASTEXITCODE -ne 0) {
+    & $sshClient @sshArgs $destination $remoteCleanup | Out-Null
+    throw "Source upload failed"
+}
 & $scpClient @scpArgs $images "${destination}:${remote}/images.tar"
-if ($LASTEXITCODE -ne 0) { throw "Image upload failed" }
+if ($LASTEXITCODE -ne 0) {
+    & $sshClient @sshArgs $destination $remoteCleanup | Out-Null
+    throw "Image upload failed"
+}
 & $scpClient @scpArgs $evidencePath "${destination}:${remote}/release-evidence.json"
-if ($LASTEXITCODE -ne 0) { throw "Evidence upload failed" }
+if ($LASTEXITCODE -ne 0) {
+    & $sshClient @sshArgs $destination $remoteCleanup | Out-Null
+    throw "Evidence upload failed"
+}
 & $scpClient @scpArgs $builder "${destination}:${remote}/release_artifact.py"
-if ($LASTEXITCODE -ne 0) { throw "Validator upload failed" }
+if ($LASTEXITCODE -ne 0) {
+    & $sshClient @sshArgs $destination $remoteCleanup | Out-Null
+    throw "Validator upload failed"
+}
 $backupRemoteArgument = ""
 if ($BackupReceiptPath) {
     if (-not (Test-Path -LiteralPath $BackupReceiptPath -PathType Leaf)) { throw "Backup receipt is missing" }
@@ -76,9 +102,15 @@ if ($BackupReceiptPath) {
         throw "Off-host backup checksum mismatch"
     }
     & $scpClient @scpArgs $backupCiphertext "${destination}:${remote}/$($backupReceipt.backup_filename)"
-    if ($LASTEXITCODE -ne 0) { throw "Encrypted backup upload failed" }
+    if ($LASTEXITCODE -ne 0) {
+        & $sshClient @sshArgs $destination $remoteCleanup | Out-Null
+        throw "Encrypted backup upload failed"
+    }
     & $scpClient @scpArgs $BackupReceiptPath "${destination}:${remote}/backup-receipt.json"
-    if ($LASTEXITCODE -ne 0) { throw "Backup receipt upload failed" }
+    if ($LASTEXITCODE -ne 0) {
+        & $sshClient @sshArgs $destination $remoteCleanup | Out-Null
+        throw "Backup receipt upload failed"
+    }
     $backupRemoteArgument = " --backup-receipt '$remote/backup-receipt.json'"
 }
 $sourceSha = $evidence.source_sha256
@@ -94,4 +126,15 @@ try {
     $ErrorActionPreference = $previousErrorActionPreference
 }
 if ($rolloutExitCode -ne 0) { throw "Rollout failed: serving/writers are stopped; inspect approved incident runbook. No automatic database downgrade." }
+} catch {
+    $deploymentError = $_
+} finally {
+    & $sshClient @sshArgs $destination $remoteCleanup | Out-Null
+    $cleanupExitCode = $LASTEXITCODE
+}
+if ($null -ne $deploymentError -and $cleanupExitCode -ne 0) {
+    throw "Deployment failed: $($deploymentError.Exception.Message); remote staging cleanup also failed"
+}
+if ($null -ne $deploymentError) { throw $deploymentError }
+if ($cleanupExitCode -ne 0) { throw "Remote staging cleanup failed" }
 Write-Host "Validated release ready. Record real deployment evidence and version under release policy."
