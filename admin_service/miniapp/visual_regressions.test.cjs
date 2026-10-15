@@ -21,6 +21,11 @@ test("inactive Add navigation is not styled as the active destination", () => {
   assert.ok(baseRule);
   assert.doesNotMatch(baseRule[1], /background:\s*linear-gradient\([^;]*var\(--green-2\)/);
   assert.match(css, /\.nav-btn--add\.is-active\s*\{[^}]*background:\s*linear-gradient/s);
+  const themedInactiveRule = css.match(/\.calm-fintech-v2 \.nav-btn--add\s*\{([^}]*)\}/s);
+  assert.ok(themedInactiveRule, "the production theme must have its own inactive Add style");
+  assert.match(themedInactiveRule[1], /background:\s*var\(--surface-soft\)/);
+  assert.doesNotMatch(themedInactiveRule[1], /background:\s*var\(--forest\)/);
+  assert.match(css, /\.calm-fintech-v2 \.nav-btn--add\.is-active\s*\{[^}]*background:\s*var\(--forest\)/s);
 });
 
 test("sound settings copy is localized instead of bilingual static labels", () => {
