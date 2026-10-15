@@ -168,24 +168,32 @@ test("does not pretend alternate iOS browsers can show the Safari install action
   assert.doesNotMatch(model.command, /Chrome/iu);
 });
 
-test("uses Safari only for the iOS Telegram handoff while Android can use Chrome", () => {
+test("Telegram handoff points to the product button, not a nonexistent Telegram menu action", () => {
   for (const locale of ["uk", "en"]) {
     const ios = coach.buildModel({ locale, platform: "ios", telegram: true });
     assert.equal(ios.mode, "handoff");
-    assert.match(JSON.stringify(ios), /Safari/u);
-    assert.doesNotMatch(JSON.stringify(ios), /Chrome/iu);
-    assert.match(ios.primaryLabel, /Safari/u);
+    assert.match(ios.command, locale === "uk" ? /зелену кнопку нижче/iu : /green button below/iu);
+    assert.doesNotMatch(ios.command, /меню Telegram|Telegram's menu/iu);
+    assert.equal(ios.primaryLabel, locale === "uk" ? "Відкрити у браузері" : "Open in browser");
   }
 
   const android = coach.buildModel({ locale: "en", platform: "android", telegram: true });
   assert.equal(android.mode, "handoff");
-  assert.match(JSON.stringify(android), /Chrome/u);
-  assert.match(android.primaryLabel, /Chrome/u);
+  assert.match(android.command, /green button below/iu);
+  assert.doesNotMatch(android.command, /Telegram's menu/iu);
+  assert.equal(android.primaryLabel, "Open in browser");
+
+  const iosScene = templateSource.split('data-install-scene="handoff-ios"', 2)[1].split('data-install-scene="handoff-android"', 1)[0];
+  const androidScene = templateSource.split('data-install-scene="handoff-android"', 2)[1].split('data-install-scene="open-safari"', 1)[0];
+  for (const scene of [iosScene, androidScene]) {
+    assert.match(scene, /install-coach-handoff-action/u);
+    assert.doesNotMatch(scene, /install-coach-handoff-menu|<span>⋮<\/span>/u);
+  }
 });
 
-test("Telegram install handoff requests Safari on iOS and Chrome on Android", () => {
+test("Telegram install handoff uses the supported external-browser API without invented browser hints", () => {
   const handoffUrl = "https://vydno.example/app/browser-login/short-lived-token/?install=1";
-  for (const [platform, expectedBrowser] of [["ios", "safari"], ["android", "chrome"]]) {
+  for (const platform of ["ios", "android"]) {
     const calls = [];
     const assignments = [];
     const context = {
@@ -199,10 +207,8 @@ test("Telegram install handoff requests Safari on iOS and Chrome on Android", ()
     openInstallBrowserUrl(handoffUrl, platform);
 
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].length, 2, platform + " must not use the generic openLink call");
+    assert.equal(calls[0].length, 1, platform + " must use Telegram's documented external-browser call");
     assert.equal(calls[0][0], handoffUrl);
-    assert.deepEqual(Object.keys(calls[0][1]), ["try_browser"]);
-    assert.equal(calls[0][1].try_browser, expectedBrowser);
     assert.deepEqual(assignments, []);
   }
 });

@@ -207,9 +207,9 @@
         </div>
         <div class="install-coach-scene install-coach-scene--handoff-ios" data-install-scene="handoff-ios" aria-hidden="true">
           <div class="install-coach-phone">
-            <div class="install-coach-telegram-bar"><strong>Vydno</strong><span>⋮</span></div>
-            <div class="install-coach-telegram-preview"><small>Вбудований браузер Telegram</small><strong>vydno.capital</strong></div>
-            <div class="install-coach-handoff-menu" data-install-highlight="0" data-install-stage="safari-only-handoff"><span>Відкрити у Safari</span></div>
+            <div class="install-coach-telegram-bar"><strong>Vydno у Telegram</strong></div>
+            <div class="install-coach-telegram-preview"><small>Натисніть кнопку Vydno нижче</small><strong>Захищений перехід</strong></div>
+            <div class="install-coach-handoff-action" data-install-highlight="0"><span>Відкрити у браузері</span></div>
             <div class="install-coach-arrow" aria-hidden="true">
               <svg viewBox="0 0 74 54"><path d="M4 7c17 3 34 10 49 27"></path><path d="m47 24 8 12-14 2"></path></svg><span></span>
             </div>
@@ -217,9 +217,9 @@
         </div>
         <div class="install-coach-scene install-coach-scene--handoff-android" data-install-scene="handoff-android" aria-hidden="true">
           <div class="install-coach-phone">
-            <div class="install-coach-telegram-bar"><strong>Vydno</strong><span>⋮</span></div>
-            <div class="install-coach-telegram-preview"><small>Вбудований браузер Telegram</small><strong>vydno.capital</strong></div>
-            <div class="install-coach-handoff-menu" data-install-highlight="0" data-install-stage="browser-handoff"><span>Відкрити у Chrome</span></div>
+            <div class="install-coach-telegram-bar"><strong>Vydno у Telegram</strong></div>
+            <div class="install-coach-telegram-preview"><small>Натисніть кнопку Vydno нижче</small><strong>Захищений перехід</strong></div>
+            <div class="install-coach-handoff-action" data-install-highlight="0"><span>Відкрити у браузері</span></div>
             <div class="install-coach-arrow" aria-hidden="true">
               <svg viewBox="0 0 74 54"><path d="M4 7c17 3 34 10 49 27"></path><path d="m47 24 8 12-14 2"></path></svg><span></span>
             </div>
@@ -7836,9 +7836,8 @@
         const target = String(url || "").trim();
         if (!target) return false;
         if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
-          const tryBrowser = platform === "ios" ? "safari" : "chrome";
           try {
-            window.Telegram.WebApp.openLink(target, { try_browser: tryBrowser });
+            window.Telegram.WebApp.openLink(target);
             return true;
           } catch (error) {
             if (typeof onFallback === "function") onFallback(error);

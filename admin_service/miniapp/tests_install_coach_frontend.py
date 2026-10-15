@@ -29,16 +29,20 @@ class InstallCoachFrontendContractTests(SimpleTestCase):
         self.assertIn('data-install-scene="handoff-ios"', self.source)
         self.assertIn('data-install-scene="handoff-android"', self.source)
         self.assertIn('data-install-scene="open-safari"', self.source)
-        self.assertIn('data-install-stage="safari-only-handoff"><span>Відкрити у Safari</span></div>', self.source)
+        self.assertIn('class="install-coach-handoff-action" data-install-highlight="0"><span>Відкрити у браузері</span></div>', self.source)
         ios_handoff = self.source.split('data-install-scene="handoff-ios"', 1)[1].split(
             'data-install-scene="handoff-android"', 1
         )[0]
         android_handoff = self.source.split('data-install-scene="handoff-android"', 1)[1].split(
             'data-install-scene="open-safari"', 1
         )[0]
-        self.assertIn("Safari", ios_handoff)
-        self.assertNotIn("Chrome", ios_handoff)
-        self.assertIn("Chrome", android_handoff)
+        self.assertIn("Відкрити у браузері", ios_handoff)
+        self.assertNotIn("Відкрити у Safari", ios_handoff)
+        self.assertNotIn("<span>⋮</span>", ios_handoff)
+        self.assertNotIn("install-coach-handoff-menu", ios_handoff)
+        self.assertIn("Відкрити у браузері", android_handoff)
+        self.assertNotIn("<span>⋮</span>", android_handoff)
+        self.assertNotIn("install-coach-handoff-menu", android_handoff)
         self.assertIn(
             '.install-coach-visual[data-install-platform="ios"][data-install-mode="handoff"] .install-coach-scene--handoff-ios',
             self.css,
@@ -169,7 +173,7 @@ class InstallCoachFrontendContractTests(SimpleTestCase):
         self.assertIn('openAccessibleModal(modal, closeInstallNudgeSecondary, "installNudgePrimary")', render)
         self.assertNotIn('installNativeStatus = "idle"', render)
 
-    def test_telegram_browser_login_handoff_uses_platform_specific_external_browser(self) -> None:
+    def test_telegram_browser_login_handoff_uses_documented_external_browser_api(self) -> None:
         handler = self.source.split("function startInstallFromCoach()", 1)[1].split(
             "function setupActivationNudges", 1
         )[0]
@@ -187,9 +191,8 @@ class InstallCoachFrontendContractTests(SimpleTestCase):
         opener = self.source.split("function openInstallBrowserUrl(url, platform, onFallback)", 1)[1].split(
             "function createBillingConsent", 1
         )[0]
-        self.assertIn('platform === "ios" ? "safari" : "chrome"', opener)
-        self.assertIn("window.Telegram.WebApp.openLink(target, { try_browser: tryBrowser })", opener)
-        self.assertNotIn("window.Telegram.WebApp.openLink(target);", opener)
+        self.assertNotIn("try_browser", opener)
+        self.assertIn("window.Telegram.WebApp.openLink(target);", opener)
         self.assertNotIn("window.location.assign", opener)
         self.assertIn("onFallback(error)", opener)
 
