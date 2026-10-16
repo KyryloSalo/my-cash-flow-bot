@@ -2685,7 +2685,8 @@
         draftFingerprint: null,
         requiredCurrency: null,
         aiImageBatchContext: null,
-        goalSpendAccountId: null
+        goalSpendAccountId: null,
+        receiptItems: []
       };
       const aiImageBatchState = {
         batch: null,
@@ -3616,7 +3617,8 @@
         const batch = aiImageBatchState.batch;
         if (!el.card || !el.list || !el.meta) return;
         const items = batch && Array.isArray(batch.items) ? batch.items : [];
-        if (!batch || batch.mode !== "batch" || !items.length) {
+        const reviewRows = batch && Array.isArray(batch.review_rows) ? batch.review_rows : [];
+        if (!batch || batch.mode !== "batch" || (!items.length && !reviewRows.length)) {
           el.card.hidden = true;
           el.list.innerHTML = "";
           return;
@@ -3673,6 +3675,18 @@
           }
           el.list.appendChild(row);
         });
+        reviewRows.forEach(function (review, index) {
+          const row = document.createElement("div");
+          row.className = "ai-image-batch-row is-review";
+          const copy = document.createElement("div");
+          copy.className = "ai-image-batch-copy";
+          const heading = document.createElement("strong");
+          heading.textContent = "Review " + String(index + 1);
+          const detail = document.createElement("span");
+          const amount = review.amount == null ? "" : String(review.amount) + " " + String(review.currency || batch.currency || "");
+          detail.textContent = [review.transaction_date || "-", amount, review.comment || "", review.reason || "Review required"].filter(Boolean).join(" · ");
+          copy.appendChild(heading); copy.appendChild(detail); row.appendChild(copy); el.list.appendChild(row);
+        });
         if (Number(batch.pending_count || 0) === 0 && items.length) {
           setAiImageBatchStatus(tr("aiImageBatchComplete"), "success");
         }
@@ -3680,7 +3694,8 @@
 
       function setAiImageBatch(value) {
         const hasItems = value && Array.isArray(value.items) && value.items.length > 0;
-        aiImageBatchState.batch = value && value.mode === "batch" && hasItems ? value : null;
+        const hasReviewRows = value && Array.isArray(value.review_rows) && value.review_rows.length > 0;
+        aiImageBatchState.batch = value && value.mode === "batch" && (hasItems || hasReviewRows) ? value : null;
         renderAiImageBatch();
       }
 
@@ -3873,6 +3888,7 @@
           transactionState.requiredCurrency = null;
           transactionState.aiImageBatchContext = null;
           transactionState.goalSpendAccountId = null;
+          clearReceiptItems();
         }
         document.querySelectorAll("[data-tx-kind]").forEach(function (button) {
           button.classList.toggle("is-active", button.dataset.txKind === transactionState.kind);
@@ -3891,6 +3907,51 @@
         setTransactionConfirmationStatus("", "muted");
       }
 
+      function clearReceiptItems() {
+        transactionState.receiptItems = [];
+        const card = document.getElementById("receiptReviewCard");
+        if (card) card.remove();
+      }
+
+      function canonicalReceiptItem(item) {
+        const source = item && typeof item === "object" ? item : {};
+        const name = source.name != null ? source.name : source.description;
+        const amount = source.amount != null ? source.amount : (source.total != null ? source.total : source.line_total);
+        const total = source.total != null ? source.total : amount;
+        const normalized = Object.assign({}, source, {
+          name: name == null ? "" : name,
+          amount: amount == null ? "" : amount,
+          total: total == null ? "" : total,
+          status: source.status === "excluded" ? "excluded" : "included"
+        });
+        delete normalized.description;
+        delete normalized.line_total;
+        delete normalized.total;
+        return normalized;
+      }
+
+      function renderReceiptItems() {
+        const form = document.getElementById("transactionForm");
+        if (!form) return;
+        let card = document.getElementById("receiptReviewCard");
+        if (!transactionState.receiptItems.length) { if (card) card.remove(); return; }
+        if (!card) { card = document.createElement("section"); card.id = "receiptReviewCard"; card.className = "card card-pad"; form.parentNode.insertBefore(card, form); }
+        card.innerHTML = "<h3>Receipt items (L2)</h3><p>Include, exclude, or edit before confirming.</p>";
+        transactionState.receiptItems.forEach(function (item, index) {
+          const row = document.createElement("label"); row.className = "form-field";
+          const input = document.createElement("input"); input.type = "text"; input.value = String(item.name || ""); input.setAttribute("aria-label", "Name");
+          input.addEventListener("input", function () { item.name = input.value; });
+          const numericFields = [["quantity", "Qty"], ["unit_price", "Unit price"], ["amount", "Amount"], ["discount", "Discount"]];
+          const numericNodes = numericFields.map(function (field) {
+            const control = document.createElement("input"); control.type = "number"; control.step = "0.01"; control.min = "0"; control.value = item[field[0]] == null ? "" : String(item[field[0]]); control.placeholder = field[1]; control.setAttribute("aria-label", field[1]);
+            control.addEventListener("input", function () { item[field[0]] = control.value; }); return control;
+          });
+          const toggle = document.createElement("input"); toggle.type = "checkbox"; toggle.checked = item.status !== "excluded"; toggle.setAttribute("aria-label", "Include item");
+          toggle.addEventListener("change", function () { item.status = toggle.checked ? "included" : "excluded"; });
+          row.append(toggle, input); numericNodes.forEach(function (control) { row.appendChild(control); }); card.appendChild(row);
+        });
+      }
+
       function transactionPayload() {
         const el = transactionElements();
         return {
@@ -3902,7 +3963,8 @@
           comment: el.comment ? el.comment.value : "",
           goal_spend: Boolean(transactionState.goalSpendAccountId),
           ai_image_batch_id: transactionState.aiImageBatchContext ? transactionState.aiImageBatchContext.batchId : "",
-          ai_image_batch_item_id: transactionState.aiImageBatchContext ? transactionState.aiImageBatchContext.itemId : ""
+          ai_image_batch_item_id: transactionState.aiImageBatchContext ? transactionState.aiImageBatchContext.itemId : "",
+          receipt_items: transactionState.receiptItems
         };
       }
 
@@ -4005,6 +4067,7 @@
             playSoundEffect("transaction-success", { eventKey: soundEventKey });
             setTransactionStatus(tr("addCommitted"), "success");
             resetTransactionDraft();
+            clearReceiptItems();
             if (el.amount) el.amount.value = "";
             if (el.comment) el.comment.value = "";
             if (el.date) el.date.value = todayIso();
@@ -4030,6 +4093,7 @@
         const draft = transactionState.draft;
         const batchContext = transactionState.aiImageBatchContext;
         resetTransactionDraft();
+        clearReceiptItems();
         transactionState.aiImageBatchContext = null;
         setTransactionStatus(tr("addReady"), "muted");
         if (draft && transactionCancelUrl) {
@@ -4148,6 +4212,8 @@
         if (el.date) el.date.value = suggestedValue("transaction_date");
         if (el.comment) el.comment.value = suggestedValue("comment");
         transactionState.aiImageBatchContext = null;
+        transactionState.receiptItems = Array.isArray(suggestion.receipt_items) ? suggestion.receipt_items.map(canonicalReceiptItem) : [];
+        renderReceiptItems();
         transactionState.requiredCurrency = suggestion.currency_explicit ? suggestion.currency : null;
         setTransactionKind(suggestion.kind, true);
         setSuggestionSelectValue(el.account, suggestedValue("account_id"));

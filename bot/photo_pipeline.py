@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 _CURRENCY={"UAH":{"UAH","ГРН","₴"},"EUR":{"EUR","€","EURO"},"USD":{"USD","US$"},"TRY":{"TRY","TL","₺","LIRA","LIRAS"}}
 _STATUS={"completed":{"completed","paid","successful","успішно","оплачено","başarılı"},"declined":{"declined","rejected","failed","відхилено","отклонен","başarısız"},"refunded":{"refunded","refund","reversed","повернення","iade"}}
-_TYPE={"expense":{"expense","purchase","payment","витрата","оплата","harcama"},"income":{"income","credit","дохід","зарахування","gelir"},"transfer":{"transfer","переказ","перевод","havale"},"own_account_transfer":{"own account","власний рахунок","свій рахунок","kendi hesabı"},"refund":{"refund","refunded","повернення","iade"}}
+_TYPE={"expense":{"expense","purchase","payment","витрата","оплата","покупка","розділити оплату","harcama"},"income":{"income","credit","дохід","зарахування","gelir"},"transfer":{"transfer","переказ","перевод","havale"},"own_account_transfer":{"own account","власний рахунок","свій рахунок","kendi hesabı"},"refund":{"refund","refunded","повернення","iade"}}
 @dataclass(frozen=True)
 class Evidence: id:str; field:str; raw_text:str; value:str; region:str|None=None
 @dataclass(frozen=True)
@@ -19,8 +19,9 @@ class ExtractionPass:
     transaction_date: Any = None
     merchant: str|None = None
     raw_evidence: dict[str,Any]|None = None
+    mode: str = "single_tx"
 @dataclass(frozen=True)
-class PipelineConfig: preprocessing_version:str="photo-preprocess-v1"; prompt_version:str="photo-evidence-v1"; schema_version:str="photo-schema-v1"
+class PipelineConfig: preprocessing_version:str="photo-preprocess-v1"; prompt_version:str="photo-evidence-v4"; schema_version:str="photo-schema-v2"
 
 @dataclass(frozen=True)
 class ImageQuality:
@@ -47,7 +48,7 @@ class CacheKey:
     def as_string(self)->str:return ":".join((self.original_sha256,self.preprocessing_version,self.model,self.detail,self.prompt_version,self.schema_version))
 @dataclass(frozen=True)
 class ReconciliationResult:
-    accepted:bool; requires_review:bool; amount:Decimal|None; currency:str|None; status:str|None; transaction_type:str|None; evidence_ids:tuple[str,...]; findings:tuple[str,...]; trace:dict[str,Any]; transaction_date:Any=None; merchant:str|None=None; receipt_level:str|None=None; line_items:tuple[dict[str,Any],...]=(); receipt_total:Decimal|None=None; raw_evidence:tuple[dict[str,Any],...]=()
+    accepted:bool; requires_review:bool; amount:Decimal|None; currency:str|None; status:str|None; transaction_type:str|None; evidence_ids:tuple[str,...]; findings:tuple[str,...]; trace:dict[str,Any]; transaction_date:Any=None; merchant:str|None=None; receipt_level:str|None=None; line_items:tuple[dict[str,Any],...]=(); receipt_total:Decimal|None=None; raw_evidence:tuple[dict[str,Any],...]=(); statement_items:tuple[dict[str,Any],...]=(); statement_review_rows:tuple[dict[str,Any],...]=(); skipped_items_count:int=0
 def plan_vertical_tiles(*,height:int,tile_height:int,overlap:float=.2)->tuple[tuple[int,int],...]:
     if height<=0:raise ValueError("height must be positive")
     if tile_height<=0:raise ValueError("tile_height must be positive")
@@ -96,8 +97,45 @@ def _currency(raw:str)->str|None:
     for k,a in _CURRENCY.items():
         if c & {x.upper() for x in a}:return k
     return None
+
+def _visible_amount(raw: str):
+    """Separate visible direction/currency decorations without repairing digits."""
+    text = str(raw or "").strip()
+    currency = None
+    tokens = sorted((token for aliases in _CURRENCY.values() for token in aliases), key=len, reverse=True)
+    for token in tokens:
+        if text.upper().endswith(token.upper()):
+            currency = _currency(token)
+            text = text[:-len(token)].strip()
+            break
+    direction = None
+    if text.startswith(("−", "-", "+")):
+        direction = "expense" if text[0] in ("−", "-") else "income"
+        text = text[1:].strip()
+    return parse_raw_amount(text), currency, direction
+
 def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->ReconciliationResult:
     findings = []
+    if any(extraction.mode not in {'single_tx', 'receipt'} for extraction in passes):
+        findings.append('non_single_transaction_layout')
+    full = [extraction for extraction in passes if extraction.source.startswith('full-')]
+    if len({extraction.mode for extraction in full}) > 1:
+        findings.append('document_layout_conflict')
+    if len({extraction.transaction_date for extraction in full}) > 1:
+        findings.append('transaction_date_conflict')
+    merchants = {' '.join(str(extraction.merchant or '').casefold().split()) for extraction in full}
+    if len(merchants) > 1:
+        findings.append('merchant_conflict')
+    if any(extraction.mode == 'receipt' for extraction in full):
+        if len({extraction.receipt_total for extraction in full}) > 1:
+            findings.append('receipt_total_conflict')
+        merchants = {' '.join(str(extraction.merchant or '').casefold().split()) for extraction in full}
+        if len(merchants) > 1:
+            findings.append('receipt_merchant_conflict')
+        items = [tuple((' '.join(str(row.get('name') or '').casefold().split()), row.get('amount'))
+                       for row in extraction.line_items) for extraction in full]
+        if any(rows != items[0] for rows in items[1:]):
+            findings.append('receipt_items_conflict')
     sources = [extraction.source.strip() for extraction in passes]
     if len(set(sources) - {""}) < 2:
         findings.append("insufficient_distinct_sources")
@@ -110,15 +148,24 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
         findings.append("invalid_evidence_ids")
 
     values = {field: set() for field in ("amount", "currency", "status", "type")}
+    evidence_groups = {field: {} for field in values}
+    amount_currencies, amount_directions = set(), set()
     for extraction in passes:
         for field in values:
             items = [item for item in extraction.evidence if item.field == field]
+            # Crops are supplemental views: a field outside a crop is absent,
+            # not contradictory evidence. Full-image passes still must each
+            # provide every required field.
             if not items and not extraction.source.startswith("crop-"):
-                findings.append("pass_evidence_incomplete")
+                findings.append(field + "_unknown")
             for item in items:
                 raw, claimed = item.raw_text.strip(), item.value.strip()
                 if field == "amount":
-                    parsed = parse_raw_amount(raw)
+                    parsed, decoration_currency, direction = _visible_amount(raw)
+                    if decoration_currency:
+                        amount_currencies.add(decoration_currency)
+                    if direction:
+                        amount_directions.add(direction)
                     try:
                         claimed_matches = bool(re.fullmatch(r"[0-9]+(?:\.[0-9]{1,2})?", claimed)) and parsed is not None and Decimal(claimed) == parsed
                     except InvalidOperation:
@@ -132,14 +179,24 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
                 if parsed is None or not claimed or not claimed_matches:
                     findings.append(field + "_evidence_invalid")
                 if parsed is not None:
-                    values[field].add(parsed)
-    for field, candidates in values.items():
-        if len(candidates) != 1:
+                    # IDs are pass-local. Reconcile only evidence that points at
+                    # the same visible transaction region/raw token; unrelated
+                    # evidence must remain a conflict, never a vote.
+                    identity = (field, " ".join(raw.lower().split()), (item.region or "").strip())
+                    evidence_groups[field].setdefault(identity, set()).add(parsed)
+    for field, groups in evidence_groups.items():
+        candidates = set().union(*groups.values()) if groups else set()
+        values[field] = candidates
+        if any(len(group) != 1 for group in groups.values()) or len(groups) > 1 or len(candidates) != 1:
             findings.append(field + "_conflict")
     if values["status"] != {"completed"}:
         findings.append("non_completed_status")
     if not values["type"] or not values["type"].issubset({"expense", "income"}):
         findings.append("non_financial_type")
+    if amount_currencies and amount_currencies != values["currency"]:
+        findings.append("amount_currency_conflict")
+    if amount_directions and amount_directions != values["type"]:
+        findings.append("amount_direction_conflict")
 
     def single(field):
         candidates = values[field]

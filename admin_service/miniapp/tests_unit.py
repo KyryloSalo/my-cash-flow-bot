@@ -109,6 +109,32 @@ class MiniAppMoneyAggregationUnitTests(SimpleTestCase):
 
         self.assertEqual(error.exception.code, "goal_spend_amount_mismatch")
 
+    def test_receipt_review_normalizes_numeric_fields_and_selection(self) -> None:
+        items = services._normalize_receipt_review([
+            {"description": "Coffee", "status": "included", "quantity": "2", "unit_price": "3,50", "line_total": "7.00", "discount": "0"},
+            {"description": "Bag", "status": "excluded", "quantity": "1"},
+        ])
+        self.assertEqual(items, [
+            {"description": "Coffee", "status": "included", "quantity": "2.00", "unit_price": "3.50", "line_total": "7.00", "discount": "0.00"},
+            {"description": "Bag", "status": "excluded", "quantity": "1.00"},
+        ])
+
+    def test_receipt_review_rejects_tampered_commit_payload(self) -> None:
+        with self.assertRaises(services.MiniAppTransactionError) as error:
+            services._normalize_receipt_review([{"description": "Coffee", "status": "maybe", "quantity": "free"}])
+        self.assertEqual(error.exception.code, "invalid_receipt_item")
+
+    def test_receipt_review_rejects_excess_items_without_silent_truncation(self) -> None:
+        items = [{"description": "Item", "status": "included"} for _ in range(101)]
+        with self.assertRaises(services.MiniAppTransactionError) as error:
+            services._normalize_receipt_review(items)
+        self.assertEqual(error.exception.code, "invalid_receipt_items")
+        self.assertEqual(len(items), 101)
+
+    def test_receipt_review_accepts_exactly_one_hundred_items(self) -> None:
+        items = [{"description": "Item", "status": "included"} for _ in range(100)]
+        self.assertEqual(len(services._normalize_receipt_review(items)), 100)
+
     def test_credit_limit_parser_uses_money_precision_and_database_range(self) -> None:
         value = services._parse_optional_credit_limit("9999999999999999.99")
         self.assertEqual(str(value), "9999999999999999.99")

@@ -1494,6 +1494,7 @@ def _ai_image_batch_payload(batch: dict[str, object] | None) -> dict[str, object
         "pending_count": len(normalized_items) - committed_count - skipped_count,
         "skipped_items_count": max(0, int(batch.get("skipped_items_count") or 0)),
         "items": normalized_items,
+        "review_rows": [row for row in (batch.get("review_rows") if isinstance(batch.get("review_rows"), list) else []) if isinstance(row, dict)],
     }
 
 

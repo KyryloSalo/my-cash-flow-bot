@@ -174,7 +174,8 @@ def ensure_runtime_finance_tables() -> None:
                   is_deleted BOOLEAN NOT NULL DEFAULT false,
                   deleted_at TIMESTAMPTZ NULL,
                   deleted_by_user_id BIGINT NULL,
-                  created_at TIMESTAMPTZ NULL
+                  created_at TIMESTAMPTZ NULL,
+                  metadata JSONB NOT NULL DEFAULT '{}'::jsonb
                 )
                 """
             )

@@ -85,13 +85,22 @@ class AiImageReviewTests(SimpleTestCase):
         self.assertEqual(suggestion["amount"], "12.50")
         self.assertTrue(suggestion["needs_review_bool"])
 
-    def test_receipt_items_are_not_used_for_statement_batch(self) -> None:
-        batch = build_ai_image_batch(
-            SimpleNamespace(base_currency="UAH"),
-            {"mode": "statement_expenses", "source": "statement_transactions", "statement_items": [{"amount": "12.50"}], "receipt_items": [{"name": "Coffee", "amount": "12.50"}]},
-            batch_id="batch-1",
-        )
-        self.assertEqual(batch["items"], [])
+    def test_review_only_rows_survive_batch_and_payload(self) -> None:
+        batch = build_ai_image_batch(SimpleNamespace(base_currency="UAH"), {"source":"statement_transactions", "statement_review_rows":[{"row_index":0,"reason":"missing_status_evidence","amount":"12.50"}]}, batch_id="batch-1")
+        self.assertEqual(len(batch["review_rows"]), 1)
+
+    def test_mixed_batch_keeps_items_and_review_rows(self) -> None:
+        with patch("miniapp.services._pick_ai_image_account", return_value=SimpleNamespace(id=7)), patch(
+            "miniapp.services._pick_ai_image_category", return_value=SimpleNamespace(id=8)
+        ):
+            batch = build_ai_image_batch(SimpleNamespace(base_currency="UAH"), {"source":"statement_transactions", "statement_items":[{"amount":"12.50","currency":"UAH"}], "statement_review_rows":[{"row_index":1,"reason":"ambiguous"}]}, batch_id="batch-1")
+        self.assertEqual(len(batch["review_rows"]), 1)
+        self.assertEqual(len(batch["items"]), 1)
+
+    def test_cross_pass_review_rows_are_deduplicated(self) -> None:
+        review = {"row_index":0,"reason":"missing_status_evidence","transaction_date":"2026-10-01","amount":"12.50","currency":"UAH","comment":"Shop"}
+        batch = build_ai_image_batch(SimpleNamespace(base_currency="UAH"), {"source":"statement_transactions", "statement_review_rows":[review]}, batch_id="batch-1")
+        self.assertEqual(batch["review_rows"][0]["row_index"], 0)
 
     def test_statement_mode_without_items_falls_back_to_single_transaction(self) -> None:
         with patch("miniapp.services._pick_ai_image_account", return_value=SimpleNamespace(id=7)), patch(
@@ -104,9 +113,20 @@ class AiImageReviewTests(SimpleTestCase):
         self.assertEqual(suggestion["mode"], "transaction")
         self.assertEqual(suggestion["amount"], "12.50")
 
-    def test_template_contains_editable_l2_controls_and_blob_cleanup(self) -> None:
+    def test_receipt_review_canonicalizes_recognized_item_fields_and_clears_on_terminal_paths(self) -> None:
         template = Path(__file__).with_name("templates") / "miniapp" / "index.html"
         content = template.read_text(encoding="utf-8")
+        self.assertIn("function canonicalReceiptItem(item)", content)
+        self.assertIn("source.name != null ? source.name : source.description", content)
+        self.assertIn("source.amount != null ? source.amount : (source.total != null ? source.total : source.line_total)", content)
+        self.assertIn('item.name = input.value', content)
+        self.assertIn('item[field[0]] = control.value', content)
+        self.assertIn("function clearReceiptItems()", content)
+        self.assertGreaterEqual(content.count("clearReceiptItems();"), 3)
+        self.assertIn("transactionState.receiptItems = Array.isArray(suggestion.receipt_items) ? suggestion.receipt_items.map(canonicalReceiptItem) : [];", content)
+        confirm_block = content[content.index("function confirmTransactionDraft"):content.index("function cancelTransactionDraft")]
+        self.assertIn("clearReceiptItems();", confirm_block)
+        self.assertNotIn("clearReceiptItems();", confirm_block[confirm_block.index(".catch(function (errorPayload)"):])
         self.assertIn("ai-image-batch-name", content)
         self.assertIn("ai-image-batch-amount", content)
         self.assertIn("revokeObjectURL", content)

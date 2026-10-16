@@ -1435,6 +1435,7 @@ def build_ai_image_suggestion(user: TelegramUser, parsed: dict[str, object]) -> 
 def build_ai_image_batch(user: TelegramUser, parsed: dict[str, object], *, batch_id: str) -> dict[str, object]:
     """Build a review-only statement batch from normalized Vision output."""
     raw_items = parsed.get("statement_items") if isinstance(parsed.get("statement_items"), list) else []
+    raw_review_rows = parsed.get("statement_review_rows") if isinstance(parsed.get("statement_review_rows"), list) else []
     source = str(parsed.get("source") or "").strip().lower()
     # ``statement_items`` is already normalized output from the Vision parser;
     # older callers did not include additive mode/source metadata. Preserve
@@ -1496,6 +1497,7 @@ def build_ai_image_batch(user: TelegramUser, parsed: dict[str, object], *, batch
         "needs_review": parsed.get("needs_review") if isinstance(parsed.get("needs_review"), list) else [],
         "arithmetic_warnings": parsed.get("arithmetic_warnings") if isinstance(parsed.get("arithmetic_warnings"), list) else [],
         "items": items,
+        "review_rows": [row for row in raw_review_rows[:AI_IMAGE_BATCH_MAX_ITEMS] if isinstance(row, dict)],
         "item_count": len(items),
         "skipped_items_count": skipped_items_count,
     }
@@ -1512,6 +1514,41 @@ def build_category_catalog(user: TelegramUser) -> dict[str, object]:
         "mode": "view_only",
         "categories": categories_by_kind,
     }
+
+
+def _normalize_receipt_review(raw_receipt_items: object) -> list[dict[str, object]]:
+    if raw_receipt_items is None:
+        return []
+    if not isinstance(raw_receipt_items, list):
+        raise MiniAppTransactionError("invalid_receipt_items", "Receipt items must be a list.")
+    if len(raw_receipt_items) > 100:
+        raise MiniAppTransactionError("invalid_receipt_items", "Receipt items cannot exceed 100 entries.")
+    normalized: list[dict[str, object]] = []
+    for raw in raw_receipt_items:
+        if not isinstance(raw, dict):
+            raise MiniAppTransactionError("invalid_receipt_item", "Each receipt item must be an object.")
+        description = str(raw.get("description") or raw.get("name") or "").strip()[:200]
+        status = str(raw.get("status") or "included").strip().lower()
+        if not description or status not in {"included", "excluded"}:
+            raise MiniAppTransactionError("invalid_receipt_item", "Receipt items require a description and valid status.")
+        item: dict[str, object] = {"description": description, "status": status}
+        for key in ("quantity", "unit_price", "line_total", "amount", "discount"):
+            value = raw.get(key)
+            if key == "amount" and raw.get("line_total") not in (None, ""):
+                continue
+            if value is None or str(value).strip() == "":
+                continue
+            parsed_value = _bounded_decimal(
+                str(value).strip().replace(",", "."),
+                code="invalid_receipt_item",
+                message="Receipt numeric fields must be valid numbers.",
+            )
+            if parsed_value < ZERO:
+                raise MiniAppTransactionError("invalid_receipt_item", "Receipt numeric fields cannot be negative.")
+            normalized_key = "line_total" if key == "amount" else key
+            item[normalized_key] = f"{parsed_value:.2f}"
+        normalized.append(item)
+    return normalized
 
 
 def build_transaction_draft(user: TelegramUser, payload: dict[str, object], *, draft_id: str) -> dict[str, object]:
@@ -1553,6 +1590,9 @@ def build_transaction_draft(user: TelegramUser, payload: dict[str, object], *, d
     tx_date = _parse_transaction_date(payload.get("transaction_date") or payload.get("date"))
     comment = str(payload.get("comment") or "").strip()[:500]
     amount_payload = money_payload(amount, currency)
+    raw_receipt_items = payload.get("receipt_items")
+    receipt_review = _normalize_receipt_review(raw_receipt_items)
+
     return {
         "draft_id": draft_id,
         "kind": kind,
@@ -1566,6 +1606,7 @@ def build_transaction_draft(user: TelegramUser, payload: dict[str, object], *, d
         "category_id": int(category.id),
         "comment": comment,
         "goal_spend": goal_spend,
+        "receipt_review": receipt_review,
         "source": MINIAPP_TRANSACTION_SOURCE,
         "confirmation": {
             "title": mt("Підтвердіть витрату цілі", "Confirm goal spending", locale) if goal_spend else mt("Підтвердіть операцію", "Confirm transaction", locale),
@@ -1629,6 +1670,7 @@ def commit_transaction_draft(user: TelegramUser, draft: dict[str, object]) -> di
     currency = _normalize_currency(draft.get("currency"))
     tx_date = _parse_transaction_date(draft.get("transaction_date"))
     comment = str(draft.get("comment") or "").strip()[:500] or None
+    receipt_review = _normalize_receipt_review(draft.get("receipt_review"))
     source = str(draft.get("source") or MINIAPP_TRANSACTION_SOURCE).strip()
     goal_spend = draft.get("goal_spend") is True
     if source not in {MINIAPP_TRANSACTION_SOURCE, MINIAPP_BILLING_EXPENSE_SOURCE}:
@@ -1697,6 +1739,7 @@ def commit_transaction_draft(user: TelegramUser, draft: dict[str, object]) -> di
             category_name_snapshot=category.name,
             flow_kind="normal",
             created_at=timezone.now(),
+            metadata={"receipt_review": receipt_review} if receipt_review else {},
         )
         enqueue_transaction_created(
             actor_user_id=user.tg_user_id,
@@ -1735,6 +1778,7 @@ def commit_transaction_draft(user: TelegramUser, draft: dict[str, object]) -> di
             "category": _category_payload(category),
             "comment": comment,
             "source": source,
+            "metadata": {"receipt_review": receipt_review} if receipt_review else {},
         },
         "account": _account_payload(account, locale=locale),
         "previous_balance": money_payload(current_balance, account_currency),

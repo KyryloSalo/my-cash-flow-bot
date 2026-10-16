@@ -94,6 +94,7 @@ class ScreenshotAnalysis:
     mode: str = "single_tx"
     dominant_currency: str | None = None
     statement_items: tuple["StatementItemAnalysis", ...] = ()
+    statement_review_rows: tuple[dict[str, Any], ...] = ()
     skipped_items_count: int = 0
     currency_evidence_kind: str | None = None
     currency_evidence_text: str | None = None
@@ -143,7 +144,7 @@ def is_screenshot_currency_explicit(analysis: ScreenshotAnalysis) -> bool:
 def serialize_miniapp_screenshot_analysis(analysis: ScreenshotAnalysis) -> dict[str, Any]:
     def _item_payload(item: StatementItemAnalysis) -> dict[str, Any]:
         return {
-            "transaction_date": item.transaction_date.isoformat(),
+            "transaction_date": item.transaction_date.isoformat() if item.transaction_date else None,
             "type": item.type,
             "amount": f"{item.amount:.2f}" if item.amount is not None else None,
             "currency": item.currency,
@@ -154,7 +155,7 @@ def serialize_miniapp_screenshot_analysis(analysis: ScreenshotAnalysis) -> dict[
 
     return {
         "mode": analysis.mode,
-        "transaction_date": analysis.transaction_date.isoformat(),
+        "transaction_date": analysis.transaction_date.isoformat() if analysis.transaction_date else None,
         "type": analysis.type,
         "amount": f"{analysis.amount:.2f}" if analysis.amount is not None else None,
         "currency": analysis.currency,
@@ -167,6 +168,12 @@ def serialize_miniapp_screenshot_analysis(analysis: ScreenshotAnalysis) -> dict[
         "bank_name": analysis.bank_name,
         "card_last4": analysis.card_last4,
         "statement_items": [_item_payload(item) for item in analysis.statement_items],
+        "statement_review_rows": [
+            {**row,
+             "transaction_date": row.get("transaction_date").isoformat() if hasattr(row.get("transaction_date"), "isoformat") else row.get("transaction_date"),
+             "amount": f"{row.get('amount'):.2f}" if row.get("amount") is not None else None}
+            for row in analysis.statement_review_rows
+        ],
         "skipped_items_count": int(analysis.skipped_items_count or 0),
         "receipt_items": [
             {"name": item.name, "quantity": str(item.quantity) if item.quantity is not None else None,
@@ -311,11 +318,11 @@ def _is_nonexpense_evidence(*values: Any) -> bool:
 def _normalize_date(value: Any, *, today: date) -> date | None:
     text = str(value or "").strip()
     if not text:
-        return today
+        return None
     try:
         return date.fromisoformat(text)
     except ValueError:
-        return today
+        return None
 
 
 def _normalize_detail(detail: str | None) -> str:
@@ -883,9 +890,35 @@ async def analyze_screenshot(
     if config.PHOTO_PIPELINE_ENABLED:
         from photo_shadow import analyze_photo
         evidence = await analyze_photo(image_bytes, mime_type=mime_type, model=config.OPENAI_VISION_MODEL,
-                                       detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL))
-        if not evidence.accepted or evidence.amount is None or evidence.currency is None:
+                                       detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL), today=today)
+        if not evidence.accepted and not evidence.statement_review_rows:
             raise OpenAIVisionInvalidResponseError("Photo evidence requires review")
+        if not evidence.statement_items and not evidence.statement_review_rows and (evidence.amount is None or evidence.currency is None):
+            raise OpenAIVisionInvalidResponseError("Photo evidence requires review")
+        if evidence.statement_items:
+            items = tuple(StatementItemAnalysis(transaction_date=row["transaction_date"], type="expense", amount=row["amount"],
+                currency=row["currency"], category_hint=row.get("category_hint"), comment=row.get("comment"), confidence=row.get("confidence", 0.0))
+                for row in evidence.statement_items)
+            return ScreenshotAnalysis(transaction_date=items[0].transaction_date, type="expense", amount=None,
+                currency=evidence.currency or items[0].currency, account_hint=None, category_hint=None, comment=None,
+                confidence=min(item.confidence for item in items), bank_name=None, card_last4=None, model=config.OPENAI_VISION_MODEL,
+                detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL), used_fallback=False, mode="statement_expenses",
+                dominant_currency=evidence.currency or items[0].currency, statement_items=items,
+                statement_review_rows=evidence.statement_review_rows,
+                skipped_items_count=evidence.skipped_items_count, needs_review=evidence.requires_review,
+                field_findings=evidence.findings,
+                raw_response={"trace": evidence.trace, "raw_evidence": evidence.raw_evidence})
+        if evidence.statement_review_rows:
+            return ScreenshotAnalysis(
+                transaction_date=None, type=None, amount=None, currency=evidence.currency or "",
+                account_hint=None, category_hint=None, comment=None, confidence=0.0,
+                bank_name=None, card_last4=None, model=config.OPENAI_VISION_MODEL,
+                detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL), used_fallback=False,
+                mode="statement_expenses", dominant_currency=evidence.currency,
+                statement_review_rows=evidence.statement_review_rows,
+                skipped_items_count=evidence.skipped_items_count, needs_review=True,
+                field_findings=evidence.findings,
+                raw_response={"trace": evidence.trace, "raw_evidence": evidence.raw_evidence})
         receipt_items = tuple(
             ReceiptItemAnalysis(
                 name=str(item.get("description") or item.get("name") or ""),
@@ -907,8 +940,10 @@ async def analyze_screenshot(
                 arithmetic_warnings.append("receipt_total_conflict")
             if receipt_items and sum((item.total or Decimal("0") for item in receipt_items), Decimal("0")) != evidence.receipt_total:
                 arithmetic_warnings.append("receipt_items_total_mismatch")
+        if evidence.transaction_date is None:
+            raise OpenAIVisionInvalidResponseError("Photo transaction date requires review")
         return ScreenshotAnalysis(
-            transaction_date=evidence.transaction_date or today, type=evidence.transaction_type,
+            transaction_date=evidence.transaction_date, type=evidence.transaction_type,
             amount=evidence.amount, currency=evidence.currency, account_hint=None,
             category_hint=None, comment=evidence.merchant, confidence=1.0,
             bank_name=None, card_last4=None, model=config.OPENAI_VISION_MODEL,

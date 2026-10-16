@@ -184,6 +184,7 @@ class Transaction(models.Model):
     deleted_at = models.DateTimeField(blank=True, null=True)
     deleted_by_user_id = models.BigIntegerField(blank=True, null=True)
     created_at = models.DateTimeField(blank=True, null=True)
+    metadata = models.JSONField(default=dict, blank=True)
 
     objects = ActiveTransactionManager()
     all_objects = models.Manager()
