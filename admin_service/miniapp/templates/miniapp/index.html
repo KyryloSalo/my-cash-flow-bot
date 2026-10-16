@@ -7860,7 +7860,7 @@
       function openBillingUrl(url) {
         const target = String(url || "").trim();
         if (!target) return;
-        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
+        if (isTelegramHost() && window.Telegram.WebApp.openLink) {
           window.Telegram.WebApp.openLink(target);
           return;
         }
@@ -7870,7 +7870,7 @@
       function openInstallBrowserUrl(url, platform, onFallback) {
         const target = String(url || "").trim();
         if (!target) return false;
-        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
+        if (isTelegramHost() && window.Telegram.WebApp.openLink) {
           try {
             window.Telegram.WebApp.openLink(target);
             return true;

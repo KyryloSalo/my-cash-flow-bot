@@ -9,6 +9,9 @@ const templateSource = fs.readFileSync(path.join(__dirname, "templates", "miniap
 const cssSource = fs.readFileSync(path.join(__dirname, "static", "miniapp", "app.css"), "utf8");
 
 function loadInlineFunction(name, context) {
+  if (["openBillingUrl", "openInstallBrowserUrl"].includes(name)) {
+    context = { ...context, isTelegramHost: loadInlineFunction("isTelegramHost", context) };
+  }
   const marker = "function " + name + "(";
   const start = templateSource.indexOf(marker);
   assert.notEqual(start, -1, "missing inline function " + name);
@@ -198,7 +201,7 @@ test("Telegram install handoff uses the supported external-browser API without i
     const assignments = [];
     const context = {
       window: {
-        Telegram: { WebApp: { openLink(...args) { calls.push(args); } } },
+        Telegram: { WebApp: { initData: "telegram-host-fixture", openLink(...args) { calls.push(args); } } },
         location: { assign(url) { assignments.push(url); } },
       },
     };
@@ -214,7 +217,7 @@ test("Telegram install handoff uses the supported external-browser API without i
 });
 
 test("Telegram handoff failure stays in the guide instead of navigating internally", () => {
-  for (const api of [null, { openLink() { throw new Error("blocked"); } }]) {
+  for (const api of [null, { initData: "telegram-host-fixture", openLink() { throw new Error("blocked"); } }]) {
     const failures = [];
     const open = loadInlineFunction("openInstallBrowserUrl", {
       window: {
@@ -225,6 +228,62 @@ test("Telegram handoff failure stays in the guide instead of navigating internal
     assert.equal(open("https://vydno.example/fresh-login", "ios", (error) => failures.push(error.message)), false);
     assert.equal(failures.length, 1);
   }
+});
+
+test("billing checkout navigates in browsers and installed PWAs even when Telegram SDK is loaded", () => {
+  const checkoutUrl = "https://pay.example.test/checkout-fixture";
+  for (const container of ["browser", "standalone"]) {
+    const calls = [];
+    const assignments = [];
+    const open = loadInlineFunction("openBillingUrl", {
+      window: {
+        Telegram: { WebApp: { platform: "unknown", initData: "", openLink(url) { calls.push(url); } } },
+        navigator: { standalone: container === "standalone" },
+        location: { assign(url) { assignments.push(url); } },
+      },
+    });
+
+    open(checkoutUrl);
+
+    assert.deepEqual(assignments, [checkoutUrl], container + " must not send checkout to an absent Telegram host");
+    assert.deepEqual(calls, []);
+  }
+});
+
+test("billing checkout preserves Telegram-host navigation and SDK-free browser fallback", () => {
+  const checkoutUrl = "https://pay.example.test/checkout-fixture";
+  for (const telegramHost of [false, true]) {
+    const calls = [];
+    const assignments = [];
+    const open = loadInlineFunction("openBillingUrl", {
+      window: {
+        Telegram: telegramHost
+          ? { WebApp: { initData: "telegram-host-fixture", openLink(url) { calls.push(url); } } }
+          : undefined,
+        location: { assign(url) { assignments.push(url); } },
+      },
+    });
+
+    open(checkoutUrl);
+
+    assert.deepEqual(calls, telegramHost ? [checkoutUrl] : []);
+    assert.deepEqual(assignments, telegramHost ? [] : [checkoutUrl]);
+  }
+});
+
+test("SDK-only browser cannot falsely acknowledge a Telegram install handoff", () => {
+  const calls = [];
+  const failures = [];
+  const open = loadInlineFunction("openInstallBrowserUrl", {
+    window: {
+      Telegram: { WebApp: { platform: "unknown", initData: "", openLink(url) { calls.push(url); } } },
+      location: { assign() { throw new Error("install handoff must not navigate internally"); } },
+    },
+  });
+
+  assert.equal(open("https://vydno.example/fresh-login", "ios", (error) => failures.push(error.message)), false);
+  assert.deepEqual(calls, []);
+  assert.equal(failures.length, 1);
 });
 
 test("Telegram unavailable or failed browser handoff never dismisses the guide", () => {

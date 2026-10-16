@@ -23,11 +23,13 @@ test("dismissal is scoped to user and consent and survives storage failure", () 
   assert.equal(bonus.createDismissalStore(storage, "user-2").isDismissed("consent-1"), false);
   const broken = bonus.createDismissalStore({ getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); } }, "user-1");
   assert.doesNotThrow(() => broken.dismiss("consent-2"));
-  assert.equal(broken.isDismissed("consent-2"), false);
+  assert.equal(broken.isDismissed("consent-2"), true);
+  assert.equal(bonus.createDismissalStore(null, "user-1").isDismissed("consent-2"), true, "recreated controllers retain dismissal for the page session");
+  assert.equal(bonus.createDismissalStore(null, "user-2").isDismissed("consent-2"), false, "fallback remains scoped to the user");
 });
 
 test("copy contains exact Ukrainian and English bonus meaning", () => {
-  assert.match(bonus.copy("uk"), /Дякуємо, що обрали нас![\s\S]*90 днів[\s\S]*Фінансова грамотність[\s\S]*askills\.pro/u);
+  assert.equal(bonus.copy("uk"), 'Дякую, що обрали нас, ось вам 90 днів безкоштовного користування оскільки ви є студентом курсу "Фінансова грамотність" на платформі askills.pro');
   assert.match(bonus.copy("en"), /Thank you for choosing us![\s\S]*90 days[\s\S]*Financial Literacy[\s\S]*askills\.pro/u);
 });
 
@@ -60,4 +62,28 @@ test("production controller shows the settings bonus, dismisses per real user, t
   assert.equal(context.showCourseBonusNudge(settings), false, "dismissal persists after refresh");
   settings.user.tg_user_id = 102;
   assert.equal(context.showCourseBonusNudge(settings), true, "a different user must not inherit dismissal");
+});
+
+test("popup still opens and hands off to install when the browser denies localStorage access", () => {
+  const template = fs.readFileSync(path.join(__dirname, "templates/miniapp/index.html"), "utf8");
+  const start = template.indexOf("let courseBonusDismissalStore = null;");
+  const end = template.indexOf("function setCardBindingStatus", start);
+  const calls = [];
+  const browser = { VydnoCourseBonus: bonus };
+  Object.defineProperty(browser, "localStorage", { get() { throw new Error("SecurityError: storage denied"); } });
+  const context = vm.createContext({
+    window: browser,
+    document: { getElementById: () => ({}) },
+    settingsState: { data: null }, activeLocale: "uk", activationModalOpen: false,
+    setText() {},
+    openAccessibleModal: () => calls.push("open"),
+    closeAccessibleModal: () => calls.push("close"),
+    maybeShowInstallNudge: () => calls.push("install"),
+  });
+  vm.runInContext(template.slice(start, end), context);
+  const settings = { user: { tg_user_id: 103 }, access: { course_bonus: { id: "blocked-storage-consent", trial_days: 90, course_name: "Фінансова грамотність", platform: "askills.pro" } } };
+  assert.equal(context.showCourseBonusNudge(settings), true);
+  context.dismissCourseBonus();
+  assert.deepEqual(calls, ["open", "close", "install"]);
+  assert.equal(context.showCourseBonusNudge(settings), false, "blocked storage must not repeat a dismissed bonus in the same page session");
 });
