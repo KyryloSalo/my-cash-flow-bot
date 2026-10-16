@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 _CURRENCY={"UAH":{"UAH","ГРН","₴"},"EUR":{"EUR","€","EURO"},"USD":{"USD","US$"},"TRY":{"TRY","TL","₺","LIRA","LIRAS"}}
 _STATUS={"completed":{"completed","paid","successful","успішно","оплачено","başarılı"},"declined":{"declined","rejected","failed","відхилено","отклонен","başarısız"},"refunded":{"refunded","refund","reversed","повернення","iade"},"pending":{"pending","processing","очікує","очікування","в обробці","beklemede"}}
-_TYPE={"expense":{"expense","purchase","payment","витрата","оплата","покупка","розділити оплату","harcama"},"income":{"income","credit","дохід","зарахування","gelir"},"transfer":{"transfer","переказ","перевод","havale"},"own_account_transfer":{"own account","власний рахунок","свій рахунок","kendi hesabı"},"refund":{"refund","refunded","повернення","iade"}}
+_TYPE={"expense":{"expense","purchase","payment","витрата","оплата","покупка","harcama"},"income":{"income","credit","дохід","зарахування","gelir"},"transfer":{"transfer","переказ","перевод","havale"},"own_account_transfer":{"own account","власний рахунок","свій рахунок","kendi hesabı"},"refund":{"refund","refunded","повернення","iade"}}
 @dataclass(frozen=True)
 class Evidence: id:str; field:str; raw_text:str; value:str; region:str|None=None
 @dataclass(frozen=True)
@@ -21,7 +21,7 @@ class ExtractionPass:
     raw_evidence: dict[str,Any]|None = None
     mode: str = "single_tx"
 @dataclass(frozen=True)
-class PipelineConfig: preprocessing_version:str="photo-preprocess-v1"; prompt_version:str="photo-evidence-v4"; schema_version:str="photo-schema-v2"
+class PipelineConfig: preprocessing_version:str="photo-preprocess-v1"; prompt_version:str="photo-evidence-v5"; schema_version:str="photo-schema-v2"
 
 @dataclass(frozen=True)
 class ImageQuality:
@@ -214,6 +214,9 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
         or (item.field == "type" and any(_lex(token, _TYPE) in {"income", "transfer", "own_account_transfer", "refund"} for token in (item.raw_text, item.value)))
         for extraction in passes for item in extraction.evidence
     )
+    if receipt_document and excluded_receipt:
+        findings = (*findings, "excluded_receipt")
+        accepted = False
     trace = {"stage":"reconciliation", "pass_count":len(passes), "full_pass_count":len(full), "finding_count":len(findings),
              "document_mode":"receipt" if receipt_document else "unsupported",
              "receipt_review_only":receipt_document and all(item.mode == "receipt" for item in passes) and not excluded_receipt}

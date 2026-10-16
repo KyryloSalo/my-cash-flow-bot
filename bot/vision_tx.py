@@ -905,8 +905,23 @@ async def analyze_screenshot(
                 source="receipt", needs_review=True,
                 field_findings=tuple(dict.fromkeys((*evidence.findings, "receipt_manual_review"))),
                 raw_response={"trace": evidence.trace})
+        # An unresolved merchant is metadata, not permission to discard two
+        # agreeing full-image financial extractions. Keep reconciliation rejected
+        # and the merchant blank; only this exact metadata-only conflict can
+        # reach a review form. Any financial/status/layout conflict still fails.
+        merchant_review = (
+            not receipt_level
+            and set(evidence.findings) == {"merchant_conflict"}
+            and evidence.requires_review
+            and evidence.merchant is None
+            and evidence.amount is not None
+            and evidence.currency is not None
+            and evidence.transaction_date is not None
+            and evidence.status == "completed"
+            and evidence.transaction_type in {"expense", "income"}
+        )
         # Rejected bank transactions never become expense suggestions.
-        if not evidence.accepted and not evidence.statement_review_rows:
+        if not evidence.accepted and not evidence.statement_review_rows and not merchant_review:
             raise OpenAIVisionInvalidResponseError("Photo evidence requires review")
         if not evidence.statement_items and not evidence.statement_review_rows and (evidence.amount is None or evidence.currency is None):
             raise OpenAIVisionInvalidResponseError("Photo evidence requires review")
@@ -919,6 +934,7 @@ async def analyze_screenshot(
                 confidence=min(item.confidence for item in items), bank_name=None, card_last4=None, model=config.OPENAI_VISION_MODEL,
                 detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL), used_fallback=False, mode="statement_expenses",
                 dominant_currency=evidence.currency or items[0].currency, statement_items=items,
+                currency_resolution="full_image_agreement",
                 statement_review_rows=evidence.statement_review_rows,
                 skipped_items_count=evidence.skipped_items_count, needs_review=evidence.requires_review,
                 field_findings=evidence.findings,
@@ -965,6 +981,7 @@ async def analyze_screenshot(
             detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL), used_fallback=False,
             raw_response={"evidence_ids": evidence.evidence_ids, "trace": evidence.trace, "raw_evidence": evidence.raw_evidence},
             source="receipt" if receipt_level else "screenshot",
+            currency_resolution="full_image_agreement",
             receipt_items=receipt_items, receipt_date=evidence.transaction_date if receipt_level else None,
             receipt_merchant=evidence.merchant if receipt_level else None, receipt_total=evidence.receipt_total,
             field_findings=evidence.findings, needs_review=evidence.requires_review or bool(arithmetic_warnings),

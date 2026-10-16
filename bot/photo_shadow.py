@@ -25,7 +25,7 @@ from photo_pipeline import Evidence, ExtractionPass, PipelineConfig, Reconciliat
 
 logger = logging.getLogger("mcf.photo_shadow")
 _CACHE_TTL_SECONDS = 45.0
-_DURABLE_CACHE_VERSION = 3
+_DURABLE_CACHE_VERSION = 4
 _DURABLE_CACHE_PRODUCER = "photo-shadow"
 _CACHE_MAX_ENTRIES = 128
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -172,10 +172,9 @@ def _prompt(*, today: date | None = None) -> str:
         "status.value must be completed, declined or refunded: "
         "'Успішно'/'Оплачено' => completed, 'Відхилено' => declined, 'Повернення' => refunded. "
         "type.value must be expense, income, transfer, own_account_transfer or refund. Use visible payment text: "
-        "'Покупка'/'Оплата'/'Розділити оплату' => expense. raw_text must quote that exact visible label. "
-        "IMPORTANT: When the button 'Розділити оплату' is visible, the expense type raw_text must be exactly "
-        "'Розділити оплату', not the generic label 'Покупка' unless that word is actually printed. "
-        "Never use the 'Повернути кошти' button as evidence for ANY type: it is only an available action. "
+        "'Покупка'/'Оплата' => expense. raw_text must quote that exact visible label. "
+        "Never use the 'Розділити оплату' or 'Повернути кошти' buttons as evidence for ANY type or status: "
+        "these are available actions, not historical transaction evidence. Omit type when no other explicit label exists. "
         "Return one type evidence for the transaction, plus any actually conflicting transfer/refund label. "
         "'З картки', merchant names, categories, amount signs and the 'Повернути кошти' action alone are NOT type evidence. "
         "A refund action button is not the current transaction status. Include conflicting evidence for the primary "

@@ -81,9 +81,13 @@ class PhotoEvidenceSafetyTests(unittest.TestCase):
                 self.assertFalse(reconcile_extractions(passes(amount=(raw, '43.69'))).accepted)
         self.assertFalse(reconcile_extractions(passes(amount=('−43,69 UAH', '1234.50'))).accepted)
 
-    def test_explicit_payment_action_is_evidence_not_card_direction(self):
-        self.assertTrue(reconcile_extractions(passes(type=('Розділити оплату', 'expense'))).accepted)
-        self.assertFalse(reconcile_extractions(passes(type=('З картки', 'expense'))).accepted)
+    def test_ui_actions_are_not_historical_type_evidence(self):
+        for raw in ('Розділити оплату', 'Повернути кошти', 'З картки'):
+            with self.subTest(raw=raw):
+                result = reconcile_extractions(passes(type=(raw, 'expense')))
+                self.assertFalse(result.accepted)
+                self.assertIn('type_evidence_invalid', result.findings)
+        self.assertTrue(reconcile_extractions(passes(type=('Оплата', 'expense'))).accepted)
 
     def test_empty_or_duplicate_evidence_identifiers_rejected(self):
         first, second = passes()
