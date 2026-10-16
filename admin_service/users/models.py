@@ -128,6 +128,7 @@ class UserOidcAuthorizationFlow(models.Model):
     nonce = models.CharField(max_length=128)
     code_verifier = models.CharField(max_length=128)
     return_to = models.TextField(default="/app/")
+    start_payload = models.CharField(max_length=32, blank=True, default="")
     issued_at = models.DateTimeField()
     expires_at = models.DateTimeField(db_index=True)
 

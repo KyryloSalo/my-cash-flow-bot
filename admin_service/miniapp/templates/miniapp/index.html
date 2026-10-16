@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="{% static 'miniapp/achievements-ui.css' %}?v={{ miniapp_asset_version }}">
   <script defer src="{% static 'miniapp/sound-manager.js' %}?v={{ miniapp_asset_version }}" data-sound-base="{% static 'miniapp/sounds/' %}" data-asset-version="{{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/install-coach.js' %}?v={{ miniapp_asset_version }}"></script>
+  <script defer src="{% static 'miniapp/course-bonus.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/push.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/capture.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/achievements.js' %}?v={{ miniapp_asset_version }}"></script>
@@ -143,6 +144,15 @@
         <button class="ghost-action" id="cardBindingLater" type="button">Не зараз</button>
       </div>
       <p class="form-status" id="cardBindingStatus" hidden aria-live="polite"></p>
+    </section>
+  </div>
+  <div class="activation-modal course-bonus-modal" id="courseBonusModal" role="dialog" aria-modal="true" aria-labelledby="courseBonusTitle" aria-describedby="courseBonusMessage" hidden>
+    <section class="activation-card" tabindex="-1">
+      <div class="activation-icon" aria-hidden="true">🎓</div>
+      <p class="eyebrow" id="courseBonusEyebrow">Ваш бонус</p>
+      <h2 id="courseBonusTitle">90 днів безкоштовно</h2>
+      <p class="activation-lead" id="courseBonusMessage"></p>
+      <div class="activation-actions"><button class="primary-action" id="courseBonusPrimary" type="button">Дякую</button></div>
     </section>
   </div>
   <div class="activation-modal install-coach-modal" id="installNudgeModal" role="dialog" aria-modal="true" aria-labelledby="installNudgeTitle" aria-describedby="installNudgeMessage" hidden>
@@ -6224,6 +6234,7 @@
             return loadLiveDashboard().then(function () {
               if (activationModalOpen) return null;
               return loadSettingsOptions().then(function (settingsPayload) {
+                if (showCourseBonusNudge(settingsPayload)) return null;
                 if (!showCardBindingNudge(settingsPayload)) return maybeShowInstallNudge(false);
                 return null;
               });
@@ -8676,6 +8687,35 @@
         activationModalOpen = false;
       }
 
+      let courseBonusDismissalStore = null;
+      function dismissCourseBonus() {
+        const modal = document.getElementById("courseBonusModal");
+        if (courseBonusDismissalStore && courseBonusDismissalStore.dismiss) courseBonusDismissalStore.dismiss(courseBonusDismissalStore.consentId);
+        closeAccessibleModal(modal);
+        activationModalOpen = false;
+        maybeShowInstallNudge(false);
+      }
+      function showCourseBonusNudge(settingsPayload) {
+        const api = window.VydnoCourseBonus;
+        const bonus = api && api.normalize(settingsPayload && settingsPayload.access ? settingsPayload.access : {});
+        const modal = document.getElementById("courseBonusModal");
+        if (!bonus || !modal || activationModalOpen) return false;
+        const userId = settingsPayload && settingsPayload.user && settingsPayload.user.tg_user_id;
+        if (!userId) return false;
+        let storage = null;
+        try { storage = window.localStorage; } catch (_) { storage = null; }
+        courseBonusDismissalStore = api.createDismissalStore(storage || { getItem: function () { return null; }, setItem: function () {} }, userId);
+        courseBonusDismissalStore.consentId = bonus.id;
+        if (courseBonusDismissalStore.isDismissed(bonus.id)) return false;
+        setText("courseBonusMessage", api.copy(activeLocale));
+        setText("courseBonusEyebrow", activeLocale === "en" ? "Your course bonus" : "Ваш бонус від курсу");
+        setText("courseBonusTitle", activeLocale === "en" ? "90 days free" : "90 днів безкоштовно");
+        setText("courseBonusPrimary", activeLocale === "en" ? "Thank you" : "Дякую");
+        openAccessibleModal(modal, dismissCourseBonus, "courseBonusPrimary");
+        activationModalOpen = true;
+        return true;
+      }
+
       function setCardBindingStatus(message, tone) {
         const status = document.getElementById("cardBindingStatus");
         if (!status) return;
@@ -8994,6 +9034,8 @@
           hideCardBindingNudge();
           maybeShowInstallNudge(false);
         });
+        const courseBonusPrimary = document.getElementById("courseBonusPrimary");
+        if (courseBonusPrimary) courseBonusPrimary.addEventListener("click", dismissCourseBonus);
         if (installPrimary) installPrimary.addEventListener("click", startInstallFromCoach);
         if (installHelp) installHelp.addEventListener("click", function () {
           installCoachHelpOpen = !installCoachHelpOpen;
@@ -9398,7 +9440,11 @@
             if (analyticsScreen && analyticsScreen.classList.contains("is-active")) {
               return loadAnalyticsDetails(true);
             }
-            return maybeShowInstallNudge(installRequested);
+            return loadSettingsOptions().then(function (settingsPayload) {
+              if (showCourseBonusNudge(settingsPayload)) return null;
+              if (showCardBindingNudge(settingsPayload)) return null;
+              return maybeShowInstallNudge(installRequested);
+            });
           })
           .catch(function (errorPayload) {
             if (loadId !== dashboardLoadId) return null;

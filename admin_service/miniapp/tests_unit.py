@@ -376,7 +376,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
     def test_telegram_oidc_login_uses_validated_iat_for_session_freshness(self) -> None:
         request = self.factory.get("/app/auth/telegram/callback?state=state&code=code")
         request.session = FakeSession()
-        pending = SimpleNamespace(code="code", code_verifier="verifier", nonce="nonce", return_to="/app/")
+        pending = SimpleNamespace(code="code", code_verifier="verifier", nonce="nonce", return_to="/app/", start_payload="")
         user = SimpleNamespace(tg_user_id=1001)
         registration_identity = object()
         registration = SimpleNamespace(user=user, identity=registration_identity)

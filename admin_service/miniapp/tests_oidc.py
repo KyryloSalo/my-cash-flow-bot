@@ -56,6 +56,13 @@ def build_telegram_init_data(*, bot_token: str, tg_user_id: int, allows_write_to
     TELEGRAM_OIDC_REDIRECT_URI="https://vydno.capital/app/auth/telegram/callback",
 )
 class TelegramOidcStartTests(TestCase):
+    def setUp(self) -> None:
+        from bot_settings.models import BotSetting
+
+        BotSetting.objects.update_or_create(
+            key="registration_enabled", defaults={"value": "true", "value_type": "bool"},
+        )
+
     @override_settings(
         TELEGRAM_OIDC_CLIENT_ID="123456789",
         TELEGRAM_OIDC_CLIENT_SECRET="",
