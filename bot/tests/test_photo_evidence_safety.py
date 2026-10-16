@@ -15,10 +15,8 @@ class PhotoEvidenceSafetyTests(unittest.TestCase):
     def test_single_transaction_merchants_must_agree(self):
         first, second = passes()
         result = reconcile_extractions((replace(first, merchant='First'), replace(second, merchant='Other')))
-        self.assertTrue(result.accepted)
+        self.assertFalse(result.accepted)
         self.assertIn('merchant_conflict', result.findings)
-        self.assertIsNone(result.merchant)
-        self.assertTrue(result.requires_review)
 
     def test_full_document_layout_disagreement_is_never_accepted(self):
         first, second = passes()

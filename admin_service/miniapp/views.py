@@ -1531,6 +1531,8 @@ def _batch_context_for_transaction_draft(request: HttpRequest, payload: dict[str
     item = _find_ai_image_batch_item(batch, item_id)
     if item is None or str(item.get("status") or "pending") != "pending":
         raise MiniAppTransactionError("batch_item_unavailable", "Statement item is no longer available.", status=409)
+    if (batch.get("review_rows") or batch.get("skipped_items_count")) and batch.get("review_acknowledged") is not True:
+        raise MiniAppTransactionError("batch_review_ack_required", "Review rows must be acknowledged before confirmation.", status=409)
     return {"batch_id": batch_id, "item_id": item_id}
 
 
@@ -2324,6 +2326,10 @@ def ai_image_batch_item(request: HttpRequest) -> JsonResponse:
     action = str(payload.get("action") or "").strip().lower()
     if batch is None or not batch_id or str(batch.get("batch_id") or "") != batch_id:
         return _transaction_error_response(MiniAppTransactionError("batch_missing", "Statement batch was not found.", status=404))
+    if action == "acknowledge_review":
+        batch["review_acknowledged"] = True
+        _save_session_ai_image_batch(request, batch)
+        return _json_ok({"ok": True, "batch": _ai_image_batch_payload(batch)})
     item = _find_ai_image_batch_item(batch, item_id)
     if item is None or str(item.get("status") or "pending") != "pending":
         return _transaction_error_response(MiniAppTransactionError("batch_item_unavailable", "Statement item is no longer available.", status=409))

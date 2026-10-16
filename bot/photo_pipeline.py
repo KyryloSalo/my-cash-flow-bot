@@ -119,6 +119,7 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
     if any(extraction.mode not in {'single_tx', 'receipt'} for extraction in passes):
         findings.append('non_single_transaction_layout')
     full = [extraction for extraction in passes if extraction.source.startswith('full-')]
+    receipt_document = len(full) >= 2 and all(item.mode == "receipt" for item in full)
     if len({extraction.mode for extraction in full}) > 1:
         findings.append('document_layout_conflict')
     if len({extraction.transaction_date for extraction in full}) > 1:
@@ -156,7 +157,7 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
             # Crops are supplemental views: a field outside a crop is absent,
             # not contradictory evidence. Full-image passes still must each
             # provide every required field.
-            if not items and not extraction.source.startswith("crop-"):
+            if not items and not extraction.source.startswith("crop-") and not (receipt_document and field in {"status", "type"}):
                 findings.append(field + "_unknown")
             for item in items:
                 raw, claimed = item.raw_text.strip(), item.value.strip()
@@ -189,9 +190,9 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
         values[field] = candidates
         if any(len(group) != 1 for group in groups.values()) or len(groups) > 1 or len(candidates) != 1:
             findings.append(field + "_conflict")
-    if values["status"] != {"completed"}:
+    if not receipt_document and values["status"] != {"completed"}:
         findings.append("non_completed_status")
-    if not values["type"] or not values["type"].issubset({"expense", "income"}):
+    if not receipt_document and (not values["type"] or not values["type"].issubset({"expense", "income"})):
         findings.append("non_financial_type")
     if amount_currencies and amount_currencies != values["currency"]:
         findings.append("amount_currency_conflict")
@@ -203,7 +204,7 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
         return next(iter(candidates)) if len(candidates) == 1 else None
 
     findings = tuple(dict.fromkeys(findings))
-    accepted = not any(finding != 'merchant_conflict' for finding in findings)
+    accepted = not findings
     representative = next((item for item in passes if item.source.startswith("full-") and (item.merchant or item.transaction_date or item.line_items)), passes[0] if passes else None)
     # Receipt classification needs two independent full-document views. Metadata
     # such as a merchant or a total must never bypass rejected financial evidence.

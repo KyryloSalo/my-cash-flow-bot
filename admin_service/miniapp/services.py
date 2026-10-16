@@ -1519,6 +1519,7 @@ def build_ai_image_batch(user: TelegramUser, parsed: dict[str, object], *, batch
         "review_rows": [row for row in raw_review_rows[:AI_IMAGE_BATCH_MAX_ITEMS] if isinstance(row, dict)],
         "item_count": len(items),
         "skipped_items_count": skipped_items_count,
+        "review_acknowledged": False,
     }
 
 

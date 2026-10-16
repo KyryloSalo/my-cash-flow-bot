@@ -937,11 +937,11 @@ async def analyze_screenshot(
         receipt_items = tuple(
             ReceiptItemAnalysis(
                 name=str(item.get("description") or item.get("name") or ""),
-                quantity=None,
-                unit_price=None,
-                total=item.get("amount") if isinstance(item.get("amount"), Decimal) else None,
-                currency=evidence.currency,
-                evidence=None,
+                quantity=item.get("quantity") if isinstance(item.get("quantity"), Decimal) else None,
+                unit_price=item.get("unit_price") if isinstance(item.get("unit_price"), Decimal) else None,
+                total=item.get("amount") if isinstance(item.get("amount"), Decimal) else item.get("total") if isinstance(item.get("total"), Decimal) else None,
+                currency=str(item.get("currency") or evidence.currency),
+                evidence=item.get("evidence") if isinstance(item.get("evidence"), str) else None,
                 confidence=1.0,
             )
             for item in evidence.line_items
