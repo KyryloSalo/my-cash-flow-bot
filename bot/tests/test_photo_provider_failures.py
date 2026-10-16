@@ -15,6 +15,30 @@ from photo_pipeline import ExtractionPass, reconcile_extractions
 
 
 class ProviderFailureTests(unittest.IsolatedAsyncioTestCase):
+    async def test_retry_prioritizes_whole_document_layout_without_forcing_history(self):
+        payload = {'mode': 'single_tx', 'evidence': [
+            {'id': 's', 'field': 'status', 'raw_text': 'unrelated action',
+             'value': 'completed', 'region': None}], 'statement_items': []}
+        response = httpx.Response(200, request=httpx.Request('POST', 'https://example.invalid'),
+                                  json={'output_text': json.dumps(payload)})
+        prompts = []
+
+        async def capture(*args, **kwargs):
+            prompts.append(kwargs['json']['input'][0]['content'][0]['text'])
+            return response
+
+        client = AsyncMock()
+        client.__aenter__.return_value = client
+        client.post.side_effect = capture
+        with patch.object(photo_shadow.config, 'OPENAI_API_KEY', 'synthetic-test-value'), \
+             patch.object(photo_shadow.httpx, 'AsyncClient', return_value=client):
+            result = await photo_shadow._request(b'image', mime_type='image/jpeg',
+                                                model='test', detail='high', source='full-a')
+        self.assertEqual(len(prompts), 2)
+        self.assertTrue(prompts[1].startswith('Recheck the WHOLE image before reading any individual transaction.'))
+        self.assertIn('A genuinely single declined transaction remains single_tx', prompts[1])
+        self.assertFalse(reconcile_extractions((result,)).accepted)
+
     async def test_explicit_single_mode_with_invalid_labels_is_reextracted_once(self):
         payload = {'mode': 'single_tx', 'evidence': [
             {'id': 's', 'field': 'status', 'raw_text': 'unrelated action',

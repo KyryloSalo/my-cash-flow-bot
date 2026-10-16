@@ -25,7 +25,7 @@ from photo_pipeline import Evidence, ExtractionPass, PipelineConfig, Reconciliat
 
 logger = logging.getLogger("mcf.photo_shadow")
 _CACHE_TTL_SECONDS = 45.0
-_DURABLE_CACHE_VERSION = 2
+_DURABLE_CACHE_VERSION = 3
 _DURABLE_CACHE_PRODUCER = "photo-shadow"
 _CACHE_MAX_ENTRIES = 128
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -406,11 +406,15 @@ async def _request(image_bytes: bytes, *, mime_type: str, model: str, detail: st
                 return extraction
             # Re-extract once from the same image; never fix digits, synthesize
             # labels, vote away conflicts, or treat a retry as another source.
-            payload['input'][0]['content'][0]['text'] += (
-                ' Recheck the document layout and quote only exact visible core labels, '
-                'not a merchant/category or unrelated action. A history with unknown rows '
-                'is statement_expenses, not unsupported. Missing evidence stays missing; '
-                'do not invent status/type or change the amount to satisfy the schema.')
+            payload['input'][0]['content'][0]['text'] = (
+                'Recheck the WHOLE image before reading any individual transaction. '
+                'Several separately positioned signed amounts or date headings indicate a history: '
+                'use statement_expenses and return every row, including failed payments and incoming transfers. '
+                'Do not pick one failed row and describe the whole list as single_tx. '
+                'A genuinely single declined transaction remains single_tx and declined. '
+                'Quote only exact visible core labels, not a merchant/category or unrelated action. '
+                'Unknown fields stay unknown; never invent status/type or alter money. '
+                + _prompt(today=today))
 
 
 async def _collect_passes(*requests):

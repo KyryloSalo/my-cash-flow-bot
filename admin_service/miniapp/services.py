@@ -1376,13 +1376,18 @@ def build_ai_image_suggestion(user: TelegramUser, parsed: dict[str, object]) -> 
             "arithmetic_warnings": parsed.get("arithmetic_warnings") if isinstance(parsed.get("arithmetic_warnings"), list) else [],
         }
     kind = str(parsed.get("type") or "").strip().lower()
+    if source == "receipt" and not kind and parsed.get("needs_review"):
+        # Draft-form direction only; not accepted evidence or a ledger write.
+        kind = "expense"
     if mode not in {"single_tx", "statement_expenses"} or kind not in SUPPORTED_NORMAL_TRANSACTION_KINDS:
         return {"mode": "unrecognized"}
 
     locale = locale_for_user(user)
     base_currency = _base_currency(user)
-    currency = _normalize_currency(parsed.get("currency"), default=base_currency)
     currency_explicit = bool(parsed.get("currency_explicit"))
+    receipt_source = source == "receipt"
+    currency = (_normalize_currency(parsed.get("currency"), default=base_currency)
+                 if not receipt_source or currency_explicit else "")
     amount: Decimal | None = None
     if parsed.get("amount") is not None:
         try:
@@ -1392,7 +1397,7 @@ def build_ai_image_suggestion(user: TelegramUser, parsed: dict[str, object]) -> 
         if candidate_amount > ZERO:
             amount = candidate_amount
 
-    transaction_date = timezone.localdate()
+    transaction_date = None if receipt_source else timezone.localdate()
     raw_date = str(parsed.get("transaction_date") or "").strip()
     if raw_date:
         try:
@@ -1400,7 +1405,8 @@ def build_ai_image_suggestion(user: TelegramUser, parsed: dict[str, object]) -> 
         except ValueError:
             pass
 
-    account = _pick_ai_image_account(user, parsed, currency=currency, currency_explicit=currency_explicit)
+    account = (None if receipt_source and not currency_explicit else
+               _pick_ai_image_account(user, parsed, currency=currency, currency_explicit=currency_explicit))
     category = _pick_ai_image_category(user, kind=kind, category_hint=parsed.get("category_hint"))
     missing_fields: list[str] = []
     if amount is None:
@@ -1409,6 +1415,17 @@ def build_ai_image_suggestion(user: TelegramUser, parsed: dict[str, object]) -> 
         missing_fields.append("account_id")
     if category is None:
         missing_fields.append("category_id")
+    if receipt_source and not currency_explicit:
+        missing_fields.append("currency")
+    if transaction_date is None:
+        missing_fields.append("transaction_date")
+    review_findings = parsed.get("field_findings") if isinstance(parsed.get("field_findings"), list) else []
+    review_requested = bool(parsed.get("needs_review")) or bool(parsed.get("needs_review_bool"))
+    review_requested = review_requested or any(
+        str(item).strip().lower() in {"status_unknown", "currency_unknown"}
+        or (isinstance(item, dict) and str(item.get("field") or "").lower() in {"status", "currency"})
+        for item in review_findings
+    )
 
     return {
         "mode": "transaction",
@@ -1418,18 +1435,18 @@ def build_ai_image_suggestion(user: TelegramUser, parsed: dict[str, object]) -> 
         "currency_explicit": currency_explicit,
         "account_id": int(account.id) if account is not None else None,
         "category_id": int(category.id) if category is not None else None,
-        "transaction_date": transaction_date.isoformat(),
+        "transaction_date": transaction_date.isoformat() if transaction_date else None,
         "comment": str(parsed.get("comment") or "").strip()[:500],
         "missing_fields": missing_fields,
         "confidence": float(parsed.get("confidence") or 0),
         # Optional additive runtime metadata; older bot responses remain valid.
         "field_findings": parsed.get("field_findings") if isinstance(parsed.get("field_findings"), list) else [],
         "needs_review": parsed.get("needs_review") if isinstance(parsed.get("needs_review"), list) else [],
-        "needs_review_bool": bool(parsed.get("needs_review")),
         "arithmetic_warnings": parsed.get("arithmetic_warnings") if isinstance(parsed.get("arithmetic_warnings"), list) else [],
         "receipt_items": receipt_items,
         "receipt_total": parsed.get("receipt_total"),
         "source": source,
+        "needs_review_bool": review_requested,
         "message": mt("Перевірте заповнені поля перед підтвердженням.", "Review the populated fields before confirming.", locale),
     }
 
@@ -1594,6 +1611,12 @@ def build_transaction_draft(user: TelegramUser, payload: dict[str, object], *, d
     amount_payload = money_payload(amount, currency)
     raw_receipt_items = payload.get("receipt_items")
     receipt_review = _normalize_receipt_review(raw_receipt_items)
+    source = str(payload.get("source") or MINIAPP_TRANSACTION_SOURCE).strip().lower()
+    findings = payload.get("field_findings") if isinstance(payload.get("field_findings"), list) else []
+    if source == "receipt" and (bool(payload.get("needs_review_bool")) or bool(payload.get("needs_review")) or findings):
+        raise MiniAppTransactionError("receipt_requires_review", "Receipt evidence requires manual review before confirmation.")
+    if source == "receipt" and not str(payload.get("currency") or "").strip():
+        raise MiniAppTransactionError("currency_required", "Receipt currency must be selected before confirmation.")
 
     return {
         "draft_id": draft_id,

@@ -107,6 +107,7 @@ class ScreenshotAnalysis:
     field_findings: tuple[str, ...] = ()
     needs_review: bool = False
     arithmetic_warnings: tuple[str, ...] = ()
+    source: str = "screenshot"
 
 
 @dataclass(frozen=True)
@@ -155,6 +156,7 @@ def serialize_miniapp_screenshot_analysis(analysis: ScreenshotAnalysis) -> dict[
 
     return {
         "mode": analysis.mode,
+        "source": analysis.source,
         "transaction_date": analysis.transaction_date.isoformat() if analysis.transaction_date else None,
         "type": analysis.type,
         "amount": f"{analysis.amount:.2f}" if analysis.amount is not None else None,
@@ -891,6 +893,19 @@ async def analyze_screenshot(
         from photo_shadow import analyze_photo
         evidence = await analyze_photo(image_bytes, mime_type=mime_type, model=config.OPENAI_VISION_MODEL,
                                        detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL), today=today)
+        receipt_level = evidence.trace.get("document_mode") == "receipt"
+        if not evidence.accepted and evidence.trace.get("receipt_review_only") is True:
+            # This is a blank manual form, not accepted financial evidence.
+            # Do not project disputed amount/date/currency or select an account.
+            return ScreenshotAnalysis(
+                transaction_date=None, type=None, amount=None, currency=None,
+                account_hint=None, category_hint=None, comment=None, confidence=0.0,
+                bank_name=None, card_last4=None, model=config.OPENAI_VISION_MODEL,
+                detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL), used_fallback=False,
+                source="receipt", needs_review=True,
+                field_findings=tuple(dict.fromkeys((*evidence.findings, "receipt_manual_review"))),
+                raw_response={"trace": evidence.trace})
+        # Rejected bank transactions never become expense suggestions.
         if not evidence.accepted and not evidence.statement_review_rows:
             raise OpenAIVisionInvalidResponseError("Photo evidence requires review")
         if not evidence.statement_items and not evidence.statement_review_rows and (evidence.amount is None or evidence.currency is None):
@@ -949,8 +964,9 @@ async def analyze_screenshot(
             bank_name=None, card_last4=None, model=config.OPENAI_VISION_MODEL,
             detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL), used_fallback=False,
             raw_response={"evidence_ids": evidence.evidence_ids, "trace": evidence.trace, "raw_evidence": evidence.raw_evidence},
-            receipt_items=receipt_items, receipt_date=evidence.transaction_date,
-            receipt_merchant=evidence.merchant, receipt_total=evidence.receipt_total,
+            source="receipt" if receipt_level else "screenshot",
+            receipt_items=receipt_items, receipt_date=evidence.transaction_date if receipt_level else None,
+            receipt_merchant=evidence.merchant if receipt_level else None, receipt_total=evidence.receipt_total,
             field_findings=evidence.findings, needs_review=evidence.requires_review or bool(arithmetic_warnings),
             arithmetic_warnings=tuple(arithmetic_warnings),
         )

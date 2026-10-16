@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
 _CURRENCY={"UAH":{"UAH","ГРН","₴"},"EUR":{"EUR","€","EURO"},"USD":{"USD","US$"},"TRY":{"TRY","TL","₺","LIRA","LIRAS"}}
-_STATUS={"completed":{"completed","paid","successful","успішно","оплачено","başarılı"},"declined":{"declined","rejected","failed","відхилено","отклонен","başarısız"},"refunded":{"refunded","refund","reversed","повернення","iade"}}
+_STATUS={"completed":{"completed","paid","successful","успішно","оплачено","başarılı"},"declined":{"declined","rejected","failed","відхилено","отклонен","başarısız"},"refunded":{"refunded","refund","reversed","повернення","iade"},"pending":{"pending","processing","очікує","очікування","в обробці","beklemede"}}
 _TYPE={"expense":{"expense","purchase","payment","витрата","оплата","покупка","розділити оплату","harcama"},"income":{"income","credit","дохід","зарахування","gelir"},"transfer":{"transfer","переказ","перевод","havale"},"own_account_transfer":{"own account","власний рахунок","свій рахунок","kendi hesabı"},"refund":{"refund","refunded","повернення","iade"}}
 @dataclass(frozen=True)
 class Evidence: id:str; field:str; raw_text:str; value:str; region:str|None=None
@@ -205,4 +205,15 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
     findings = tuple(dict.fromkeys(findings))
     accepted = not any(finding != 'merchant_conflict' for finding in findings)
     representative = next((item for item in passes if item.source.startswith("full-") and (item.merchant or item.transaction_date or item.line_items)), passes[0] if passes else None)
-    return ReconciliationResult(accepted, bool(findings), single("amount"), single("currency"), single("status"), single("type"), tuple(identifiers) if accepted else (), findings, {"stage":"reconciliation", "pass_count":len(passes), "full_pass_count":len([p for p in passes if p.source.startswith("full-")]), "finding_count":len(findings)}, representative.transaction_date if representative else today, representative.merchant if representative and "merchant_conflict" not in findings else None, "L1" if accepted else None, representative.line_items if representative else (), representative.receipt_total if representative else None, tuple(item.raw_evidence or {} for item in passes))
+    # Receipt classification needs two independent full-document views. Metadata
+    # such as a merchant or a total must never bypass rejected financial evidence.
+    receipt_document = len(full) >= 2 and all(item.mode == "receipt" for item in full)
+    excluded_receipt = any(
+        (item.field == "status" and any(_lex(token, _STATUS) in {"declined", "refunded", "pending"} for token in (item.raw_text, item.value)))
+        or (item.field == "type" and any(_lex(token, _TYPE) in {"income", "transfer", "own_account_transfer", "refund"} for token in (item.raw_text, item.value)))
+        for extraction in passes for item in extraction.evidence
+    )
+    trace = {"stage":"reconciliation", "pass_count":len(passes), "full_pass_count":len(full), "finding_count":len(findings),
+             "document_mode":"receipt" if receipt_document else "unsupported",
+             "receipt_review_only":receipt_document and all(item.mode == "receipt" for item in passes) and not excluded_receipt}
+    return ReconciliationResult(accepted, bool(findings), single("amount"), single("currency"), single("status"), single("type"), tuple(identifiers) if accepted else (), findings, trace, representative.transaction_date if representative else today, representative.merchant if representative and "merchant_conflict" not in findings else None, "L1" if accepted else None, representative.line_items if representative else (), representative.receipt_total if representative else None, tuple(item.raw_evidence or {} for item in passes))

@@ -10,6 +10,24 @@ from .services import build_ai_image_batch, build_ai_image_suggestion
 
 
 class AiImageReviewTests(SimpleTestCase):
+    def test_blank_manual_receipt_has_no_invented_date_currency_or_account(self) -> None:
+        with patch("miniapp.services._pick_ai_image_account", return_value=SimpleNamespace(id=7)) as account:
+            with patch("miniapp.services._pick_ai_image_category", return_value=None):
+                suggestion = build_ai_image_suggestion(
+                    SimpleNamespace(base_currency="UAH"),
+                    {"mode": "single_tx", "source": "receipt", "type": None,
+                     "amount": None, "currency": None, "currency_explicit": False,
+                     "transaction_date": None, "field_findings": ["receipt_manual_review"], "needs_review": True},
+                )
+        self.assertEqual(suggestion["mode"], "transaction")
+        self.assertIsNone(suggestion["amount"])
+        self.assertEqual(suggestion["currency"], "")
+        self.assertIsNone(suggestion["transaction_date"])
+        self.assertIsNone(suggestion["account_id"])
+        self.assertIn("transaction_date", suggestion["missing_fields"])
+        self.assertTrue(suggestion["needs_review_bool"])
+        account.assert_not_called()
+
     def test_single_suggestion_preserves_optional_runtime_review_metadata(self) -> None:
         account = SimpleNamespace(id=7)
         category = SimpleNamespace(id=8)
@@ -72,6 +90,30 @@ class AiImageReviewTests(SimpleTestCase):
         self.assertEqual(suggestion["receipt_items"][0]["name"], "Coffee")
         self.assertEqual(suggestion["source"], "receipt")
         self.assertNotEqual(suggestion["mode"], "batch")
+
+    def test_receipt_missing_currency_is_review_only(self) -> None:
+        with patch("miniapp.services._pick_ai_image_account", return_value=SimpleNamespace(id=7)), patch(
+            "miniapp.services._pick_ai_image_category", return_value=SimpleNamespace(id=8)
+        ):
+            suggestion = build_ai_image_suggestion(
+                SimpleNamespace(base_currency="UAH"),
+                {"mode": "single_tx", "type": "expense", "amount": "12.50", "source": "receipt",
+                 "currency_explicit": False, "field_findings": ["currency_unknown"]},
+            )
+        self.assertEqual(suggestion["currency"], "")
+        self.assertIn("currency", suggestion["missing_fields"])
+        self.assertTrue(suggestion["needs_review_bool"])
+
+    def test_receipt_missing_status_is_review_only(self) -> None:
+        with patch("miniapp.services._pick_ai_image_account", return_value=SimpleNamespace(id=7)), patch(
+            "miniapp.services._pick_ai_image_category", return_value=SimpleNamespace(id=8)
+        ):
+            suggestion = build_ai_image_suggestion(
+                SimpleNamespace(base_currency="UAH"),
+                {"mode": "single_tx", "type": "expense", "amount": "12.50", "currency": "UAH",
+                 "currency_explicit": True, "source": "receipt", "field_findings": ["status_unknown"]},
+            )
+        self.assertTrue(suggestion["needs_review_bool"])
 
     def test_malformed_receipt_l2_falls_back_to_single_transaction(self) -> None:
         with patch("miniapp.services._pick_ai_image_account", return_value=SimpleNamespace(id=7)), patch(
