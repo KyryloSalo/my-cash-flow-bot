@@ -1,0 +1,36 @@
+(function (root, factory) {
+  "use strict";
+  const api = factory();
+  if (typeof module === "object" && module.exports) module.exports = api;
+  if (root) root.VydnoCourseBonus = api;
+})(typeof window !== "undefined" ? window : globalThis, function () {
+  "use strict";
+
+  const COPY = {
+    uk: "Дякуємо, що обрали нас! Даруємо вам 90 днів безкоштовного користування, оскільки ви є студентом курсу «Фінансова грамотність» на платформі askills.pro.",
+    en: "Thank you for choosing us! We are giving you 90 days of free use because you are a student of the Financial Literacy course on the askills.pro platform."
+  };
+  const PREFIX = "vydno.course-bonus.dismissed.v1.";
+
+  function normalize(access) {
+    const value = access && access.course_bonus;
+    if (!value || value.trial_days !== 90 || !value.id || value.course_name !== "Фінансова грамотність" || value.platform !== "askills.pro") return null;
+    return { id: String(value.id), trial_days: 90, course_name: value.course_name, platform: value.platform };
+  }
+
+  function createDismissalStore(storage, userId) {
+    const key = PREFIX + String(userId || "anonymous");
+    function read() {
+      try { return JSON.parse(storage.getItem(key) || "{}"); } catch (_) { return {}; }
+    }
+    return {
+      isDismissed: function (consentId) { return Boolean(consentId && read()[String(consentId)]); },
+      dismiss: function (consentId) {
+        if (!consentId) return;
+        try { const state = read(); state[String(consentId)] = true; storage.setItem(key, JSON.stringify(state)); } catch (_) {}
+      }
+    };
+  }
+
+  return Object.freeze({ normalize, createDismissalStore, copy: function (locale) { return COPY[locale === "en" ? "en" : "uk"]; } });
+});

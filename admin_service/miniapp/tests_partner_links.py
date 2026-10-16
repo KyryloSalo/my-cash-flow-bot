@@ -315,6 +315,7 @@ class PartnerLinkRegistrationAttributionTests(SimpleTestCase):
             code_verifier="verifier",
             nonce="nonce",
             return_to="/app/",
+            start_payload="",
         )
         user = SimpleNamespace(tg_user_id=1001)
         registration_identity = object()
