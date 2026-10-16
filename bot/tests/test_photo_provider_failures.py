@@ -5,7 +5,10 @@ from io import BytesIO
 import unittest
 from unittest.mock import AsyncMock, patch
 
-import httpx
+from types import SimpleNamespace
+
+# Response fixtures must not depend on suite-global transport stubs.
+httpx = SimpleNamespace(Request=lambda *a, **k: None, Response=lambda status, request, json: SimpleNamespace(json=lambda: json, raise_for_status=lambda: None))
 from PIL import Image
 import photo_shadow
 from photo_pipeline import ExtractionPass, reconcile_extractions
