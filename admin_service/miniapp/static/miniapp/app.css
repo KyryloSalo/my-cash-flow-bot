@@ -2725,6 +2725,13 @@ button.transaction,
   line-height: 1.4;
 }
 
+.course-bonus-modal .activation-card {
+  max-width: 32rem;
+}
+.course-bonus-modal .activation-icon {
+  background: rgba(69, 217, 174, 0.14);
+}
+
 .activation-modal {
   position: fixed;
   z-index: 3000;

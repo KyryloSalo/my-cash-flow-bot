@@ -231,6 +231,7 @@ MINIAPP_ASSET_VERSION = str(
         _miniapp_asset_stamp("app.css"),
         _miniapp_asset_stamp("app.js"),
         _miniapp_asset_stamp("install-coach.js"),
+        _miniapp_asset_stamp("course-bonus.js"),
         _miniapp_asset_stamp("push.js"),
         _miniapp_asset_stamp("sound-manager.js"),
         _miniapp_asset_stamp("sounds/success.mp3"),
@@ -536,6 +537,7 @@ def manifest(request: HttpRequest) -> JsonResponse:
 def service_worker(request: HttpRequest) -> HttpResponse:
     app_css_url = _versioned_static("miniapp/app.css")
     install_coach_url = _versioned_static("miniapp/install-coach.js")
+    course_bonus_url = _versioned_static("miniapp/course-bonus.js")
     sound_manager_url = _versioned_static("miniapp/sound-manager.js")
     success_sound_url = _versioned_static("miniapp/sounds/success.mp3")
     achievement_sound_url = _versioned_static("miniapp/sounds/achievement.mp3")
@@ -558,6 +560,7 @@ const SHELL_ASSETS = [
   APP_SHELL_URL,
   "{app_css_url}",
   "{install_coach_url}",
+  "{course_bonus_url}",
   "{sound_manager_url}",
   "{success_sound_url}",
   "{achievement_sound_url}",
@@ -758,6 +761,12 @@ def telegram_oidc_callback(request: HttpRequest) -> HttpResponse:
             ),
             status=409,
         )
+
+    if pending.start_payload == "course":
+        UserAdminState.objects.filter(
+            telegram_user=registration.user,
+            pending_start_payload="",
+        ).update(pending_start_payload="course")
 
     login_session(
         request,

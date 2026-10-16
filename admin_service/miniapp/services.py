@@ -18,6 +18,7 @@ from miniapp.fx import get_latest_rates
 from miniapp.image_uploads import detect_heif_mime
 from miniapp.models import AiTransactionDraft, SavingPromptSetting
 from subscriptions.models import BillingProfile, PromoOffer, Subscription
+from subscriptions.consent import activated_course_bonus
 from transactions.models import Debt, DebtPayment, Transaction
 from users.models import TelegramUser, UserAdminState
 
@@ -692,6 +693,7 @@ def resolve_access(user: TelegramUser) -> dict[str, object]:
         "trial_days": trial_days,
         "promo_code": promo_code,
         "promo_trial_days": promo_trial_days,
+        "course_bonus": activated_course_bonus(user=user, subscription=subscription, has_card=has_card) if mode == "active" else None,
         "bind_amount_label": bind_amount_label,
         "monthly_price_label": monthly_price_label,
         "renewal_period_days": renewal_period_days,

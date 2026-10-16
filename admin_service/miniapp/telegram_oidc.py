@@ -37,6 +37,7 @@ class PendingAuthorization:
     code_verifier: str
     nonce: str
     return_to: str
+    start_payload: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,11 +87,13 @@ def begin_authorization(request: HttpRequest, *, return_to: str | None = None, n
     ttl = max(60, int(getattr(settings, "TELEGRAM_OIDC_FLOW_TTL_SECONDS", 600) or 600))
     state_hash = hashlib.sha256(state.encode("ascii")).hexdigest()
     safe_return_to = safe_return_path(return_to)
+    start_payload = "course" if request.GET.get("start") == "course" else ""
     request.session[OIDC_FLOW_SESSION_KEY] = {
         "state_hash": state_hash,
         "nonce": nonce,
         "code_verifier": code_verifier,
         "return_to": safe_return_to,
+        "start_payload": start_payload,
         "issued_at": issued_at,
     }
     current_time = datetime.fromtimestamp(issued_at, tz=UTC)
@@ -100,6 +103,7 @@ def begin_authorization(request: HttpRequest, *, return_to: str | None = None, n
         nonce=nonce,
         code_verifier=code_verifier,
         return_to=safe_return_to,
+        start_payload=start_payload,
         issued_at=current_time,
         expires_at=datetime.fromtimestamp(issued_at + ttl, tz=UTC),
     )
@@ -147,6 +151,7 @@ def consume_pending_authorization(
                 "nonce": persisted_flow.nonce,
                 "code_verifier": persisted_flow.code_verifier,
                 "return_to": persisted_flow.return_to,
+                "start_payload": persisted_flow.start_payload,
                 "issued_at": int(persisted_flow.issued_at.timestamp()),
                 "expires_at": int(persisted_flow.expires_at.timestamp()),
             }
@@ -179,6 +184,7 @@ def consume_pending_authorization(
         code_verifier=code_verifier,
         nonce=nonce,
         return_to=safe_return_path(flow.get("return_to")),
+        start_payload="course" if flow.get("start_payload") == "course" else "",
     )
 
 

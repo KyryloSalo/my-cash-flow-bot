@@ -6,11 +6,13 @@ const test = require("node:test");
 const root = __dirname;
 const landingHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const landingScript = fs.readFileSync(path.join(root, "script.js"), "utf8");
+const courseAttributionScript = fs.readFileSync(path.join(root, "course-attribution.js"), "utf8");
 const productCss = fs.readFileSync(path.join(root, "product.css"), "utf8");
 const quizHtml = fs.readFileSync(path.join(root, "quiz", "index.html"), "utf8");
 const quizScript = fs.readFileSync(path.join(root, "quiz", "script.js"), "utf8");
 const quizEditorialCss = fs.readFileSync(path.join(root, "quiz", "editorial.css"), "utf8");
 const oidcTarget = "https://vydno.capital/app/auth/telegram/start?next=/app/";
+const courseOidcTarget = "https://vydno.capital/app/auth/telegram/start?next=/app/&start=course";
 
 const localReferences = (html, base) => {
   const refs = [...html.matchAll(/(?:href|src)="([^"]+)"/g)].map((match) => match[1]);
@@ -39,6 +41,25 @@ test("candidate keeps one verified OIDC conversion destination", () => {
 
   assert.equal(links.length, 8);
   assert.deepEqual(new Set(links), new Set([oidcTarget]));
+});
+
+test("course attribution annotates every registration CTA and survives landing-to-quiz navigation", () => {
+  const scripts = `${landingScript}\\n${quizScript}\\n${courseAttributionScript}`;
+  assert.match(scripts, /localStorage/);
+  assert.match(scripts, /COURSE_VALUE\s*=\s*["']course/);
+  assert.match(scripts, /try\s*\{[\s\S]*localStorage/);
+  assert.match(scripts, /catch/);
+  assert.match(scripts, /setItem/);
+  assert.match(scripts, /URLSearchParams/);
+  assert.match(landingHtml, /course-attribution\.js/);
+  assert.match(quizHtml, /course-attribution\.js/);
+  const ctaLinks = [...`${landingHtml}\\n${quizHtml}`.matchAll(/href="([^"]*\/app\/auth\/telegram\/start[^"]*)"/g)].map((m) => m[1]);
+  assert.ok(ctaLinks.length >= 8);
+  assert.equal(new Set(ctaLinks).size, 1);
+  assert.equal(ctaLinks[0], oidcTarget);
+  assert.match(quizScript, /data-result-cta/);
+  assert.match(scripts, /same-origin/);
+  assert.match(scripts, /MAX_STORAGE|MAX_.*COURSE|course.*length/);
 });
 
 test("landing and quiz use only resolvable local assets", () => {
@@ -151,7 +172,7 @@ test("candidate emits only existing allowlisted presentation events", () => {
     "product_demo_start",
     "product_demo_complete",
   ]);
-  const scripts = `${landingScript}\n${quizScript}`;
+  const scripts = `${landingScript}\n${quizScript}\n${courseAttributionScript}`;
   const emitted = [
     ...[...scripts.matchAll(/emitDemoEvent\(\s*["`]([^"`]+)["`]/g)].map((match) => match[1]),
     ...[...scripts.matchAll(/emitFunnelEvent\(\s*[^,]+,\s*["`]([^"`]+)["`]/g)].map((match) => match[1]),

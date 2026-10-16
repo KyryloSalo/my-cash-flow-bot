@@ -7,11 +7,15 @@ from typing import Any
 
 from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 
 from miniapp.funnel import FunnelValidationError, record_server_event
 from miniapp.models import AcquisitionSession
 from subscriptions.models import BillingConsent, Payment
-from users.models import TelegramUser
+from users.models import TelegramUser, UserAdminState
+
+
+COURSE_OFFER_ID = "askills_course_90d"
 
 
 def build_server_consent_terms(*, trial_days: int, copy_locale: str) -> dict[str, Any]:
@@ -35,6 +39,32 @@ def build_server_consent_terms(*, trial_days: int, copy_locale: str) -> dict[str
         "terms_version": str(getattr(settings, "PWA_BILLING_TERMS_VERSION", "2026-09") or "2026-09"),
         "privacy_version": str(getattr(settings, "PWA_PRIVACY_VERSION", "2026-09") or "2026-09"),
         "copy_locale": locale,
+    }
+
+
+def activated_course_bonus(*, user: TelegramUser, subscription, has_card: bool) -> dict[str, object] | None:
+    """Expose the gift only after the provider activated this course trial."""
+    if not has_card or subscription is None or subscription.status != "trial" or subscription.trial_days != 90:
+        return None
+    if subscription.expires_at is None or subscription.expires_at <= timezone.now():
+        return None
+    consent = BillingConsent.objects.filter(
+        user=user,
+        offer_id=COURSE_OFFER_ID,
+        trial_days=90,
+        first_renewal_at__isnull=False,
+        payment__user=user,
+        payment__subscription=subscription,
+        payment__kind=Payment.Kind.BIND,
+        payment__status=Payment.Status.PAID,
+    ).order_by("accepted_at", "pk").first()
+    if consent is None:
+        return None
+    return {
+        "id": str(consent.pk),
+        "trial_days": 90,
+        "course_name": "Фінансова грамотність",
+        "platform": "askills.pro",
     }
 
 
@@ -77,6 +107,12 @@ def accept_billing_consent(
     except (ValueError, TypeError, AttributeError) as exc:
         raise FunnelValidationError("invalid_idempotency_key", "idempotency_key must be a UUID.") from exc
     terms = build_server_consent_terms(trial_days=trial_days, copy_locale=copy_locale)
+    pending_start = str(
+        UserAdminState.objects.filter(telegram_user=user)
+        .values_list("pending_start_payload", flat=True).first() or ""
+    )
+    if terms["trial_days"] == 90 and (pending_start == "course" or pending_start.startswith("course_")):
+        terms["offer_id"] = COURSE_OFFER_ID
     snapshot = acquisition_consent_snapshot(acquisition)
     payload_hash = _consent_hash(terms=terms, acquisition_snapshot=snapshot)
     consent, created = BillingConsent.objects.get_or_create(
