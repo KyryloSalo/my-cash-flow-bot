@@ -1,6 +1,6 @@
 # Курсова пропозиція на сайті: askills.pro, 90 днів
 
-Статус: артефакт розгорнуто в production 2026-10-16; повний acceptance ще НЕ ЗАВЕРШЕНО. PR #32, exact SHA `094ddd52ff2d3cd814d65576366032e5f981c9a8`, production run `38900595582`, deployment readback `passed`. Семантична версія цього релізу — `0.38.0` (новий сумісний користувацький маршрут). Див. [release evidence та відкриті перевірки](releases/0.38.0-course-web-offer.md).
+Статус: курсова реалізація з `0.38.0` збережена в production-артефакті `0.39.0`, активованому 2026-10-17 о `17:01:07.593704+00:00`; повний acceptance ще НЕ ЗАВЕРШЕНО. Поточний exact SHA `299076e08e6856d1acbb92faa6c464d1fa3bac65`, PR #35, production run `39051445322` — `success`; незалежний readback pointer/marker, healthy services і runtime-константи `askills_course_90d` пройшов. Це не є підтвердженням реального card binding або 90-денного бонусу власника. Див. [поточний release evidence та відкриті перевірки](releases/0.39.0-two-feature-owner-release.md); [історія початкового курсового релізу](releases/0.38.0-course-web-offer.md).
 
 ## Посилання для уроку
 

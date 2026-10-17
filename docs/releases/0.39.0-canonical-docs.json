@@ -1,0 +1,39 @@
+{
+  "version": "0.39.0",
+  "environment": "production",
+  "deployed_sha": "299076e08e6856d1acbb92faa6c464d1fa3bac65",
+  "production_run_id": 39051445322,
+  "purpose": "Scoped post-deployment canonical documentation updates; no runtime changes. Apply only after protected-main PR and required validation.",
+  "changes": [
+    {
+      "path": "VERSION",
+      "old_string": "0.38.0",
+      "new_string": "0.39.0"
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.39.0 — 2026-10-17\n\n- Version: `0.39.0` (MINOR: active PWA photo/receipt review surface; existing course offer carried forward).\n- Environment: `production`; implementation PR `#35`, exact SHA `299076e08e6856d1acbb92faa6c464d1fa3bac65`, validation `39034188495`, approved production run `39051445322` (`success`).\n- Authoritative activation: `2026-10-17T17:01:07.593704+00:00`; independent SSH readback passed at `2026-10-17T17:05:44.704533+00:00`. All eight services healthy; application containers have zero restarts (retained DB historical count 15).\n- Photo pipeline active in bot/API (`PHOTO_PIPELINE_ENABLED=true`, shadow false); transaction metadata migration applied. Receipt source/review/findings/total metadata and separate financial confirmation are retained.\n- Required encrypted off-host backup verified (artifact `12107887713`); public root/quiz/key JS match exact source bytes after CRLF normalization; course/PWA HTTP 200, anonymous profile 401; clean application/proxy log windows.\n- Course `https://vydno.capital/?start=course` retains server-controlled `askills_course_90d` / 90 days, confirmed card-link/payment and consent gates.\n- **ARTIFACT DEPLOYED; DELIVERY INCOMPLETE:** real receipts still show missing dates and one invalid/unresolved currency; strict authenticated upload → real provider → review without confirmation remains unverified. Real-owner Telegram/card/bonus/repeat-login and phone standalone-PWA acceptance are still open. No financial commit or cardholder action was performed.\n- Evidence, owner steps and limitations: `code/docs/releases/0.39.0-two-feature-owner-release.md`.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "old_string": "Current released version is tracked in the root `VERSION` file. The latest deployed artifact is documented as `0.38.0`; full course-flow acceptance is incomplete.\n\n",
+      "new_string": "Current released version is tracked in the root `VERSION` file. The latest deployed artifact is `0.39.0`; photo-quality/authenticated-review and real-owner course/PWA acceptance remain incomplete.\n\n- **Release `0.39.0`: artifact deployed; full delivery INCOMPLETE.** PR `#35`, active exact SHA `299076e08e6856d1acbb92faa6c464d1fa3bac65`, validation `39034188495`, approved production run `39051445322` (`success`); authoritative activation `2026-10-17T17:01:07.593704+00:00`. Independent marker/pointer/health readback, encrypted off-host backup, applied receipt-metadata migration, public source/asset parity and clean application/proxy log windows passed. Both bot and API select the active photo pipeline (enabled true, shadow false). Course entry and server-controlled 90-day offer are carried forward. Recognition quality is NOT accepted: real-input comparison has missing dates and an invalid/unresolved currency. Authenticated upload/provider/review/no-confirm browser acceptance and real-owner Telegram/card/bonus/repeat-login/phone-PWA acceptance remain open. No financial or card action was executed. See `code/docs/releases/0.39.0-two-feature-owner-release.md`.\n\n"
+    },
+    {
+      "path": "README.md",
+      "old_string": "## Current Mini App Delivery\n\n",
+      "new_string": "## Current Mini App Delivery\n\nProduction release `0.39.0` is active on exact SHA `299076e08e6856d1acbb92faa6c464d1fa3bac65` (approved run `39051445322`, activation `2026-10-17T17:01:07.593704+00:00`). PWA photo/receipt review is enabled in bot/API, with receipt metadata and explicit separate financial confirmation preserved; the existing course URL and server-controlled 90-day offer are carried forward. Backup, exact-SHA/runtime/health and public asset readback passed. **Artifact deployed; delivery INCOMPLETE:** real-receipt dates/currency still have quality defects; authenticated photo review and real-owner card/bonus/phone-PWA acceptance are not established. No financial commit was made. See `code/docs/releases/0.39.0-two-feature-owner-release.md`.\n\n"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "old_string": "Updated: 2026-10-16  \nCurrent latest production release: `0.38.0` (artifact deployed; real-owner acceptance incomplete)",
+      "new_string": "Updated: 2026-10-17  \nCurrent latest production release: `0.39.0` (artifact deployed; photo quality and real-owner acceptance incomplete)"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "old_string": "- `0.37.7` - current latest production release",
+      "new_string": "- `0.39.0` - current latest production release (artifact deployed; acceptance incomplete)"
+    }
+  ]
+}
