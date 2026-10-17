@@ -25,7 +25,7 @@ from photo_pipeline import Evidence, ExtractionPass, PipelineConfig, Reconciliat
 
 logger = logging.getLogger("mcf.photo_shadow")
 _CACHE_TTL_SECONDS = 45.0
-_DURABLE_CACHE_VERSION = 4
+_DURABLE_CACHE_VERSION = 5
 _DURABLE_CACHE_PRODUCER = "photo-shadow"
 _CACHE_MAX_ENTRIES = 128
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
