@@ -101,6 +101,22 @@ class ReceiptManualReviewTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(payload['currency_explicit'])
         self.assertIn('receipt_manual_review', payload['field_findings'])
 
+    async def test_crop_layout_disagreement_does_not_block_full_receipt_manual_review(self):
+        for crop_mode in ('single_tx', 'unsupported'):
+            with self.subTest(crop_mode=crop_mode):
+                passes = (*tuple(receipt_pass(s) for s in ('full-a', 'full-b')),
+                          receipt_pass('crop-0', mode=crop_mode))
+                evidence = reconcile_extractions(passes)
+                self.assertFalse(evidence.accepted)
+                result = await self.analyze(evidence)
+                payload = vision_tx.serialize_miniapp_screenshot_analysis(result)
+                self.assertTrue(payload['needs_review'])
+                self.assertEqual(payload['source'], 'receipt')
+                self.assertIn('receipt_crop_layout_conflict', payload['field_findings'])
+                for field in ('amount', 'currency', 'transaction_date', 'receipt_total'):
+                    self.assertIsNone(payload[field], field)
+                self.assertFalse(payload['currency_explicit'])
+
     async def test_mixed_layout_and_crop_only_never_open_receipt_fallback(self):
         pairs = [
             (receipt_pass('full-a'), receipt_pass('full-b', mode='single_tx')),

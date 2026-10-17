@@ -217,7 +217,12 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
     if receipt_document and excluded_receipt:
         findings = (*findings, "excluded_receipt")
         accepted = False
+    if receipt_document and any(item.mode != "receipt" for item in passes):
+        # A supplemental crop can omit the receipt layout. Two agreeing full
+        # views may still open a blank manual form, never accepted evidence.
+        findings = (*findings, "receipt_crop_layout_conflict")
+        accepted = False
     trace = {"stage":"reconciliation", "pass_count":len(passes), "full_pass_count":len(full), "finding_count":len(findings),
              "document_mode":"receipt" if receipt_document else "unsupported",
-             "receipt_review_only":receipt_document and all(item.mode == "receipt" for item in passes) and not excluded_receipt}
+             "receipt_review_only":receipt_document and not excluded_receipt}
     return ReconciliationResult(accepted, bool(findings), single("amount"), single("currency"), single("status"), single("type"), tuple(identifiers) if accepted else (), findings, trace, representative.transaction_date if representative else today, representative.merchant if representative and "merchant_conflict" not in findings else None, "L1" if accepted else None, representative.line_items if representative else (), representative.receipt_total if representative else None, tuple(item.raw_evidence or {} for item in passes))
