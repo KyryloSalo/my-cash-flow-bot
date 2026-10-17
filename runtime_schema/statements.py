@@ -76,6 +76,7 @@ CORE_STATEMENTS = (
     'ALTER TABLE transactions ADD COLUMN IF NOT EXISTS original_currency TEXT',
     'ALTER TABLE transactions ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC',
     'ALTER TABLE transactions ADD COLUMN IF NOT EXISTS category_name_snapshot TEXT',
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb",
     'ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transfer_subtype TEXT',
     'ALTER TABLE transactions ADD COLUMN IF NOT EXISTS family_id BIGINT NULL REFERENCES families (id)',
     'ALTER TABLE transactions ADD COLUMN IF NOT EXISTS created_by_user_id BIGINT NULL REFERENCES users (tg_user_id)',
