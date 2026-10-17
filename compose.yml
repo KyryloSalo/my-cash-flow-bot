@@ -37,6 +37,8 @@ services:
     environment:
       FAMILY_ACCESS_ENABLED: ${FAMILY_ACCESS_ENABLED:-true}
       SUPPORT_CONTACT_URL: ${SUPPORT_CONTACT_URL:-https://t.me/Askills_Support}
+      PHOTO_PIPELINE_ENABLED: 'true'
+      PHOTO_PIPELINE_SHADOW_ENABLED: 'false'
     depends_on:
       db:
         condition: service_healthy
@@ -68,6 +70,8 @@ services:
     environment:
       FAMILY_ACCESS_ENABLED: ${FAMILY_ACCESS_ENABLED:-true}
       SUPPORT_CONTACT_URL: ${SUPPORT_CONTACT_URL:-https://t.me/Askills_Support}
+      PHOTO_PIPELINE_ENABLED: 'true'
+      PHOTO_PIPELINE_SHADOW_ENABLED: 'false'
     depends_on:
       db:
         condition: service_healthy

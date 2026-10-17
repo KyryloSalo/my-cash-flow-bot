@@ -735,6 +735,45 @@ class MiniAppTests(TestCase):
         account.refresh_from_db()
         self.assertEqual(account.balance, Decimal("874.50"))
 
+    def test_receipt_confirmation_preserves_metadata_and_is_idempotent(self):
+        self._grant_full_access()
+        account = self._create_account(balance=Decimal("1000"))
+        category = self._create_category(kind="expense", name="Food")
+        self.assertEqual(self.client.post("/app/api/auth/dev").status_code, 200)
+        receipt = {
+            "kind": "expense", "amount": "12.50", "account_id": account.id,
+            "category_id": category.id, "currency": "UAH", "source": "receipt",
+            "transaction_date": timezone.localdate().isoformat(),
+            "receipt_items": [{"name": "Item", "amount": "12.50"}],
+            "receipt_total": "12.50", "needs_review": [],
+            "needs_review_bool": True, "field_findings": [],
+        }
+        response = self.client.post("/app/api/transactions/draft", data=json.dumps(receipt), content_type="application/json")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"]["code"], "receipt_requires_review")
+        self.assertFalse(Transaction.objects.exists())
+        receipt["needs_review_bool"] = False
+        response = self.client.post("/app/api/transactions/draft", data=json.dumps(receipt), content_type="application/json")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertFalse(Transaction.objects.exists())
+        account.refresh_from_db()
+        self.assertEqual(account.balance, Decimal("1000.00"))
+        confirmation = {"draft_id": response.json()["draft"]["draft_id"], "idempotency_key": "receipt-confirm-12345678"}
+        for attempt in range(2):
+            confirmed = self.client.post("/app/api/transactions/confirm", data=json.dumps(confirmation), content_type="application/json")
+            self.assertEqual(confirmed.status_code, 200, confirmed.content)
+            self.assertEqual(confirmed.json()["idempotent"], bool(attempt))
+        tx = Transaction.objects.get()
+        self.assertEqual(tx.source, "receipt")
+        self.assertEqual(tx.metadata["receipt_metadata"], {
+            "source": "receipt", "needs_review": [], "needs_review_bool": False,
+            "field_findings": [], "receipt_total": "12.50",
+        })
+        self.assertEqual(tx.metadata["receipt_review"][0]["line_total"], "12.50")
+        self.assertEqual(WriteReceipt.objects.count(), 1)
+        account.refresh_from_db()
+        self.assertEqual(account.balance, Decimal("987.50"))
+
     def test_history_keyset_pagination_reaches_every_same_day_transaction(self):
         account = self._create_account(balance=Decimal("1000"))
         category = self._create_category(kind="expense", name="Food")

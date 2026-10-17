@@ -248,6 +248,7 @@ def ensure_preview_runtime_tables() -> None:
             "is_deleted": "is_deleted BOOLEAN NOT NULL DEFAULT 0",
             "deleted_at": "deleted_at DATETIME NULL",
             "deleted_by_user_id": "deleted_by_user_id BIGINT NULL",
+            "metadata": "metadata TEXT NOT NULL DEFAULT '{}'",
         },
     )
     _ensure_table(
