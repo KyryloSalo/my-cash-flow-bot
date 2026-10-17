@@ -584,5 +584,53 @@ class VisionTxParseTests(unittest.TestCase):
         self.assertTrue(_prefer_currency_retry(primary, retry, default_currency="UAH"))
 
 
+    def test_mocked_provider_receipt_roundtrip_through_serializer(self) -> None:
+        analysis = _parse_response(
+            self._payload({
+                "mode_candidate": "unsupported", "transaction_date": "", "type": "", "amount": None,
+                "currency": "EUR", "dominant_currency": "EUR", "currency_evidence_kind": "code",
+                "currency_evidence_text": "EUR", "currency_context_text": "", "account_hint": "",
+                "category_hint": "", "comment": "receipt", "confidence": 0.96, "bank_name": "",
+                "card_last4": "", "skipped_rows_count": 0, "items": [],
+                "receipt_date": "2026-10-14", "receipt_merchant": "Corner Market", "receipt_total": 12.50,
+                "receipt_items": [{"name": "Coffee", "quantity": 2, "unit_price": 3.25, "total": 6.50,
+                                   "currency": "EUR", "evidence": "Coffee 2 x 3.25", "confidence": 0.94},
+                                  {"name": "Sandwich", "quantity": 1, "unit_price": 6.00, "total": 6.00,
+                                   "currency": "EUR", "evidence": "Sandwich 6.00", "confidence": 0.91}],
+                "field_findings": ["Date and total are clearly visible."], "needs_review": False,
+                "arithmetic_warnings": [],
+            }), today=date(2026, 10, 15), default_currency="UAH", model="test-model",
+            detail="high", used_fallback=False,
+        )
+        payload = serialize_miniapp_screenshot_analysis(analysis)
+        self.assertEqual(payload["receipt_merchant"], "Corner Market")
+        self.assertEqual(payload["receipt_total"], "12.50")
+        self.assertEqual(payload["receipt_items"][0]["name"], "Coffee")
+        self.assertEqual(payload["receipt_items"][0]["evidence"], "Coffee 2 x 3.25")
+        self.assertFalse(payload["needs_review"])
+
+    def test_malformed_optional_l2_preserves_l1_and_requests_review(self) -> None:
+        analysis = _parse_response(
+            self._payload({
+                "mode_candidate": "unsupported", "transaction_date": "", "type": "", "amount": None,
+                "currency": "UAH", "dominant_currency": "UAH", "currency_evidence_kind": "code",
+                "currency_evidence_text": "UAH", "currency_context_text": "", "account_hint": "",
+                "category_hint": "", "comment": "receipt", "confidence": 0.9, "bank_name": "",
+                "card_last4": "", "skipped_rows_count": 0, "items": [],
+                "receipt_date": "2026-10-14", "receipt_merchant": "Market", "receipt_total": 20,
+                "receipt_items": [{"name": "Valid", "quantity": 1, "unit_price": 20, "total": 20,
+                                   "currency": "UAH", "evidence": "Valid 20.00", "confidence": 0.9},
+                                  {"name": "", "quantity": None, "unit_price": None, "total": None,
+                                   "currency": "UAH", "evidence": "", "confidence": 0}],
+                "field_findings": [], "needs_review": False, "arithmetic_warnings": [],
+            }), today=date(2026, 10, 15), default_currency="UAH", model="test-model",
+            detail="high", used_fallback=False,
+        )
+        self.assertEqual(analysis.receipt_total, Decimal("20"))
+        self.assertEqual(len(analysis.receipt_items), 1)
+        self.assertTrue(analysis.needs_review)
+        self.assertTrue(any("malformed" in warning for warning in analysis.arithmetic_warnings))
+
+
 if __name__ == "__main__":
     unittest.main()

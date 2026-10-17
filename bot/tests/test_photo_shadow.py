@@ -31,7 +31,7 @@ class Client:
                         "status": ("paid", "completed"), "type": ("expense", "expense")}
         evidence = [{"id": f"x-{field}", "field": field, "raw_text": raw, "value": value, "region": None}
                     for field, (raw, value) in field_values.items()]
-        return Response({"output_text": json.dumps({"evidence": evidence})})
+        return Response({"output_text": json.dumps({"mode": "single_tx", "evidence": evidence})})
 
 
 class PhotoShadowTests(unittest.IsolatedAsyncioTestCase):
