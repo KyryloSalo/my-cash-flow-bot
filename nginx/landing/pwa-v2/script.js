@@ -309,6 +309,12 @@
   };
 
   funnelBootstrap
+    .then((bootstrap) => {
+      if (bootstrap && window.VydnoPartnerOffer) window.VydnoPartnerOffer.renderLanding(document, bootstrap.partner_offer);
+    })
+    .catch(() => undefined);
+
+  funnelBootstrap
     .then((bootstrap) => emitFunnelEvent(bootstrap, "landing_view"))
     .catch(() => undefined);
 

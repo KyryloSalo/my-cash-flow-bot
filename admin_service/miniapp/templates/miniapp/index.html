@@ -23,6 +23,7 @@
   <script defer src="{% static 'miniapp/sound-manager.js' %}?v={{ miniapp_asset_version }}" data-sound-base="{% static 'miniapp/sounds/' %}" data-asset-version="{{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/install-coach.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/course-bonus.js' %}?v={{ miniapp_asset_version }}"></script>
+  <script defer src="{% static 'miniapp/partner-offer.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/push.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/capture.js' %}?v={{ miniapp_asset_version }}"></script>
   <script defer src="{% static 'miniapp/achievements.js' %}?v={{ miniapp_asset_version }}"></script>
@@ -408,6 +409,7 @@
         <p class="eyebrow">Mini App</p>
         <h2 id="errorTitle">Щось пішло не так</h2>
         <p id="errorMessage">Спробуйте оновити дані ще раз.</p>
+        <p class="onboarding-note" id="registrationPartnerOffer" aria-live="polite" hidden></p>
         <div class="browser-login-recovery-actions" id="browserLoginRecoveryActions" hidden>
           <a class="primary-action browser-login-recovery" id="telegramOidcRecovery" href="{% url 'miniapp:telegram-oidc-start' %}">Увійти через Telegram</a>
           <a class="ghost-action browser-login-recovery browser-login-recovery--fallback" id="browserLoginRecovery" href="https://t.me/vydnocapital_bot?start=app_login">Резервний вхід через бота</a>
@@ -1732,6 +1734,7 @@
     </button>
   </nav>
 
+  {{ partner_offer|json_script:"registration-partner-offer" }}
   <script>
     (function () {
       const root = document.body;
@@ -2503,6 +2506,7 @@
       function setLocale(locale) {
         activeLocale = normalizeLocale(locale);
         document.documentElement.lang = activeLocale;
+        renderRegistrationPartnerOffer();
         setSelectorText("#loadingState h2", activeLocale === "uk" ? "Завантажуємо дані…" : "Loading data…");
         setSelectorText("#loadingState .loading-card p:last-child", activeLocale === "uk" ? "Готуємо вашу актуальну фінансову картину." : "Preparing your latest financial picture.");
         setSelectorText("[data-period=\"today\"]", tr("periodToday"));
@@ -6104,6 +6108,31 @@
         ].join("");
       }
 
+      let registrationPartnerOffer = null;
+
+      function renderRegistrationPartnerOffer() {
+        const api = window.VydnoPartnerOffer;
+        const copy = api ? api.copy(registrationPartnerOffer, activeLocale) : "";
+        ["registrationPartnerOffer", "onboardingPartnerOffer"].forEach(function (id) {
+          const node = document.getElementById(id);
+          if (!node) return;
+          node.textContent = copy;
+          node.hidden = !copy;
+        });
+      }
+
+      function setRegistrationPartnerOffer(value) {
+        const api = window.VydnoPartnerOffer;
+        registrationPartnerOffer = api ? api.normalize(value) : null;
+        renderRegistrationPartnerOffer();
+      }
+
+      function setupRegistrationPartnerOffer() {
+        const node = document.getElementById("registration-partner-offer");
+        try { setRegistrationPartnerOffer(node ? JSON.parse(node.textContent) : null); }
+        catch (_) { setRegistrationPartnerOffer(null); }
+      }
+
       function renderOnboarding() {
         const content = document.getElementById("onboardingContent");
         if (!content) return;
@@ -6117,6 +6146,7 @@
           markup += [
             '<div class="onboarding-progress"><span class="is-active"></span><span></span><span></span></div>',
             '<p class="eyebrow">' + onboardingEscape(copy.eyebrow) + '</p><h1>' + onboardingEscape(copy.stepOneTitle) + '</h1><p class="onboarding-lead">' + onboardingEscape(copy.stepOneText) + '</p>',
+            '<p class="onboarding-note" id="onboardingPartnerOffer" aria-live="polite" hidden></p>',
             '<div class="onboarding-section"><span class="onboarding-label">' + onboardingEscape(copy.language) + '</span><div class="onboarding-language"><button type="button" data-onboarding-lang="uk" class="' + (activeLocale === "uk" ? "is-active" : "") + '">Українська</button><button type="button" data-onboarding-lang="en" class="' + (activeLocale === "en" ? "is-active" : "") + '">English</button></div></div>',
             '<div class="onboarding-grid two"><label class="onboarding-field"><span>' + onboardingEscape(copy.currency) + '</span><select id="onboardingBaseCurrency">' + currencyOptions + '<option value="custom"' + (currency === "custom" ? " selected" : "") + ">" + onboardingEscape(copy.custom) + "</option></select></label>",
             '<label class="onboarding-field"><span>' + onboardingEscape(copy.startDate) + '</span><input id="onboardingStartDate" type="date" value="' + onboardingEscape(onboardingState.startDate) + '"></label></div>',
@@ -6137,6 +6167,7 @@
         }
         markup += '<p class="form-status ' + onboardingEscape(onboardingState.tone) + '"' + (onboardingState.message ? "" : " hidden") + ' aria-live="polite">' + onboardingEscape(onboardingState.message) + "</p>";
         content.innerHTML = markup;
+        renderRegistrationPartnerOffer();
         bindOnboardingEvents();
       }
 
@@ -6260,6 +6291,7 @@
       function loadOnboarding() {
         return ensureSession().then(function () { return getJson(onboardingUrl); }).then(function (payload) {
           const status = payload.onboarding || {};
+          setRegistrationPartnerOffer(status.partner_offer);
           if (status.defaults && status.defaults.lang) setLocale(status.defaults.lang);
           onboardingState.status = status;
           onboardingState.baseCurrency = status.defaults && status.defaults.base_currency ? status.defaults.base_currency : "UAH";
@@ -9494,6 +9526,7 @@
         setupActivationNudges();
         initTelegramWebApp();
         setupBrowserLoginRecovery();
+        setupRegistrationPartnerOffer();
         setLocale(getTelegramLocale());
         setupNavigation();
         setupStatusTabs();

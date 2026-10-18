@@ -4,7 +4,7 @@ import uuid
 from datetime import time
 
 from django.conf import settings
-from django.core.validators import RegexValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 
 from users.models import TelegramUser
@@ -396,10 +396,11 @@ class PartnerLink(models.Model):
 
     name = models.CharField("Назва", max_length=160)
     code = models.CharField(
-        "Код посилання",
+        "Хеш / код посилання",
         max_length=64,
         unique=True,
         default=generate_partner_link_code,
+        help_text="Можна вказати власний хеш вручну. Саме це значення буде в адресі посилання; після створення воно незмінне.",
         validators=[
             RegexValidator(
                 regex=r"^[a-z0-9][a-z0-9_-]{2,63}$",
@@ -412,6 +413,13 @@ class PartnerLink(models.Model):
         max_length=16,
         choices=Destination.choices,
         default=Destination.LANDING,
+    )
+    trial_days = models.PositiveIntegerField(
+        "Безкоштовні дні",
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(1), MaxValueValidator(365000)],
+        help_text="Власна кількість днів для нових реєстрацій, наприклад 51. Допустимо 1–365000 днів.",
     )
     utm_source = models.CharField(
         "Джерело (utm_source)",
@@ -502,6 +510,7 @@ class AcquisitionSession(models.Model):
         null=True,
     )
     last_partner_link_clicked_at = models.DateTimeField(blank=True, null=True)
+    partner_offer_snapshot = models.JSONField(blank=True, null=True, default=None)
     funnel_version = models.CharField(max_length=32, default="pwa_v1")
     first_landing_variant = models.CharField(max_length=64, blank=True, default="")
     last_landing_variant = models.CharField(max_length=64, blank=True, default="")
@@ -535,6 +544,19 @@ class AcquisitionSession(models.Model):
             models.Index(fields=("first_partner_link", "created_at"), name="acq_first_link_time_idx"),
             models.Index(fields=("last_partner_link", "created_at"), name="acq_last_link_time_idx"),
         ]
+
+
+class PartnerTrialClaim(models.Model):
+    user = models.OneToOneField(TelegramUser, on_delete=models.CASCADE, to_field="tg_user_id", db_column="telegram_user_id", related_name="partner_trial_claim")
+    partner_link = models.ForeignKey(PartnerLink, on_delete=models.SET_NULL, null=True, blank=True, related_name="trial_claims")
+    offer_id = models.CharField(max_length=128)
+    code = models.CharField(max_length=64)
+    name = models.CharField(max_length=160)
+    trial_days = models.PositiveIntegerField()
+    claimed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "partner_trial_claims"
 
 
 class PartnerLinkClick(models.Model):
