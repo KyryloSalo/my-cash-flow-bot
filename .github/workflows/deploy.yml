@@ -70,6 +70,22 @@ jobs:
             python -c 'from pathlib import Path; lines=Path("django-tests.log").read_text(errors="replace").splitlines()[-80:]; text=" || ".join(line[:400] for line in lines); print("::error file=admin_service::" + text[-3500:])'
             exit "$status"
           fi
+      - name: Real isolated PWA acceptance
+        shell: bash
+        run: |
+          python -m venv --system-site-packages "$RUNNER_TEMP/pwa-acceptance"
+          "$RUNNER_TEMP/pwa-acceptance/bin/python" -m pip install playwright==1.55.0
+          "$RUNNER_TEMP/pwa-acceptance/bin/python" -m playwright install --with-deps chromium
+          mkdir -p artifacts
+          "$RUNNER_TEMP/pwa-acceptance/bin/python" ops/browser_acceptance_smoke.py --server --log artifacts/pwa-browser-result.log 2>&1 | tee artifacts/pwa-browser.log
+      - name: Preserve browser acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pwa-acceptance-${{ github.sha }}
+          path: artifacts/pwa-browser*.log
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Build exact release images and test their installed distributions
         run: |
           docker build --pull -t "mcf-bot:$GITHUB_SHA" -f bot/Dockerfile .
