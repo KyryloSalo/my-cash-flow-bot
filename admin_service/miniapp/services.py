@@ -526,6 +526,14 @@ def _billing_access_mode(
     return "blocked"
 
 
+def _subscription_waives_card(subscription: Subscription | None) -> bool:
+    # Explicit operator grants are not self-service card-activated subscriptions.
+    return bool(subscription and (
+        subscription.status in {Subscription.Status.MANUAL, Subscription.Status.LIFETIME}
+        or (subscription.source == Subscription.Source.ADMIN and subscription.status in PERSONAL_FULL_STATUSES)
+    ))
+
+
 def _family_sponsor_has_access(family_id: int) -> bool:
     # Both the canonical family owner and their active owner membership must agree.
     with connection.cursor() as cursor:
@@ -544,7 +552,7 @@ def _family_sponsor_has_access(family_id: int) -> bool:
     if subscription is None:
         return False
     profile = BillingProfile.objects.filter(user_id=owner_id).first()
-    if not (profile and profile.card_token and profile.status == BillingProfile.Status.ACTIVE):
+    if not (_subscription_waives_card(subscription) or (profile and profile.card_token and profile.status == BillingProfile.Status.ACTIVE)):
         return False
     soft = subscription.status == "expired" and _is_soft_grace_reason(profile.last_failure_reason if profile else "")
     return (
@@ -560,7 +568,7 @@ def resolve_access(user: TelegramUser) -> dict[str, object]:
     profile = BillingProfile.objects.filter(user_id=user.tg_user_id).first()
 
     has_card = bool(profile and profile.card_token and profile.status == BillingProfile.Status.ACTIVE)
-    card_required = not has_card
+    card_required = not has_card and not _subscription_waives_card(subscription)
     partner_offer = partner_offer_for_user(user=user)
 
     subscription_status = str(subscription.status if subscription else "")

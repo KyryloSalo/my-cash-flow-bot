@@ -66,10 +66,18 @@ def _access_mode(
     return "blocked"
 
 
+def _billing_state_waives_card(billing_state: dict[str, Any]) -> bool:
+    status = str(billing_state.get("subscription_status") or "")
+    return status in {"manual", "lifetime"} or (
+        billing_state.get("subscription_source") == "admin" and status in PERSONAL_FULL_STATUSES
+    )
+
+
 def _billing_state_has_personal_full_access(billing_state: dict[str, Any]) -> bool:
     subscription_status = str(billing_state.get("subscription_status") or "")
     if not (
-        billing_state.get("has_card") and billing_state.get("profile_status") == "active"
+        _billing_state_waives_card(billing_state)
+        or (billing_state.get("has_card") and billing_state.get("profile_status") == "active")
     ):
         return False
     return (
@@ -89,6 +97,7 @@ async def get_billing_state(conn: asyncpg.Connection, tg_user_id: int) -> dict[s
         "last_failure_reason": "",
         "last_action_url": "",
         "subscription_status": "",
+        "subscription_source": "",
         "expires_at": None,
         "next_charge_at": None,
         "grace_expires_at": None,
@@ -124,7 +133,7 @@ async def get_billing_state(conn: asyncpg.Connection, tg_user_id: int) -> dict[s
     if await _table_exists(conn, "subscriptions"):
         subscription = await conn.fetchrow(
             """
-            SELECT status, expires_at, next_charge_at, grace_expires_at, trial_days
+            SELECT status, source, expires_at, next_charge_at, grace_expires_at, trial_days
             FROM subscriptions
             WHERE telegram_user_id=$1
             ORDER BY created_at DESC
@@ -144,6 +153,7 @@ async def get_billing_state(conn: asyncpg.Connection, tg_user_id: int) -> dict[s
             state.update(
                 {
                     "subscription_status": subscription_status,
+                    "subscription_source": str(subscription.get("source") or ""),
                     "expires_at": expires_at,
                     "next_charge_at": subscription["next_charge_at"],
                     "grace_expires_at": grace_expires_at,
@@ -157,7 +167,7 @@ async def get_billing_state(conn: asyncpg.Connection, tg_user_id: int) -> dict[s
                     ),
                 }
             )
-    if not state["has_card"]:
+    if not state["has_card"] and not _billing_state_waives_card(state):
         state["access_mode"] = "blocked"
         state["soft_grace_active"] = False
     return state
