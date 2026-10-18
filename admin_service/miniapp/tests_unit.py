@@ -1161,6 +1161,25 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertEqual(skip_response.status_code, 200)
         self.assertEqual(skip_request.session[views.AI_IMAGE_BATCH_SESSION_KEY]["items"][0]["status"], "skipped")
 
+    def test_ai_image_batch_can_be_dismissed_without_financial_write(self) -> None:
+        batch = {"batch_id": "batch-1", "identity_scope": {"actor_user_id": 1001, "scope_type": "personal", "family_id": None}, "items": [], "review_rows": [{"reason": "excluded_status_or_type"}]}
+        request = self.factory.post(
+            "/app/api/ai-image/batch/item",
+            data=json.dumps({"batch_id": "batch-1", "action": "dismiss"}),
+            content_type="application/json",
+        )
+        request.session = FakeSession({views.AI_IMAGE_BATCH_SESSION_KEY: batch})
+        fake_user = SimpleNamespace(tg_user_id=1001)
+        with (
+            patch.object(views, "_authorized_write_user_or_blocked", return_value=(fake_user, {"mode": "active"})),
+            patch.object(views, "get_session_user", return_value=fake_user),
+            patch.object(views, "_identity_scope_binding", return_value={"actor_user_id": 1001, "scope_type": "personal", "family_id": None}),
+        ):
+            response = views.ai_image_batch_item(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(request.session.get(views.AI_IMAGE_BATCH_SESSION_KEY))
+        self.assertIsNone(json.loads(response.content)["batch"])
+
     def test_saving_task_draft_stays_in_session_until_confirmation(self) -> None:
         request = self.factory.post(
             "/app/api/saving-tasks/draft",
