@@ -19,6 +19,7 @@ from miniapp.funnel import (
     track_partner_link_click,
 )
 from miniapp.models import PartnerLink
+from miniapp.partner_offers import public_partner_offer
 from miniapp.services import resolve_access
 from subscriptions.consent import accept_billing_consent, build_server_consent_terms
 
@@ -83,6 +84,7 @@ def funnel_session(request: HttpRequest) -> JsonResponse:
             "platform": acquisition.platform,
             "container": acquisition.container,
             "csrf_token": get_token(request),
+            "partner_offer": public_partner_offer(acquisition=acquisition),
         }
     )
     response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, private"

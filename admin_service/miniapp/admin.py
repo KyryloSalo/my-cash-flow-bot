@@ -100,6 +100,7 @@ class PartnerLinkAdmin(AuditedModelAdmin):
         "code",
         "public_link",
         "destination",
+        "trial_days",
         "is_active",
         "utm_source",
         "utm_medium",

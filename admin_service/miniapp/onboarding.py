@@ -22,6 +22,7 @@ from miniapp.services import (
     mt,
     normalize_locale,
 )
+from miniapp.partner_offers import partner_offer_for_user
 from users.models import TelegramUser
 
 
@@ -58,6 +59,7 @@ def onboarding_status(user: TelegramUser) -> dict[str, object]:
             "currencies": list(options.get("currencies") or []),
             "account_types": list(options.get("account_types") or []),
         },
+        "partner_offer": partner_offer_for_user(user=user),
         "limits": {"accounts": ONBOARDING_ACCOUNT_LIMIT},
     }
 

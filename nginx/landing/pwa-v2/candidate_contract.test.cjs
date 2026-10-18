@@ -18,7 +18,9 @@ const localReferences = (html, base) => {
   const refs = [...html.matchAll(/(?:href|src)="([^"]+)"/g)].map((match) => match[1]);
   return refs
     .filter((ref) => !/^(?:https?:|#|mailto:|tel:|data:)/.test(ref))
-    .map((ref) => path.resolve(base, ref.split("#", 1)[0]));
+    .map((ref) => ref.startsWith("/static/")
+      ? path.resolve(root, "../../../admin_service/miniapp/static", ref.slice("/static/".length))
+      : path.resolve(base, ref.split("#", 1)[0]));
 };
 
 const relativeLuminance = (hex) => {

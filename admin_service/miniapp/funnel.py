@@ -316,7 +316,11 @@ def _track_partner_link_click_locked(
                 update_fields.append(field)
     acquisition.last_partner_link_id = link.pk
     acquisition.last_partner_link_clicked_at = timezone.now()
-    update_fields.extend(["last_partner_link", "last_partner_link_clicked_at"])
+    acquisition.partner_offer_snapshot = ({
+        'partner_link_id': link.pk, 'code': link.code,
+        'name': link.name, 'trial_days': int(link.trial_days),
+    } if link.trial_days and link.is_active else {})
+    update_fields.extend(["last_partner_link", "last_partner_link_clicked_at", "partner_offer_snapshot"])
     acquisition.save(update_fields=sorted(set(update_fields + ["updated_at"])))
     click = PartnerLinkClick.objects.create(
         partner_link=link,

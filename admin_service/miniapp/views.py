@@ -30,6 +30,7 @@ from miniapp.auth import (
     BROWSER_AUTH_MODE,
     PRODUCTION_CANARY_AUTH_MODE,
     SESSION_AUTH_MODE_KEY,
+    SESSION_USER_ID_KEY,
     MiniAppAuthError,
     MiniAppSessionError,
     browser_session_age_seconds,
@@ -58,7 +59,8 @@ from miniapp.family import (
     remove_family_member,
     revoke_family_invite,
 )
-from miniapp.funnel import FunnelValidationError, queue_registration_event, record_request_server_event
+from miniapp.funnel import ACQUISITION_SESSION_KEY, FunnelValidationError, queue_registration_event, record_request_server_event
+from miniapp.partner_offers import PartnerOfferUnavailable, claim_partner_offer, public_partner_offer
 from miniapp.savings_tasks import (
     MiniAppSavingTaskError,
     build_saving_task_draft,
@@ -165,6 +167,7 @@ from subscriptions.consent import attach_consent_to_payment_id, get_billing_cons
 from subscriptions.models import Plan
 from subscriptions.monobank import MonobankAPIError
 from subscriptions.trial_recovery import record_trial_offer_event
+from miniapp.models import AcquisitionSession, PartnerTrialClaim
 from users.models import TelegramUser, UserAdminState, UserAuthIdentity
 from users.canary import assert_canary_session, is_canary_user
 from users.registration import (
@@ -189,6 +192,26 @@ def _record_new_registration_event(request: HttpRequest, registration) -> None:
             "Acquisition registration telemetry unavailable (%s)",
             type(exc).__name__,
         )
+
+
+def _bootstrap_with_partner(request: HttpRequest, identity, *, source: str):
+    try:
+        acquisition_id = uuid.UUID(str(request.session.get(ACQUISITION_SESSION_KEY) or ""))
+    except (ValueError, TypeError, AttributeError):
+        return bootstrap_telegram_identity(identity, source=source)
+    with db_transaction.atomic():
+        registration = bootstrap_telegram_identity(identity, source=source)
+        if registration.created:
+            acquisition = AcquisitionSession.objects.filter(pk=acquisition_id).select_related(
+                "last_partner_link", "first_partner_link",
+            ).first()
+            if acquisition is not None and acquisition.user_id in (None, registration.user.pk):
+                try:
+                    claim_partner_offer(user=registration.user, acquisition=acquisition)
+                except Exception as exc:
+                    logger.warning('Partner trial grant unavailable; registration rolled back')
+                    raise PartnerOfferUnavailable() from exc
+        return registration
 
 
 MINIAPP_TEMPLATE = "miniapp/index.html"
@@ -437,6 +460,29 @@ def _ui_message(locale: str, uk_text: str, en_text: str) -> str:
     return mt(uk_text, en_text, normalize_locale(locale))
 
 
+def _registration_partner_offer(request: HttpRequest):
+    session = getattr(request, "session", {})
+    if session.get(SESSION_USER_ID_KEY):
+        try:
+            user = get_session_user(request)
+        except MiniAppSessionError:
+            return None
+        return public_partner_offer(claim=PartnerTrialClaim.objects.filter(user=user).first())
+    session_id = session.get(ACQUISITION_SESSION_KEY)
+    if not session_id:
+        return None
+    try:
+        session_id = uuid.UUID(str(session_id))
+    except (ValueError, TypeError, AttributeError):
+        return None
+    acquisition = AcquisitionSession.objects.select_related(
+        "first_partner_link", "last_partner_link",
+    ).filter(pk=session_id, expires_at__gt=timezone.now(), user__isnull=True).first()
+    if acquisition is None:
+        return None
+    return public_partner_offer(acquisition=acquisition)
+
+
 @never_cache
 @ensure_csrf_cookie
 @require_GET
@@ -455,6 +501,7 @@ def index(request: HttpRequest) -> HttpResponse:
             "miniapp_asset_version": MINIAPP_ASSET_VERSION,
             "miniapp_theme_color": MINIAPP_THEME_COLOR,
             "browser_login_recovery_url": f"{BILLING_BOT_URL}?start=app_login",
+            "partner_offer": _registration_partner_offer(request),
         },
     )
     response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, private"
@@ -731,7 +778,8 @@ def telegram_oidc_callback(request: HttpRequest) -> HttpResponse:
         stage = "consume_token"
         consume_id_token_once(id_token, identity)
         stage = "bootstrap"
-        registration = bootstrap_telegram_identity(
+        registration = _bootstrap_with_partner(
+            request,
             identity,
             source="telegram_oidc",
         )
@@ -745,6 +793,11 @@ def telegram_oidc_callback(request: HttpRequest) -> HttpResponse:
                 return redirect(DEFAULT_RETURN_PATH)
         logger.warning("Telegram OIDC callback rejected stage=%s code=%s", stage, exc.code)
         return _telegram_oidc_error_response(exc)
+    except PartnerOfferUnavailable:
+        return _telegram_oidc_error_response(TelegramOidcError(
+            "Partner access is temporarily unavailable. Please retry registration.",
+            code="partner_offer_unavailable",
+        ), status=503)
     except RegistrationClosed:
         logger.warning("Telegram OIDC callback rejected stage=%s code=registration_closed", stage)
         return _telegram_oidc_error_response(
@@ -1043,7 +1096,8 @@ def auth_telegram(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"error": {"code": "telegram_auth_failed", "message": str(exc)}}, status=401)
 
     try:
-        registration = bootstrap_telegram_identity(
+        registration = _bootstrap_with_partner(
+            request,
             RegistrationTelegramIdentity(
                 provider=UserAuthIdentity.Provider.TELEGRAM_MINIAPP,
                 subject=str(identity.tg_user_id),
@@ -1055,6 +1109,11 @@ def auth_telegram(request: HttpRequest) -> JsonResponse:
             ),
             source="telegram_miniapp",
         )
+    except PartnerOfferUnavailable:
+        return JsonResponse({"error": {
+            "code": "partner_offer_unavailable",
+            "message": "Партнерський доступ тимчасово недоступний. Спробуйте зареєструватися ще раз.",
+        }}, status=503)
     except RegistrationClosed:
         auth_locale = normalize_locale((identity.raw_user or {}).get("language_code"))
         return JsonResponse(
