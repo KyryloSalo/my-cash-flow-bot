@@ -1919,8 +1919,8 @@ class AccountLifecycleRegressionTests(unittest.IsolatedAsyncioTestCase):
             tg_user_id=123,
             accounts=[],
             billing_state={
-                "profile_exists": False,
-                "has_card": False,
+                "profile_exists": True,
+                "has_card": True,
                 "subscription_status": "",
                 "expires_at": None,
                 "next_charge_at": None,
@@ -2446,9 +2446,9 @@ class AccountLifecycleRegressionTests(unittest.IsolatedAsyncioTestCase):
             tg_user_id=123,
             accounts=[],
             billing_state={
-                "profile_exists": False,
-                "has_card": False,
-                "masked_pan": "",
+                "profile_exists": True,
+                "has_card": True,
+                "masked_pan": "4444",
                 "auto_renew_enabled": False,
                 "last_action_url": "",
                 "last_failure_reason": "",
@@ -2467,8 +2467,9 @@ class AccountLifecycleRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         text = message.replies[-1]["text"]
         self.assertIn("Поточний доступ уже активний", text)
-        self.assertIn("Картка не прив'язана", text)
+        self.assertIn("Картка: <b>4444</b>", text)
         self.assertNotIn("Потрібна оплата", text)
+        self.assertNotIn("Зараз буде списано 499 грн", text)
         self.assertNotIn("Якщо доступ уже зупинився", text)
 
     async def test_settings_billing_rebind_uses_non_trial_confirmation_copy(self) -> None:

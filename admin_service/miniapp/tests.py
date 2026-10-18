@@ -82,6 +82,16 @@ class MiniAppTests(TestCase):
             started_at=now,
             expires_at=now + timedelta(days=30),
         )
+        BillingProfile.objects.create(
+            user=self.user,
+            provider="monobank",
+            wallet_id=f"test-full-access-{self.user.tg_user_id}",
+            card_token="synthetic-card-token",
+            masked_pan="444455******1212",
+            status=BillingProfile.Status.ACTIVE,
+            auto_renew_enabled=True,
+            last_bound_at=now,
+        )
         UserAdminState.objects.update_or_create(
             telegram_user_id=self.user.tg_user_id,
             defaults={
@@ -1690,12 +1700,33 @@ class MiniAppTests(TestCase):
             created_at=timezone.now(),
             last_seen_at=timezone.now(),
         )
+        owner_now = timezone.now()
         Subscription.objects.create(
             user=owner,
             status=Subscription.Status.ACTIVE,
             source=Subscription.Source.ADMIN,
-            started_at=timezone.now(),
-            expires_at=timezone.now() + timedelta(days=30),
+            started_at=owner_now,
+            expires_at=owner_now + timedelta(days=30),
+        )
+        BillingProfile.objects.create(
+            user=owner,
+            provider="monobank",
+            wallet_id="test-family-owner-card",
+            card_token="synthetic-family-owner-card",
+            masked_pan="444455******1213",
+            status=BillingProfile.Status.ACTIVE,
+            auto_renew_enabled=True,
+            last_bound_at=owner_now,
+        )
+        BillingProfile.objects.create(
+            user=self.user,
+            provider="monobank",
+            wallet_id="test-family-member-card",
+            card_token="synthetic-family-member-card",
+            masked_pan="444455******1214",
+            status=BillingProfile.Status.ACTIVE,
+            auto_renew_enabled=True,
+            last_bound_at=owner_now,
         )
         UserAdminState.objects.update_or_create(
             telegram_user_id=self.user.tg_user_id,
@@ -1829,6 +1860,16 @@ class MiniAppTests(TestCase):
             expires_at=timezone.now() - timedelta(days=1),
             grace_expires_at=timezone.now() + timedelta(days=7),
             trial_days=30,
+        )
+        BillingProfile.objects.create(
+            user=self.user,
+            provider="monobank",
+            wallet_id="test-grace-card",
+            card_token="synthetic-grace-card",
+            masked_pan="444455******1215",
+            status=BillingProfile.Status.ACTIVE,
+            auto_renew_enabled=True,
+            last_bound_at=timezone.now(),
         )
 
         response = self.client.get("/app/api/bootstrap", {"preset": "this_month"})

@@ -4571,7 +4571,16 @@ async def _show_billing_menu(
     access_scope = str(access_state.get("access_scope") or "paywall")
     promo_trial_days = int(access_state.get("promo_trial_days") or 0)
     has_subscription_history = _billing_has_subscription_history(state)
-    personal_full_without_card = access_scope == "personal_full" and not bool(state.get("has_card"))
+    manual_entitlement_active = (
+        str(state.get("subscription_status") or "") in {"manual", "lifetime"}
+        and str(state.get("access_mode") or "") == "full"
+        and bool(state.get("has_card"))
+        and access_scope == "personal_full"
+    )
+    personal_full_without_card = (
+        (access_scope == "personal_full" and not bool(state.get("has_card")))
+        or manual_entitlement_active
+    )
     family_full_without_card = access_scope == "family_full" and not bool(state.get("has_card"))
     trial_eligible = not has_subscription_history
     trial_days = _billing_trial_days(promo_trial_days or state.get("trial_days") or 30)
