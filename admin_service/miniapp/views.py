@@ -2389,6 +2389,10 @@ def ai_image_batch_item(request: HttpRequest) -> JsonResponse:
         batch["review_acknowledged"] = True
         _save_session_ai_image_batch(request, batch)
         return _json_ok({"ok": True, "batch": _ai_image_batch_payload(batch)})
+    if action == "dismiss":
+        request.session.pop(AI_IMAGE_BATCH_SESSION_KEY, None)
+        request.session.modified = True
+        return _json_ok({"ok": True, "batch": None})
     item = _find_ai_image_batch_item(batch, item_id)
     if item is None or str(item.get("status") or "pending") != "pending":
         return _transaction_error_response(MiniAppTransactionError("batch_item_unavailable", "Statement item is no longer available.", status=409))

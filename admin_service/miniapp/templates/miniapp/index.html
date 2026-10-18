@@ -655,6 +655,7 @@
                 <h2 id="aiImageBatchTitle">Операції з банківського скріншота</h2>
                 <p id="aiImageBatchMeta">-</p>
               </div>
+              <button class="ghost-action" id="aiImageBatchDismiss" type="button">Закрити</button>
             </div>
             <label class="form-field">
               <span id="aiImageBatchAccountLabel">Рахунок для операцій</span>
@@ -1995,6 +1996,9 @@
           aiImageBatchChooseAccount: "Оберіть рахунок перед перевіркою рядка.",
           aiImageBatchReviewing: "Відкрито для перевірки нижче.",
           aiImageBatchComplete: "Усі рядки виписки опрацьовано.",
+          aiImageBatchDismiss: "Закрити перевірку",
+          aiImageBatchReviewLabel: "Потрібна перевірка",
+          aiImageBatchReviewReason: "Цей рядок не можна додати автоматично. Перевірте його або закрийте список.",
           aiImageInvalid: "Оберіть JPG, PNG, WEBP, GIF, HEIC або HEIF до 10 МБ.",
           addExpense: "Витрата",
           addIncome: "Дохід",
@@ -2304,6 +2308,9 @@
           aiImageBatchChooseAccount: "Choose an account before reviewing an item.",
           aiImageBatchReviewing: "Opened below for review.",
           aiImageBatchComplete: "All statement items are handled.",
+          aiImageBatchDismiss: "Close review",
+          aiImageBatchReviewLabel: "Review needed",
+          aiImageBatchReviewReason: "This row cannot be added automatically. Enter it manually or close the list.",
           aiImageInvalid: "Choose a JPG, PNG, WEBP, GIF, HEIC, or HEIF up to 10 MB.",
           addExpense: "Expense",
           addIncome: "Income",
@@ -2616,6 +2623,7 @@
         setText("aiImageParseBtn", tr("aiImageParse"));
         setText("aiImageBatchTitle", tr("aiImageBatchTitle"));
         setText("aiImageBatchAccountLabel", tr("aiImageBatchAccount"));
+        setText("aiImageBatchDismiss", tr("aiImageBatchDismiss"));
         syncAiImageFileName();
         renderAiImageBatch();
         setSelectorText("[data-tx-kind=\"expense\"]", tr("addExpense"));
@@ -3534,7 +3542,8 @@
           account: document.getElementById("aiImageBatchAccount"),
           list: document.getElementById("aiImageBatchList"),
           meta: document.getElementById("aiImageBatchMeta"),
-          status: document.getElementById("aiImageBatchStatus")
+          status: document.getElementById("aiImageBatchStatus"),
+          dismiss: document.getElementById("aiImageBatchDismiss")
         };
       }
 
@@ -3724,10 +3733,10 @@
           const copy = document.createElement("div");
           copy.className = "ai-image-batch-copy";
           const heading = document.createElement("strong");
-          heading.textContent = "Review " + String(index + 1);
+          heading.textContent = tr("aiImageBatchReviewLabel") + " " + String(index + 1);
           const detail = document.createElement("span");
           const amount = review.amount == null ? "" : String(review.amount) + " " + String(review.currency || batch.currency || "");
-          detail.textContent = [review.transaction_date || "-", amount, review.comment || "", review.reason || "Review required"].filter(Boolean).join(" · ");
+          detail.textContent = [review.transaction_date || "-", amount, review.comment || "", tr("aiImageBatchReviewReason")].filter(Boolean).join(" · ");
           copy.appendChild(heading); copy.appendChild(detail); row.appendChild(copy); el.list.appendChild(row);
         });
         if (Number(batch.pending_count || 0) === 0 && items.length) {
@@ -3745,6 +3754,25 @@
       function setAiImageBatchBusy(value) {
         aiImageBatchState.busy = Boolean(value);
         renderAiImageBatch();
+      }
+
+      function dismissAiImageBatch() {
+        const batch = aiImageBatchState.batch;
+        if (!batch || aiImageBatchState.busy || !aiImageBatchItemUrl) return;
+        setAiImageBatchBusy(true);
+        ensureSession().then(function () {
+          return postJson(aiImageBatchItemUrl, { batch_id: batch.batch_id, action: "dismiss" });
+        }).then(function () {
+          aiImageBatchState.batch = null;
+          aiImageBatchState.accountId = "";
+          renderAiImageBatch();
+          const image = aiImageElements();
+          if (image.input) image.input.value = "";
+          syncAiImageFileName();
+          setAiImageStatus("", "muted");
+        }).catch(function (errorPayload) {
+          setAiImageBatchStatus(transactionErrorMessage(errorPayload), "error");
+        }).finally(function () { setAiImageBatchBusy(false); });
       }
 
       function loadAiImageBatch() {
@@ -4420,6 +4448,7 @@
 
       function setupAiImageBatch() {
         const el = aiImageBatchElements();
+        if (el.dismiss) el.dismiss.addEventListener("click", dismissAiImageBatch);
         if (el.account) {
           el.account.addEventListener("change", function () {
             aiImageBatchState.accountId = el.account.value || "";

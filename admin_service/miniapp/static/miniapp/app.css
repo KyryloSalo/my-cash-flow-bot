@@ -2429,6 +2429,10 @@ button.transaction,
 .ai-image-batch-list {
   display: grid;
   gap: 8px;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
 }
 
 .ai-image-batch-row {
