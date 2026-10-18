@@ -1,0 +1,41 @@
+{
+  "version": "0.40.3",
+  "environment": "production",
+  "deployed_sha": "253c276b097b12ac29dc77d02f58cd6a5c2985df",
+  "implementation_pr": 46,
+  "source_pr_head": "4aae2b594b765808252c04e9da6ceeba9f385162",
+  "validation_run_id": 39152126820,
+  "exact_main_validation_run_id": 39152591339,
+  "production_run_id": 39153085298,
+  "deployment_evidence_artifact_id": 12146235695,
+  "deployment_evidence_completed_at_utc": "2026-10-18T18:16:28.861297+00:00",
+  "purpose": "Scoped post-deploy canonical documentation updates after protected-main documentation PR and required validation. No runtime redeploy.",
+  "acceptance_boundary": "Owner manual real-card QA remains pending. The local synthetic browser harness crashed during tiny-headless-shell screenshot capture; no browser card flow is claimed passed.",
+  "changes": [
+    {
+      "path": "VERSION",
+      "old_string": "0.40.2",
+      "new_string": "0.40.3"
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.40.3 — 2026-10-18\n\n- **ARTIFACT DEPLOYED; MANUAL REAL-CARD QA PENDING.** Partner registration now reserves `PartnerTrialClaim` without creating a subscription; finance access through PWA/API/bot requires a confirmed card across family, manual and paid paths. A valid PSP bind callback activates the exact snapshotted trial days, including `90` and `7889`; `auto_renew=false` and `next_charge=None`. Replay/rebind protection, entitlement preservation and reserved cardless legacy claims are retained. Runtime exact SHA `253c276b097b12ac29dc77d02f58cd6a5c2985df` was deployed from implementation PR `#46` (`4aae2b594b765808252c04e9da6ceeba9f385162`) after validation `39152126820`, exact-main validation `39152591339` and manually approved production run `39153085298`. Deployment evidence artifact `12146235695` completed at `2026-10-18T18:16:28.861297+00:00`; external `/app/`, `/healthz` and `/readyz` returned HTTP `200`. The timestamp is evidence completion, not a separately observed atomic activation time. Canonical CI passed bot, Django, isolated PWA and image tests. Owner manual real-card QA remains pending; the local synthetic browser harness crashed during tiny-headless-shell screenshot capture, so no browser card flow is claimed passed. See `code/docs/releases/0.40.3-partner-card-required.md`.\n- Documentation-only post-deploy synchronization; no runtime redeploy.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "old_string": "Current released version is tracked in the root `VERSION` file. Production visual PATCH `0.40.2` is deployed on exact runtime SHA `9c48701f1d3dfdfb85a8b99e84795727f4fb2baa` (implementation PR `#44`, exact-SHA validation `39133114542`, manually approved production run `39133463684`). Target-host exact-SHA readback and readiness passed; workflow evidence completed at `2026-10-18T13:57:04.692560+00:00` (not a separately observed atomic activation time). Both installation illustrations are aligned; the installed scene shows a phone home screen, full Vydno icon and no orange arrow. Install logic is unchanged. Real public-asset visual acceptance passed **46/46 cases** in Chromium/WebKit, with shipped-source/asset parity; local 424-browser/31-Node/32-frontend checks and independent review were reused. Renderer-state visual checks are not real-device OS installation or Telegram/provider acceptance. PARTNER-01 `7889 -> 7889 -> 7889`, earlier receipt-quality/authenticated-review and real-owner course/PWA gaps remain open. See `code/docs/releases/0.40.2-install-dialog.md`.\n\nPrevious release `0.40.1` acceptance record (historical runtime identity; outstanding acceptance is unchanged):",
+      "new_string": "Current released version is tracked in the root `VERSION` file. **ARTIFACT DEPLOYED; MANUAL REAL-CARD QA PENDING.** Partner registration now reserves `PartnerTrialClaim` without creating a subscription; finance access through PWA/API/bot requires a confirmed card across family, manual and paid paths. A valid PSP bind callback activates the exact snapshotted trial days, including `90` and `7889`; `auto_renew=false` and `next_charge=None`. Replay/rebind protection, entitlement preservation and reserved cardless legacy claims are retained. Runtime exact SHA `253c276b097b12ac29dc77d02f58cd6a5c2985df` was deployed from implementation PR `#46` after validation `39152126820`, exact-main validation `39152591339` and manually approved production run `39153085298`. Deployment evidence artifact `12146235695` completed at `2026-10-18T18:16:28.861297+00:00`; external `/app/`, `/healthz` and `/readyz` returned HTTP `200`. Canonical CI passed bot, Django, isolated PWA and image tests. Owner manual real-card QA remains pending; the local synthetic browser harness crashed during tiny-headless-shell screenshot capture, so no browser card flow is claimed passed. See `code/docs/releases/0.40.3-partner-card-required.md`.\n\nPrevious release `0.40.2` acceptance record (historical runtime identity; outstanding acceptance is unchanged):"
+    },
+    {
+      "path": "README.md",
+      "old_string": "Production visual PATCH `0.40.2` is deployed on exact runtime SHA `9c48701f1d3dfdfb85a8b99e84795727f4fb2baa` (implementation PR `#44`, exact-SHA validation `39133114542`, manually approved production run `39133463684`). Target-host exact-SHA readback and readiness passed; workflow evidence completed at `2026-10-18T13:57:04.692560+00:00` (not a separately observed atomic activation time). Both installation illustrations are aligned; the installed scene shows a phone home screen, full Vydno icon and no orange arrow. Install logic is unchanged. Real public-asset visual acceptance passed **46/46 cases** in Chromium/WebKit, with shipped-source/asset parity; local 424-browser/31-Node/32-frontend checks and independent review were reused. Renderer-state visual checks are not real-device OS installation or Telegram/provider acceptance. PARTNER-01 `7889 -> 7889 -> 7889`, earlier receipt-quality/authenticated-review and real-owner course/PWA gaps remain open. See `code/docs/releases/0.40.2-install-dialog.md`.\n\nPrevious release `0.40.1` acceptance record (historical runtime identity; outstanding acceptance is unchanged):",
+      "new_string": "**ARTIFACT DEPLOYED; MANUAL REAL-CARD QA PENDING.** Partner registration now reserves `PartnerTrialClaim` without creating a subscription; finance access through PWA/API/bot requires a confirmed card across family, manual and paid paths. A valid PSP bind callback activates the exact snapshotted trial days, including `90` and `7889`; `auto_renew=false` and `next_charge=None`. Replay/rebind protection, entitlement preservation and reserved cardless legacy claims are retained. Runtime exact SHA `253c276b097b12ac29dc77d02f58cd6a5c2985df` was deployed from implementation PR `#46` after validation `39152126820`, exact-main validation `39152591339` and manually approved production run `39153085298`. Deployment evidence artifact `12146235695` completed at `2026-10-18T18:16:28.861297+00:00`; external `/app/`, `/healthz` and `/readyz` returned HTTP `200`. Canonical CI passed bot, Django, isolated PWA and image tests. Owner manual real-card QA remains pending; the local synthetic browser harness crashed during tiny-headless-shell screenshot capture, so no browser card flow is claimed passed. See `code/docs/releases/0.40.3-partner-card-required.md`.\n\nPrevious release `0.40.2` acceptance record (historical runtime identity; outstanding acceptance is unchanged):"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "old_string": "Current latest production release: `0.40.2` (installation-illustration PATCH deployed on exact SHA `9c48701f1d3dfdfb85a8b99e84795727f4fb2baa`; production visual acceptance 46/46 passed; unrelated PARTNER-01 and earlier acceptance gaps unchanged)",
+      "new_string": "Current latest production release: `0.40.3` (partner card-required hotfix deployed on exact SHA `253c276b097b12ac29dc77d02f58cd6a5c2985df`; owner manual real-card QA pending; documentation-only post-deploy sync with no runtime redeploy)"
+    }
+  ]
+}
