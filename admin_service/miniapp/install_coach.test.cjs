@@ -102,7 +102,19 @@ test("native Android coach exposes one product action before opening Chrome's pr
   for (const selector of [".install-coach-visual", ".install-coach-command", ".install-coach-progress-row", ".install-coach-steps"]) {
     assert.ok(cssSource.includes('[data-install-status="idle"] ' + selector));
   }
-  assert.match(cssSource, /data-install-mode="native"[^}]+#installNudgePrimary::before/su);
+  assert.doesNotMatch(cssSource, /#installNudgePrimary::before\s*\{/u);
+  assert.match(cssSource, /data-install-status="idle"[^}]+\.install-coach-actions\s*\{[^}]+margin-top:\s*20px/su);
+});
+
+test("illustration highlights cannot reveal unrelated installation stages", () => {
+  const highlightRules = cssSource.match(/\.install-coach-visual\[data-install-step="0"\] \[data-install-highlight="0"\],[\s\S]*?\}/u);
+  assert.ok(highlightRules);
+  assert.doesNotMatch(highlightRules[0], /opacity:\s*1/u);
+  assert.match(cssSource, /\.install-coach-safari-menu\s*\{[^}]*visibility:\s*hidden/su);
+});
+
+test("numbered step badges reset inherited list padding and minimum height", () => {
+  assert.match(cssSource, /\.install-coach-steps li\s*\{[^}]*width:\s*28px;[^}]*height:\s*28px;[^}]*min-height:\s*28px;[^}]*padding:\s*0;/su);
 });
 
 test("native Android does not promise a particular system dialog label", () => {

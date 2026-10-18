@@ -2883,6 +2883,7 @@ button.transaction,
 
 .install-coach-modal {
   place-items: center;
+  padding: calc(20px + var(--safe-top)) calc(14px + var(--safe-right)) calc(18px + var(--safe-bottom)) calc(14px + var(--safe-left));
 }
 
 .install-coach-card {
@@ -2937,6 +2938,7 @@ button.transaction,
 .install-coach-scene {
   display: none;
   min-height: 184px;
+  grid-template-columns: minmax(0, 1fr);
   place-items: end center;
   padding: 14px 14px 0;
 }
@@ -2950,7 +2952,8 @@ button.transaction,
 
 .install-coach-phone {
   position: relative;
-  width: min(264px, 84vw);
+  width: min(264px, 100%);
+  min-width: 0;
   height: 170px;
   overflow: hidden;
   border: 5px solid #17392d;
@@ -3085,22 +3088,144 @@ button.transaction,
 .install-coach-home {
   position: absolute;
   z-index: 3;
-  left: 50%;
-  top: 62px;
-  display: grid;
-  place-items: center;
-  gap: 5px;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 10px 12px 8px;
   color: #17392d;
+  background: radial-gradient(ellipse at 85% 15%, #e6f5e9 0, transparent 65%), linear-gradient(155deg, #c3dfd2, #e9f2ed 60%, #a9cbbb);
   font-size: 10px;
   opacity: 0;
-  transform: translate(-50%, 22px) scale(0.86);
+}
+
+.install-coach-home-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 12px;
+  margin-bottom: 17px;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.install-coach-home-status i {
+  width: 34px;
+  height: 8px;
+  border-radius: 10px;
+  background: #174d3a;
+}
+
+.install-coach-home-status svg {
+  width: 24px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.install-coach-home-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px 12px;
+}
+
+.install-coach-home-tile {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+.install-coach-home-tile > svg {
+  box-sizing: border-box;
+  width: 38px;
+  height: 38px;
+  padding: 8px;
+  border: 1px solid rgba(23, 77, 58, 0.09);
+  border-radius: 10px;
+  fill: none;
+  stroke: #517b69;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.install-coach-home-tile:not(.install-coach-home-app)::after {
+  content: "";
+  width: 24px;
+  height: 3px;
+  margin-top: 2px;
+  border-radius: 3px;
+  background: rgba(23, 77, 58, 0.18);
+}
+
+.install-coach-home-app img {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  box-shadow: 0 0 0 4px #e5f6ed, 0 0 0 6px rgba(23, 77, 58, 0.22), 0 5px 10px rgba(23, 77, 58, 0.18);
+}
+
+.install-coach-home-app strong {
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.install-coach-home-pages {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin: auto 0 9px;
+  padding-top: 10px;
+}
+
+.install-coach-home-pages i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(23, 77, 58, 0.2);
+}
+
+.install-coach-home-pages i:first-child {
+  background: #174d3a;
+}
+
+.install-coach-home-dock {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.install-coach-home-dock svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: #517b69;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.install-coach-home-indicator {
+  width: 48px;
+  min-height: 3px;
+  margin: 8px auto 0;
+  border-radius: 3px;
+  background: #174d3a;
 }
 
 .install-coach-visual[data-install-step="0"] [data-install-highlight="0"],
 .install-coach-visual[data-install-step="1"] [data-install-highlight="1"],
 .install-coach-visual[data-install-step="2"] [data-install-highlight="2"],
 .install-coach-visual[data-install-step="3"] [data-install-highlight="3"] {
-  opacity: 1;
   animation-name: install-coach-pulse;
   animation-duration: 720ms;
   animation-timing-function: ease-out;
@@ -3116,9 +3241,6 @@ button.transaction,
   opacity: 0.18;
 }
 
-.install-coach-visual[data-install-step="2"] .install-coach-home {
-  transform: translate(-50%, 0) scale(1);
-}
 
 @keyframes install-coach-pulse {
   0% { box-shadow: 0 0 0 0 rgba(23, 77, 58, 0.24); }
@@ -3150,7 +3272,11 @@ button.transaction,
   background: rgba(23, 77, 58, 0.1);
 }
 
-.install-coach-progress-row progress::-webkit-progress-value,
+.install-coach-progress-row progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: #174d3a;
+}
+
 .install-coach-progress-row progress::-moz-progress-bar {
   border-radius: 999px;
   background: #174d3a;
@@ -4013,6 +4139,7 @@ body.calm-fintech-v2 {
 .install-coach-handoff-action,
 .install-coach-safari-menu {
   opacity: 0;
+  visibility: hidden;
   transition: opacity 180ms ease, transform 180ms ease, box-shadow 180ms ease;
 }
 
@@ -4076,7 +4203,7 @@ body.calm-fintech-v2 {
 
 .install-coach-ios-add > div {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 5px;
   font-size: 9px;
@@ -4155,6 +4282,11 @@ body.calm-fintech-v2 {
   background: #fff;
 }
 
+.install-coach-visual[data-install-platform="ios"][data-install-step="2"] .install-coach-phone {
+  min-height: 188px;
+  height: 188px;
+}
+
 .install-coach-scroll-cue {
   margin-left: auto;
   color: #0f6d50;
@@ -4189,7 +4321,20 @@ body.calm-fintech-v2 {
 
 .install-coach-native-card {
   display: grid;
-  grid-template-columns: 38px 1fr auto;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  font-size: 11px;
+}
+
+.install-coach-native-card img {
+  width: 34px;
+  height: 34px;
+}
+
+.install-coach-native-card > span,
+.install-coach-installing > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .install-coach-installing {
@@ -4200,7 +4345,7 @@ body.calm-fintech-v2 {
   left: 16px;
   min-height: 64px;
   display: grid;
-  grid-template-columns: 34px 1fr;
+  grid-template-columns: 30px minmax(0, 1fr);
   align-items: center;
   gap: 11px;
   padding: 12px 14px;
@@ -4208,6 +4353,7 @@ body.calm-fintech-v2 {
   border-radius: 15px;
   color: #17392d;
   background: rgba(255, 255, 255, 0.97);
+  font-size: 11px;
   opacity: 0;
   transform: translateY(12px);
   box-shadow: 0 12px 30px rgba(26, 67, 50, 0.2);
@@ -4237,7 +4383,11 @@ body.calm-fintech-v2 {
 }
 
 .install-coach-native-card button {
+  grid-column: 1 / -1;
+  justify-self: end;
   align-self: center;
+  min-height: 28px;
+  padding: 5px 10px;
   border-radius: 8px;
   color: #fff;
   background: #174d3a;
@@ -4352,7 +4502,43 @@ body.calm-fintech-v2 {
 .install-coach-visual[data-install-mode="handoff"] .install-coach-handoff-action,
 .install-coach-visual[data-install-mode="open-safari"] .install-coach-safari-menu {
   opacity: 1;
+  visibility: visible;
   transform: translate(0) scale(1);
+}
+
+.install-coach-visual[data-install-platform="ios"][data-install-step="3"] .install-coach-home,
+.install-coach-visual[data-install-platform="android"][data-install-mode="manual"][data-install-step="3"] .install-coach-home,
+.install-coach-visual[data-install-mode="native"][data-install-step="2"] .install-coach-home {
+  transform: none;
+}
+
+/* The last scene is a complete Home Screen, not another browser panel. */
+.install-coach-visual:is([data-install-platform="ios"][data-install-step="3"], [data-install-mode="native"][data-install-step="2"]) {
+  min-height: 280px;
+  padding: 12px;
+}
+
+.install-coach-visual:is([data-install-platform="ios"][data-install-step="3"], [data-install-mode="native"][data-install-step="2"]) .install-coach-scene {
+  min-height: 254px;
+}
+
+.install-coach-visual:is([data-install-platform="ios"][data-install-step="3"], [data-install-mode="native"][data-install-step="2"]) .install-coach-phone {
+  box-sizing: border-box;
+  width: 204px;
+  max-width: 100%;
+  height: 254px;
+  min-height: 254px;
+  margin: 0 auto;
+  border-width: 5px;
+  border-radius: 28px;
+}
+
+.install-coach-visual:is([data-install-platform="ios"][data-install-step="3"], [data-install-mode="native"][data-install-step="2"]) .install-coach-browser-bar {
+  visibility: hidden;
+}
+
+.install-coach-visual:is([data-install-platform="ios"][data-install-step="3"], [data-install-mode="native"][data-install-step="2"]) .install-coach-arrow {
+  display: none;
 }
 
 .install-coach-visual[data-install-mode="native"] .install-coach-menu-button,
@@ -4380,16 +4566,13 @@ body.calm-fintech-v2 {
   animation: install-coach-focus-ring 620ms ease-out 2;
 }
 
-#installNudgeModal[data-install-mode="native"][data-install-step="0"] #installNudgePrimary::before {
-  content: "↓";
-  position: absolute;
-  top: -38px;
-  right: 18px;
-  color: #d6752b;
-  font-size: 30px;
-  line-height: 1;
-  pointer-events: none;
-  animation: install-coach-arrow 620ms ease-out 2;
+#installNudgeModal[data-install-mode="native"][data-install-status="idle"] .install-coach-actions {
+  margin-top: 20px;
+}
+
+.install-coach-actions > button {
+  padding: 12px 16px;
+  line-height: 1.35;
 }
 
 .install-coach-visual[data-install-mode="native"][data-install-step="0"] .install-coach-arrow {
@@ -4443,14 +4626,14 @@ body.calm-fintech-v2 {
 .install-coach-visual[data-install-platform="ios"][data-install-step="0"] .install-coach-arrow { --pointer-left: 139px; --pointer-top: 83px; }
 .install-coach-visual[data-install-platform="ios"][data-install-step="1"] .install-coach-arrow { --pointer-left: 129px; --pointer-top: 73px; }
 .install-coach-visual[data-install-platform="ios"][data-install-step="2"] .install-coach-arrow { --pointer-left: 151px; --pointer-top: 1px; }
-.install-coach-visual[data-install-platform="ios"][data-install-step="3"] .install-coach-arrow { --pointer-left: 122px; --pointer-top: 51px; }
-.install-coach-visual[data-install-platform="android"][data-install-mode="manual"][data-install-step="0"] .install-coach-arrow { --pointer-left: 174px; --pointer-top: 0px; }
+.install-coach-visual[data-install-platform="ios"][data-install-step="3"] .install-coach-arrow { --pointer-left: calc(50% - 59px); --pointer-top: 48px; }
+.install-coach-visual[data-install-platform="android"][data-install-mode="manual"][data-install-step="0"] .install-coach-arrow { --pointer-left: calc(100% - 80px); --pointer-top: 0px; }
 .install-coach-visual[data-install-platform="android"][data-install-mode="manual"][data-install-step="1"] .install-coach-arrow { --pointer-left: 155px; --pointer-top: 83px; }
 .install-coach-visual[data-install-platform="android"][data-install-mode="manual"][data-install-step="2"] .install-coach-arrow { --pointer-left: 169px; --pointer-top: 104px; }
-.install-coach-visual[data-install-platform="android"][data-install-mode="manual"][data-install-step="3"] .install-coach-arrow { --pointer-left: 122px; --pointer-top: 51px; }
+.install-coach-visual[data-install-platform="android"][data-install-mode="manual"][data-install-step="3"] .install-coach-arrow { --pointer-left: calc(50% - 59px); --pointer-top: 48px; }
 .install-coach-visual[data-install-mode="native"][data-install-step="0"] .install-coach-arrow { --pointer-left: 132px; --pointer-top: 69px; }
 .install-coach-visual[data-install-mode="native"][data-install-step="1"] .install-coach-arrow { --pointer-left: 169px; --pointer-top: 104px; }
-.install-coach-visual[data-install-mode="native"][data-install-step="2"] .install-coach-arrow { --pointer-left: 122px; --pointer-top: 51px; }
+.install-coach-visual[data-install-mode="native"][data-install-step="2"] .install-coach-arrow { --pointer-left: calc(50% - 59px); --pointer-top: 48px; }
 .install-coach-visual[data-install-mode="handoff"] .install-coach-arrow,
 .install-coach-visual[data-install-mode="open-safari"] .install-coach-arrow { --pointer-left: 162px; --pointer-top: 59px; }
 
@@ -4521,6 +4704,8 @@ body.calm-fintech-v2 {
 .install-coach-steps li {
   width: 28px;
   height: 28px;
+  min-height: 28px;
+  padding: 0;
   display: grid;
   place-items: center;
   border: 1px solid rgba(31, 96, 75, 0.18);
