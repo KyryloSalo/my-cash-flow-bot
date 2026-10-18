@@ -104,3 +104,18 @@ class PartnerRegistrationShellTests(TestCase):
         self.assertEqual(self.shell_offer(self.client.get('/app/'))['trial_days'], 51)
         self.assertEqual(self._register().status_code, 200)
         self.assertEqual(Subscription.objects.get(user_id=9100051).trial_days, 51)
+
+    def test_partner_cta_funnel_session_bootstraps_exact_7889_days(self):
+        PartnerLink.objects.create(
+            name="Launch partner", code="launch7889", trial_days=7889,
+            utm_source="launch", destination=PartnerLink.Destination.APP,
+        )
+        self.assertEqual(self.client.get("/app/r/launch7889").status_code, 302)
+        funnel = self.client.get("/app/api/funnel/session", {"landing_variant": "partner-cta"})
+        self.assertEqual(funnel.status_code, 200)
+        self.assertEqual(funnel.json()["partner_offer"]["trial_days"], 7889)
+        self.assertEqual(self._register(user_id=91007889).status_code, 200)
+        subscription = Subscription.objects.get(user_id=91007889)
+        self.assertEqual(subscription.trial_days, 7889)
+        self.assertEqual(subscription.expires_at - subscription.started_at, timedelta(days=7889))
+        self.assertEqual(self.client.get("/app/api/onboarding").json()["onboarding"]["partner_offer"]["trial_days"], 7889)

@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from common.admin_site import admin_site
 from miniapp.models import AcquisitionSession, PartnerLink, PartnerTrialClaim
-from miniapp.partner_offers import claim_partner_offer
+from miniapp.partner_offers import claim_partner_offer, public_partner_offer
 from subscriptions.models import Subscription
 from users.models import TelegramUser, UserAdminState
 
@@ -22,6 +22,23 @@ class PartnerTrialConfigurationTests(SimpleTestCase):
 
 
 class PartnerTrialClaimTests(TestCase):
+    def test_claim_grants_exact_7889_days_from_real_partner_offer(self):
+        link = PartnerLink.objects.create(name="Launch partner", code="launch7889", utm_source="launch", trial_days=7889)
+        session = AcquisitionSession.objects.create(
+            expires_at=timezone.now() + timedelta(days=365),
+            first_partner_link=link,
+            last_partner_link=link,
+        )
+        user = TelegramUser.objects.create(tg_user_id=990000, first_name="Test")
+
+        claim = claim_partner_offer(user=user, acquisition=session)
+
+        subscription = Subscription.objects.get(user=user)
+        self.assertEqual(claim.trial_days, 7889)
+        self.assertEqual(subscription.trial_days, 7889)
+        self.assertEqual(subscription.expires_at - subscription.started_at, timedelta(days=7889))
+        self.assertEqual(public_partner_offer(claim=claim)["trial_days"], 7889)
+
     def test_claim_snapshots_exact_arbitrary_days_once(self):
         link = PartnerLink.objects.create(name="Creator", code="creator51", utm_source="creator", trial_days=51)
         session = AcquisitionSession.objects.create(expires_at=timezone.now() + timedelta(days=365), first_partner_link=link, last_partner_link=link)
