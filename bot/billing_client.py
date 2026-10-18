@@ -68,6 +68,10 @@ def _access_mode(
 
 def _billing_state_has_personal_full_access(billing_state: dict[str, Any]) -> bool:
     subscription_status = str(billing_state.get("subscription_status") or "")
+    if not (
+        billing_state.get("has_card") and billing_state.get("profile_status") == "active"
+    ):
+        return False
     return (
         str(billing_state.get("access_mode") or "") == "full"
         and (subscription_status in PERSONAL_FULL_STATUSES or bool(billing_state.get("soft_grace_active")))
@@ -107,7 +111,7 @@ async def get_billing_state(conn: asyncpg.Connection, tg_user_id: int) -> dict[s
             state.update(
                 {
                     "profile_exists": True,
-                    "has_card": bool(profile["has_card"]),
+                    "has_card": bool(profile["has_card"]) and str(profile["status"] or "") == "active",
                     "masked_pan": str(profile["masked_pan"] or ""),
                     "profile_status": str(profile["status"] or ""),
                     "auto_renew_enabled": bool(profile["auto_renew_enabled"]),
@@ -153,6 +157,9 @@ async def get_billing_state(conn: asyncpg.Connection, tg_user_id: int) -> dict[s
                     ),
                 }
             )
+    if not state["has_card"]:
+        state["access_mode"] = "blocked"
+        state["soft_grace_active"] = False
     return state
 
 
@@ -241,7 +248,7 @@ async def get_access_state(conn: asyncpg.Connection, tg_user_id: int) -> dict[st
         state["promo_trial_days"] = _pending_payload_trial_days(pending_payload)
 
     finance_scope = await get_current_finance_scope(conn, tg_user_id)
-    if await _family_has_sponsored_full_access(conn, finance_scope):
+    if billing_state.get("has_card") and billing_state.get("profile_status") == "active" and await _family_has_sponsored_full_access(conn, finance_scope):
         state["access_scope"] = "family_full"
         if not state["access_source"]:
             state["access_source"] = "family"
@@ -258,7 +265,7 @@ async def get_access_state(conn: asyncpg.Connection, tg_user_id: int) -> dict[st
 
     # A cached projection has no independent expiry. Manual/lifetime grants are
     # canonical Subscription rows and are handled above, never by this fallback.
-    if admin_state and str(admin_state["access_scope"] or "") == "debt_only":
+    if billing_state.get("has_card") and admin_state and str(admin_state["access_scope"] or "") == "debt_only":
         state["access_scope"] = "debt_only"
         if not state["access_source"]:
             state["access_source"] = "debt"

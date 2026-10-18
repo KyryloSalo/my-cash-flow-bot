@@ -15,8 +15,8 @@ test("51-day partner terms preserve the manually specified hash and exact days",
 test("registration copy shows exactly 51 days in either locale, not the legacy 90", function () {
   assert.equal(typeof Offer.copy, "function");
   const offer = { code: "manual_hash_51", trial_days: 51 };
-  assert.equal(Offer.copy(offer, "uk"), "Ваша партнерська пропозиція: 51 день безкоштовного доступу.");
-  assert.equal(Offer.copy(offer, "en"), "Your partner offer: 51 days of free access.");
+  assert.equal(Offer.copy(offer, "uk"), "Ваша партнерська пропозиція: 51 день доступу після успішної прив’язки картки.");
+  assert.equal(Offer.copy(offer, "en"), "Your partner offer: 51 days of access after successful card binding.");
 });
 
 test("the real PWA registration shell renders server-owned partner terms before sign-in and in onboarding", function () {
@@ -34,8 +34,8 @@ test("day counts are not silently capped at 30, 90 or 365", function () {
     assert.equal(Offer.normalize(value).trial_days, days);
     assert.ok(Offer.copy(value, "uk").includes(String(days)));
   }
-  assert.equal(Offer.copy({ code: "manual_hash_51", trial_days: 11 }, "uk"), "Ваша партнерська пропозиція: 11 днів безкоштовного доступу.");
-  assert.equal(Offer.copy({ code: "manual_hash_51", trial_days: 22 }, "uk"), "Ваша партнерська пропозиція: 22 дні безкоштовного доступу.");
+  assert.equal(Offer.copy({ code: "manual_hash_51", trial_days: 11 }, "uk"), "Ваша партнерська пропозиція: 11 днів доступу після успішної прив’язки картки.");
+  assert.equal(Offer.copy({ code: "manual_hash_51", trial_days: 22 }, "uk"), "Ваша партнерська пропозиція: 22 дні доступу після успішної прив’язки картки.");
 });
 
 test("missing, malformed and untrusted terms do not become an offer", function () {
@@ -60,7 +60,7 @@ test("partner landing replaces paid-trial prompts without changing organic visit
   assert.equal(Offer.renderLanding(doc, { code: "manual_hash_51", trial_days: 51 }), true);
   assert.ok(nodes.get(".offer-note")[0].textContent.includes("51 день"));
   assert.equal(nodes.get(".price-value strong")[0].textContent, "0");
-  assert.ok(nodes.get(".price-card > small")[0].textContent.includes("окремо"));
+  assert.ok(nodes.get(".price-card > small")[0].textContent.includes("перед підтвердженням"));
 });
 
 test("both production landing variants load the shared offer renderer", function () {
@@ -69,4 +69,16 @@ test("both production landing variants load the shared offer renderer", function
     assert.ok(fs.readFileSync(path.join(landing, relative), "utf8").includes('/static/miniapp/partner-offer.js'));
   }
   assert.ok(fs.readFileSync(path.join(landing, "pwa-v2/script.js"), "utf8").includes("renderLanding(document, bootstrap.partner_offer)"));
+});
+
+test("partner copy requires card binding before the reserved period begins", function () {
+  const offer = { code: "partner90", trial_days: 90 };
+  assert.match(Offer.copy(offer, "uk"), /після.*прив.язки картки/i);
+  assert.match(Offer.copy(offer, "en"), /after.*card/i);
+  const nodes = new Map();
+  const doc = { querySelectorAll(selector) { const value = [{ textContent: "" }]; nodes.set(selector, value); return value; } };
+  Offer.renderLanding(doc, offer);
+  const text = [...nodes.values()].map(value => value[0].textContent).join(" ");
+  assert.doesNotMatch(text, /без\s+(?:оплати\s+та\s+)?прив.язки картки/i);
+  assert.match(text, /прив.язки картки/i);
 });

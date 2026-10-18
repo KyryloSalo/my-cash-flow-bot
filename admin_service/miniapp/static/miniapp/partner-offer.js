@@ -16,11 +16,11 @@
     const offer = normalize(value);
     if (!offer) return "";
     const days = offer.trial_days;
-    if (locale === "en") return "Your partner offer: " + days + (days === 1 ? " day" : " days") + " of free access.";
+    if (locale === "en") return "Your partner offer: " + days + (days === 1 ? " day" : " days") + " of access after successful card binding.";
     const lastTwo = days % 100;
     const last = days % 10;
     const noun = lastTwo >= 11 && lastTwo <= 14 ? "днів" : last === 1 ? "день" : last >= 2 && last <= 4 ? "дні" : "днів";
-    return "Ваша партнерська пропозиція: " + days + " " + noun + " безкоштовного доступу.";
+    return "Ваша партнерська пропозиція: " + days + " " + noun + " доступу після успішної прив’язки картки.";
   }
 
   function renderLanding(doc, value) {
@@ -29,20 +29,20 @@
     const terms = copy(offer, "uk");
     const duration = offer.trial_days + " дн.";
     const replacements = {
-      ".offer-note": terms + " Без оплати та прив’язки картки.",
+      ".offer-note": terms,
       ".section-cta > span": terms,
       ".final-action > span": terms,
       '[data-funnel-cta="header"], [data-funnel-cta="pricing"], [data-funnel-cta="sticky-mobile"]': "Отримати " + duration + " безкоштовно",
       ".price-badge": duration + " партнерського доступу",
       ".price-value strong": "0",
-      ".price-card > p": "Без оплати та прив’язки картки",
-      ".price-card > small": "Без списань під час партнерського періоду. Платну підписку можна оформити окремо.",
-      ".price-timeline li:nth-child(1) strong": "0 грн",
-      ".price-timeline li:nth-child(1) small": "без прив’язки картки",
+      ".price-card > p": "Партнерський період після прив’язки картки",
+      ".price-card > small": "Картку потрібно прив’язати під час реєстрації. Суму перевірки показуємо перед підтвердженням. Автопродовження вимкнене.",
+      ".price-timeline li:nth-child(1) strong": "Прив’язка картки",
+      ".price-timeline li:nth-child(1) small": "період починається після успішної перевірки картки",
       ".price-timeline li:nth-child(2) > span": "Наступні " + duration,
-      ".price-timeline li:nth-child(3) small": "лише після окремого підтвердження платної підписки",
+      ".price-timeline li:nth-child(3) small": "автопродовження вимкнене; наступну оплату потрібно підтвердити окремо",
       ".faq-list details:nth-child(3) summary": "Що відбудеться після партнерського періоду?",
-      ".faq-list details:nth-child(3) p": "Безкоштовний доступ діє " + duration + " Після його завершення платну підписку можна оформити окремо. Без вашого підтвердження списань не буде."
+      ".faq-list details:nth-child(3) p": "Партнерський доступ діє " + duration + " після успішної прив’язки картки. Автопродовження вимкнене. Після завершення періоду для подальшого доступу потрібно окремо підтвердити оплату."
     };
     Object.keys(replacements).forEach(function (selector) {
       doc.querySelectorAll(selector).forEach(function (node) { node.textContent = replacements[selector]; });

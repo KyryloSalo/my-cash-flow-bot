@@ -33,11 +33,10 @@ class PartnerTrialClaimTests(TestCase):
 
         claim = claim_partner_offer(user=user, acquisition=session)
 
-        subscription = Subscription.objects.get(user=user)
+        self.assertFalse(Subscription.objects.filter(user=user).exists())
         self.assertEqual(claim.trial_days, 7889)
-        self.assertEqual(subscription.trial_days, 7889)
-        self.assertEqual(subscription.expires_at - subscription.started_at, timedelta(days=7889))
         self.assertEqual(public_partner_offer(claim=claim)["trial_days"], 7889)
+        self.assertFalse(UserAdminState.objects.filter(telegram_user_id=user.tg_user_id, access_scope=UserAdminState.AccessScope.PERSONAL_FULL).exists())
 
     def test_claim_snapshots_exact_arbitrary_days_once(self):
         link = PartnerLink.objects.create(name="Creator", code="creator51", utm_source="creator", trial_days=51)
@@ -61,15 +60,8 @@ class PartnerTrialClaimTests(TestCase):
         session = AcquisitionSession.objects.create(expires_at=timezone.now() + timedelta(days=365), first_partner_link=link, last_partner_link=link)
         user = TelegramUser.objects.create(tg_user_id=990003, first_name="Test")
         claim_partner_offer(user=user, acquisition=session)
-        subscription = Subscription.objects.get(user=user)
-        self.assertEqual(subscription.trial_days, 51)
-        self.assertEqual(subscription.status, Subscription.Status.TRIAL)
-        self.assertEqual(subscription.source, Subscription.Source.PROMO)
-        self.assertFalse(subscription.auto_renew)
-        self.assertAlmostEqual((subscription.expires_at - subscription.started_at).total_seconds(), 51 * 86400, delta=2)
-        state = UserAdminState.objects.get(telegram_user_id=user.tg_user_id)
-        self.assertEqual(state.access_scope, UserAdminState.AccessScope.PERSONAL_FULL)
-        self.assertEqual(state.subscription_status, UserAdminState.SubscriptionStatus.TRIAL)
+        self.assertFalse(Subscription.objects.filter(user=user).exists())
+        self.assertFalse(UserAdminState.objects.filter(telegram_user_id=user.tg_user_id, access_scope=UserAdminState.AccessScope.PERSONAL_FULL).exists())
 
     def test_reentry_does_not_extend_or_duplicate_grant(self):
         link = PartnerLink.objects.create(name="Creator", code="creator17", utm_source="creator", trial_days=17)
@@ -78,7 +70,7 @@ class PartnerTrialClaimTests(TestCase):
         first = claim_partner_offer(user=user, acquisition=session)
         expires_at = first.claimed_at
         claim_partner_offer(user=user, acquisition=session)
-        self.assertEqual(Subscription.objects.filter(user=user).count(), 1)
+        self.assertEqual(Subscription.objects.filter(user=user).count(), 0)
         self.assertEqual(PartnerTrialClaim.objects.get(user=user).claimed_at, expires_at)
 
     def test_existing_paid_user_is_not_downgraded_or_granted(self):

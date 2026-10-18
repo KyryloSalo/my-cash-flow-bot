@@ -21,9 +21,11 @@ class PaidConsentHookTests(SimpleTestCase):
     @patch("subscriptions.billing._payment_bind_trial_granted", return_value=True)
     @patch("subscriptions.billing._bind_mode", return_value="bind")
     @patch("subscriptions.billing._bind_context", return_value={"trial_days": 30})
+    @patch("subscriptions.billing.PartnerTrialClaim.objects.filter")
     @patch("subscriptions.billing.Subscription.objects.filter")
     def test_bind_success_records_payment_after_subscription_state(
         self,
+        partner_claim_filter,
         subscription_filter,
         _bind_context,
         _bind_mode,
@@ -37,6 +39,7 @@ class PaidConsentHookTests(SimpleTestCase):
         _mark_recovery,
         _notify,
     ) -> None:
+        partner_claim_filter.return_value.first.return_value = None
         subscription_filter.return_value.exists.return_value = False
         first_renewal_at = datetime(2026, 10, 16, tzinfo=timezone.utc)
         subscription = SimpleNamespace(next_charge_at=first_renewal_at)
@@ -45,6 +48,7 @@ class PaidConsentHookTests(SimpleTestCase):
             pk=41,
             user_id=812345,
             user=SimpleNamespace(tg_user_id=812345),
+            subscription=None,
             provider_modified_at=None,
             status="paid",
         )
