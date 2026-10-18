@@ -1,0 +1,44 @@
+{
+  "version": "0.40.0",
+  "environment": "production",
+  "deployed_sha": "14b73b26f5562bb81619917dd0dafa17688395ae",
+  "production_run_id": 39084471797,
+  "purpose": "Scoped post-deployment canonical documentation updates. Apply after protected-main documentation PR and required validation. Runtime remains the exact deployed SHA; no runtime redeploy required.",
+  "changes": [
+    {
+      "path": "VERSION",
+      "old_string": "0.39.1",
+      "new_string": "0.40.0"
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.40.0 — 2026-10-18\n\n- Production release `0.40.0` is active on exact SHA `14b73b26f5562bb81619917dd0dafa17688395ae` (implementation PR `#39`, required main validation `39084085110`, approved production run `39084471797`, deployment evidence `readback: passed` at `2026-10-18T00:58:39.450078+00:00`). Admins can enter a manual partner code and positive trial days; new registrations receive that exact offer once, without card binding or auto-renew. Click-time terms and granted claims are snapshotted; changing days later does not rewrite existing grants. Partner terms take precedence over the separate legacy 90-day course UI. Focused backend tests and mobile browser acceptance passed. On production, a reversible synthetic check submitted a real admin form with 51 days, followed attribution into new-registration bootstrap, verified an exact 51-day subscription and authenticated onboarding, checked repeat entry, 137-day edits, rejected inactive/invalid/expired attribution, and verified rollback of synthetic data. All eight services are healthy; public PWA/helper return 200. External Telegram provider login and the owner's manual device test were not re-exercised; no card/payment/financial action was executed. Earlier receipt-quality/real-owner course acceptance gaps remain separate and unchanged. See `code/docs/releases/0.40.0-partner-trials.md`.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "old_string": "Current released version is tracked in the root `VERSION` file. The latest deployed artifact is `0.39.1`; original-incident/photo-quality/authenticated-review and real-owner course/PWA acceptance remain incomplete.\n\n",
+      "new_string": "Current released version is tracked in the root `VERSION` file. The latest deployed artifact is `0.40.0`; partner configurable trials are active and verified by reversible production acceptance. Separate earlier receipt-quality and real-owner course/PWA acceptance gaps remain unchanged.\n\n- Production release `0.40.0` is active on exact SHA `14b73b26f5562bb81619917dd0dafa17688395ae` (implementation PR `#39`, required main validation `39084085110`, approved production run `39084471797`, deployment evidence `readback: passed` at `2026-10-18T00:58:39.450078+00:00`). Admins can enter a manual partner code and positive trial days; new registrations receive that exact offer once, without card binding or auto-renew. Click-time terms and granted claims are snapshotted; changing days later does not rewrite existing grants. Partner terms take precedence over the separate legacy 90-day course UI. Focused backend tests and mobile browser acceptance passed. On production, a reversible synthetic check submitted a real admin form with 51 days, followed attribution into new-registration bootstrap, verified an exact 51-day subscription and authenticated onboarding, checked repeat entry, 137-day edits, rejected inactive/invalid/expired attribution, and verified rollback of synthetic data. All eight services are healthy; public PWA/helper return 200. External Telegram provider login and the owner's manual device test were not re-exercised; no card/payment/financial action was executed. Earlier receipt-quality/real-owner course acceptance gaps remain separate and unchanged. See `code/docs/releases/0.40.0-partner-trials.md`.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "old_string": "- Production release `0.39.1` is active on exact SHA",
+      "new_string": "- Previous production release `0.39.1` used exact SHA"
+    },
+    {
+      "path": "README.md",
+      "old_string": "## Current Mini App Delivery\n\n",
+      "new_string": "## Current Mini App Delivery\n\nProduction release `0.40.0` is active on exact SHA `14b73b26f5562bb81619917dd0dafa17688395ae` (implementation PR `#39`, required main validation `39084085110`, approved production run `39084471797`, deployment evidence `readback: passed` at `2026-10-18T00:58:39.450078+00:00`). Admins can enter a manual partner code and positive trial days; new registrations receive that exact offer once, without card binding or auto-renew. Click-time terms and granted claims are snapshotted; changing days later does not rewrite existing grants. Partner terms take precedence over the separate legacy 90-day course UI. Focused backend tests and mobile browser acceptance passed. On production, a reversible synthetic check submitted a real admin form with 51 days, followed attribution into new-registration bootstrap, verified an exact 51-day subscription and authenticated onboarding, checked repeat entry, 137-day edits, rejected inactive/invalid/expired attribution, and verified rollback of synthetic data. All eight services are healthy; public PWA/helper return 200. External Telegram provider login and the owner's manual device test were not re-exercised; no card/payment/financial action was executed. Earlier receipt-quality/real-owner course acceptance gaps remain separate and unchanged. See `code/docs/releases/0.40.0-partner-trials.md`.\n\n"
+    },
+    {
+      "path": "README.md",
+      "old_string": "Production release `0.39.1` is active on exact SHA",
+      "new_string": "Previous production release `0.39.1` used exact SHA"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "old_string": "Current latest production release: `0.39.1` (artifact deployed; original receipt incident and real-owner acceptance incomplete)",
+      "new_string": "Current latest production release: `0.40.0` (partner trials deployed; focused and reversible production acceptance passed; earlier unrelated acceptance gaps unchanged)"
+    }
+  ]
+}
