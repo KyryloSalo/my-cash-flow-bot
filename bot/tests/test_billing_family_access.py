@@ -131,6 +131,7 @@ class BillingFamilyAccessConn:
                 return None
             return {
                 "status": state.get("subscription_status"),
+                "source": state.get("subscription_source", "payment"),
                 "expires_at": state.get("expires_at"),
                 "next_charge_at": state.get("next_charge_at"),
                 "grace_expires_at": state.get("grace_expires_at"),
@@ -144,6 +145,17 @@ class BillingFamilyAccessConn:
 
 
 class BillingFamilyAccessTests(unittest.IsolatedAsyncioTestCase):
+    async def test_explicit_admin_grants_work_without_a_card(self) -> None:
+        for status, source in (("trial", "admin"), ("active", "admin"), ("manual", "payment"), ("lifetime", "admin")):
+            with self.subTest(status=status, source=source):
+                billing = _personal_full_billing_state()
+                billing.update(has_card=False, profile_status="", subscription_status=status, subscription_source=source)
+                conn = BillingFamilyAccessConn(finance_scope=None, billing_states={288834786: billing})
+                state = await billing_client.get_access_state(conn, 288834786)
+                self.assertEqual(state["access_scope"], "personal_full")
+                self.assertEqual(state["billing_state"]["access_mode"], "full")
+                self.assertFalse(state["billing_state"]["has_card"])
+
     async def test_unbound_trial_cannot_use_cached_full_access(self) -> None:
         for profile_status in ("pending", "failed", "active"):
             with self.subTest(profile_status=profile_status):
@@ -210,7 +222,7 @@ class BillingFamilyAccessTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state["access_scope"], "personal_full")
         self.assertEqual(state["access_source"], "billing")
 
-    async def test_manual_subscription_without_card_is_paywalled(self) -> None:
+    async def test_manual_subscription_without_card_keeps_granted_access(self) -> None:
         expiry = datetime(2030, 1, 1, tzinfo=UTC)
         conn = BillingFamilyAccessConn(
             finance_scope=None,
@@ -231,8 +243,8 @@ class BillingFamilyAccessTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(state["access_source"], "billing")
         self.assertFalse(state["billing_state"]["has_card"])
-        self.assertEqual(state["access_scope"], "paywall")
-        self.assertEqual(state["billing_state"]["access_mode"], "blocked")
+        self.assertEqual(state["access_scope"], "personal_full")
+        self.assertEqual(state["billing_state"]["access_mode"], "full")
 
     async def test_cached_personal_full_projection_does_not_override_expired_subscription(self) -> None:
         conn = BillingFamilyAccessConn(

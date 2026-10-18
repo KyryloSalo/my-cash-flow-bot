@@ -23,7 +23,7 @@ class BillingAccessBatch2Tests(unittest.IsolatedAsyncioTestCase):
     async def test_canonical_manual_lifetime_and_debt_only_are_preserved(self):
         for status in ('manual','lifetime'):
             conn = BillingFamilyAccessConn(finance_scope=None,billing_states={950001:{'subscription_status':status,'expires_at':None}})
-            self.assertEqual((await billing_client.get_access_state(conn,950001))['access_scope'], 'paywall')
+            self.assertEqual((await billing_client.get_access_state(conn,950001))['access_scope'], 'personal_full')
             conn.billing_states[950001].update(profile_exists=True, has_card=True, profile_status='active')
             self.assertEqual((await billing_client.get_access_state(conn,950001))['access_scope'], 'personal_full')
         conn = BillingFamilyAccessConn(finance_scope=None,admin_state={'access_scope':'debt_only'})

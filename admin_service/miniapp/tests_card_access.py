@@ -46,11 +46,25 @@ class CardAccessTests(SimpleTestCase):
     def test_bound_trial_remains_active(self):
         self.assertEqual(self.resolve(card=True)["mode"], "active")
 
-    def test_every_subscription_requires_verified_card(self):
-        for status in ("active", "paid", "manual", "lifetime"):
+    def test_self_service_subscription_requires_verified_card(self):
+        for status in ("active", "paid"):
             with self.subTest(status=status):
                 self.assertEqual(self.resolve(status=status, source="payment")["mode"], "blocked")
                 self.assertEqual(self.resolve(status=status, source="payment", card=True)["mode"], "active")
+
+    def test_explicit_admin_grants_do_not_require_a_card(self):
+        for status, source in (("trial", "admin"), ("active", "admin"), ("paid", "admin"), ("manual", "payment"), ("lifetime", "admin")):
+            with self.subTest(status=status, source=source):
+                access = self.resolve(status=status, source=source)
+                self.assertEqual(access["mode"], "active")
+                self.assertEqual(access["access_scope"], "personal_full")
+                self.assertFalse(access["has_card"])
+                self.assertIsNone(access["recommended_action"])
+
+    def test_expired_or_cancelled_admin_grant_does_not_bypass_paywall(self):
+        for status in ("expired", "cancelled"):
+            with self.subTest(status=status):
+                self.assertEqual(self.resolve(status=status, source="admin")["mode"], "blocked")
 
     def test_cardless_trial_cannot_use_read_only_grace(self):
         self.assertEqual(self.resolve(grace=True)["mode"], "blocked")
