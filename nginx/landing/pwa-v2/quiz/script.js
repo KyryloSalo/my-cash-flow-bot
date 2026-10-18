@@ -13,6 +13,7 @@
   const restartButton = document.querySelector("[data-restart]");
   let currentIndex = 0;
   let resultType = "simple";
+  let partnerOffer = null;
 
   const preferredScrollBehavior = () => window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
     ? "auto"
@@ -106,6 +107,18 @@
     return "simple";
   };
 
+  const renderResultOffer = () => {
+    const recommendation = recommendations[resultType];
+    const terms = window.VydnoPartnerOffer?.copy(partnerOffer, "uk");
+    document.querySelector("[data-result-next]").textContent = terms || recommendation.next;
+    const cta = document.querySelector("[data-result-cta]");
+    if (terms) cta.textContent = `Отримати ${partnerOffer.trial_days} дн. безкоштовно →`;
+    else cta.innerHTML = `${recommendation.cta} <span aria-hidden="true">→</span>`;
+    document.querySelector("[data-result-terms]").textContent = terms
+      ? "Без оплати та прив’язки картки. Платну підписку можна оформити окремо після партнерського періоду."
+      : "Потім 499 грн кожні 30 днів · автопродовження можна вимкнути";
+  };
+
   const renderResult = () => {
     const answers = questions.map((question) => getSelected(question)).filter(Boolean);
     resultType = classify(answers);
@@ -115,10 +128,7 @@
     document.querySelector("[data-result-title]").textContent = recommendation.title;
     document.querySelector("[data-result-lead]").textContent = recommendation.lead;
     document.querySelector("[data-result-fit]").innerHTML = `<strong>Що це означає</strong>${recommendation.fit}`;
-    document.querySelector("[data-result-next]").textContent = recommendation.next;
-
-    const cta = document.querySelector("[data-result-cta]");
-    cta.innerHTML = `${recommendation.cta} <span aria-hidden="true">→</span>`;
+    renderResultOffer();
 
     const summary = document.querySelector("[data-answer-summary]");
     summary.replaceChildren();
@@ -220,6 +230,10 @@
   };
 
   const funnelBootstrap = bootstrapFunnel().catch(() => null);
+  funnelBootstrap.then((bootstrap) => {
+    partnerOffer = window.VydnoPartnerOffer?.normalize(bootstrap?.partner_offer) || null;
+    if (resultScreen && !resultScreen.hidden) renderResultOffer();
+  }).catch(() => undefined);
   funnelBootstrap.then((bootstrap) => emitFunnelEvent(bootstrap, "landing_view")).catch(() => undefined);
 
   document.querySelector("[data-result-cta]")?.addEventListener("click", () => {
