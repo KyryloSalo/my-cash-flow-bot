@@ -3676,6 +3676,8 @@
           return;
         }
         el.card.hidden = false;
+        el.dismiss.disabled = aiImageBatchState.busy || Boolean(transactionState.aiImageBatchContext);
+        el.dismiss.title = transactionState.aiImageBatchContext ? tr("aiImageBatchReviewing") : "";
         const parserSkipped = Number(batch.skipped_items_count || 0);
         const skipped = Number(batch.skipped_count || 0) + parserSkipped;
         el.meta.textContent = tr("aiImageBatchSummary", {
@@ -3758,6 +3760,14 @@
 
       function dismissAiImageBatch() {
         const batch = aiImageBatchState.batch;
+        // Never clear a batch while its reviewed item still owns the active draft.
+        // The draft confirmation payload carries this context; dismissing here would
+        // orphan it and make the server reject confirmation as batch_item_unavailable.
+        if (transactionState.aiImageBatchContext) {
+          setAiImageBatchStatus(tr("aiImageBatchReviewing"), "error");
+          renderAiImageBatch();
+          return;
+        }
         if (!batch || aiImageBatchState.busy || !aiImageBatchItemUrl) return;
         setAiImageBatchBusy(true);
         ensureSession().then(function () {
@@ -3805,6 +3815,7 @@
               applyAiTextSuggestion(suggestion);
               setSuggestionSelectValue(transactionElements().account, aiImageBatchState.accountId);
               transactionState.aiImageBatchContext = { batchId: batch.batch_id, itemId: itemId };
+              renderAiImageBatch();
               setAiImageBatchStatus(tr("aiImageBatchReviewing"), "success");
               const form = document.getElementById("transactionForm");
               const confirmationShown = renderTransactionConfirmation(true);
@@ -3974,8 +3985,10 @@
         transactionState.draft = null;
         transactionState.idempotencyKey = null;
         transactionState.draftFingerprint = null;
+        transactionState.aiImageBatchContext = null;
         if (hideConfirmation !== false && el.draftCard) el.draftCard.hidden = true;
         setTransactionConfirmationStatus("", "muted");
+        renderAiImageBatch();
       }
 
       function clearReceiptItems() {
