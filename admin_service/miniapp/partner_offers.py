@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import timedelta
-
 from django.db import transaction
 from django.utils import timezone
 
@@ -43,8 +41,14 @@ def partner_offer_for_user(*, user):
     return public_partner_offer(claim=claim) if claim is not None else None
 
 
+def pending_partner_trial_days(user_id: int) -> int | None:
+    """Return the immutable duration for a reserved, not-yet-activated claim."""
+    claim = PartnerTrialClaim.objects.filter(user_id=user_id, activated_at__isnull=True).first()
+    return int(claim.trial_days) if claim is not None else None
+
+
 def claim_partner_offer(*, user, acquisition: AcquisitionSession | None) -> PartnerTrialClaim | None:
-    """Freeze and atomically grant the trusted partner offer exactly once."""
+    """Freeze a trusted partner offer; access starts only after card binding."""
     now = timezone.now()
     with transaction.atomic():
         locked_user = type(user).objects.select_for_update().get(pk=user.pk)
@@ -68,7 +72,6 @@ def claim_partner_offer(*, user, acquisition: AcquisitionSession | None) -> Part
         if offer is None:
             return None
         days = int(offer['trial_days'])
-        started_at = now
         claim = PartnerTrialClaim.objects.create(
             user_id=locked_user.tg_user_id,
             partner_link=link,
@@ -77,21 +80,4 @@ def claim_partner_offer(*, user, acquisition: AcquisitionSession | None) -> Part
             name=offer['name'],
             trial_days=days,
         )
-        Subscription.objects.create(
-            user_id=locked_user.tg_user_id,
-            plan="solo",
-            status=Subscription.Status.TRIAL,
-            provider="",
-            started_at=started_at,
-            expires_at=started_at + timedelta(days=days),
-            trial_days=days,
-            auto_renew=False,
-            source=Subscription.Source.PROMO,
-            comment=f"Partner offer {link.code}",
-        )
-        state, _ = UserAdminState.objects.get_or_create(telegram_user_id=locked_user.tg_user_id)
-        state.subscription_status = UserAdminState.SubscriptionStatus.TRIAL
-        state.access_scope = UserAdminState.AccessScope.PERSONAL_FULL
-        state.access_source = f"partner:{link.code}"[:128]
-        state.save(update_fields=["subscription_status", "access_scope", "access_source", "updated_at"])
         return claim

@@ -11,7 +11,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from miniapp.funnel import ACQUISITION_SESSION_KEY
-from miniapp.models import AcquisitionSession, PartnerLink
+from miniapp.models import AcquisitionSession, PartnerLink, PartnerTrialClaim
 from subscriptions.models import Subscription
 from users.models import TelegramUser
 
@@ -78,24 +78,28 @@ class PartnerRegistrationShellTests(TestCase):
         session.save()
         self.assertIsNone(self.shell_offer(self.client.get('/app/')))
 
-    def test_signed_new_registration_grants_exactly_51_days(self):
+    def test_signed_new_registration_reserves_exactly_51_days_without_access(self):
         self.client.get('/app/r/manual51')
         self.assertEqual(self._register().status_code, 200)
-        subscription = Subscription.objects.get(user_id=9100051)
-        self.assertEqual(subscription.trial_days, 51)
-        self.assertEqual(subscription.expires_at - subscription.started_at, timedelta(days=51))
-        self.assertFalse(subscription.auto_renew)
+        claim = PartnerTrialClaim.objects.get(user_id=9100051)
+        self.assertEqual(claim.trial_days, 51)
+        self.assertIsNone(claim.activated_at)
+        self.assertFalse(Subscription.objects.filter(user_id=9100051).exists())
+        for path in ('flow', 'accounts/options', 'transactions/options', 'history'):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get('/app/api/' + path).status_code, 403)
         self.assertEqual(self.shell_offer(self.client.get('/app/'))['trial_days'], 51)
         status = self.client.get('/app/api/onboarding').json()['onboarding']
         self.assertEqual(status['partner_offer']['trial_days'], 51)
 
-    def test_failed_grant_rolls_back_the_new_registration(self):
+    def test_failed_reservation_rolls_back_the_new_registration(self):
         self.client.get('/app/r/manual51')
-        with patch('miniapp.partner_offers.Subscription.objects.create', side_effect=RuntimeError('grant unavailable')):
+        with patch('miniapp.partner_offers.PartnerTrialClaim.objects.create', side_effect=RuntimeError('reservation unavailable')):
             self.assertEqual(self._register().status_code, 503)
         self.assertFalse(TelegramUser.objects.filter(tg_user_id=9100051).exists())
         self.assertEqual(self._register().status_code, 200)
-        self.assertEqual(Subscription.objects.get(user_id=9100051).trial_days, 51)
+        self.assertEqual(PartnerTrialClaim.objects.get(user_id=9100051).trial_days, 51)
+        self.assertFalse(Subscription.objects.filter(user_id=9100051).exists())
 
     def test_click_offer_survives_admin_day_change_before_registration(self):
         self.client.get('/app/r/manual51')
@@ -103,7 +107,8 @@ class PartnerRegistrationShellTests(TestCase):
         self.link.save(update_fields=['trial_days'])
         self.assertEqual(self.shell_offer(self.client.get('/app/'))['trial_days'], 51)
         self.assertEqual(self._register().status_code, 200)
-        self.assertEqual(Subscription.objects.get(user_id=9100051).trial_days, 51)
+        self.assertEqual(PartnerTrialClaim.objects.get(user_id=9100051).trial_days, 51)
+        self.assertFalse(Subscription.objects.filter(user_id=9100051).exists())
 
     def test_partner_cta_funnel_session_bootstraps_exact_7889_days(self):
         PartnerLink.objects.create(
@@ -115,7 +120,8 @@ class PartnerRegistrationShellTests(TestCase):
         self.assertEqual(funnel.status_code, 200)
         self.assertEqual(funnel.json()["partner_offer"]["trial_days"], 7889)
         self.assertEqual(self._register(user_id=91007889).status_code, 200)
-        subscription = Subscription.objects.get(user_id=91007889)
-        self.assertEqual(subscription.trial_days, 7889)
-        self.assertEqual(subscription.expires_at - subscription.started_at, timedelta(days=7889))
+        claim = PartnerTrialClaim.objects.get(user_id=91007889)
+        self.assertEqual(claim.trial_days, 7889)
+        self.assertIsNone(claim.activated_at)
+        self.assertFalse(Subscription.objects.filter(user_id=91007889).exists())
         self.assertEqual(self.client.get("/app/api/onboarding").json()["onboarding"]["partner_offer"]["trial_days"], 7889)

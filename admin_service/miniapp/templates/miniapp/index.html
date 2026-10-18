@@ -7806,6 +7806,11 @@
         const bindAmount = access.bind_amount_label || "1 грн";
         const monthlyPrice = access.monthly_price_label || "499 грн";
         const renewalDays = Number(access.renewal_period_days || 30);
+        if (access.partner_trial) {
+          return activeLocale === "en"
+            ? "I agree to the " + bindAmount + " card verification charge. My " + String(trialDays) + " days start only after successful card binding. Automatic renewal is off."
+            : "Погоджуюсь на списання " + bindAmount + " для перевірки картки. Мої " + String(trialDays) + " днів почнуться лише після успішної прив’язки картки. Автопродовження вимкнене.";
+        }
         if (activeLocale === "en") {
           return "I agree to a " + bindAmount + " card verification charge now, " + String(trialDays) +
             " days of access, and automatic renewal at " + monthlyPrice + " every " + String(renewalDays) + " days.";
@@ -8825,20 +8830,21 @@
         if (primary) primary.disabled = true;
         cardBindingRequestBusy = false;
         setText("cardBindingConsentTerms", billingConsentText(access));
+        const partnerRenewal = access.partner_trial;
         if (activeLocale === "en") {
           setText("cardBindingEyebrow", "One last step");
           setText("cardBindingTitle", "Link a card and activate access");
           setText("cardBindingMessage", "Your finance space is ready. Activate the trial now so you can start using it immediately.");
-          document.getElementById("cardBindingBenefits").innerHTML = "<li><strong>" + onboardingEscape(String(trialDays)) + " days</strong> of full access</li><li><strong>" + onboardingEscape(String(bindAmount)) + " now</strong> to verify the card</li><li><strong>" + onboardingEscape(String(monthlyPrice)) + "</strong> every " + onboardingEscape(String(renewalDays)) + " days after the trial</li>";
+          document.getElementById("cardBindingBenefits").innerHTML = "<li><strong>" + onboardingEscape(String(trialDays)) + " days</strong> after successful card binding</li><li><strong>" + onboardingEscape(String(bindAmount)) + " now</strong> to verify the card</li>" + (partnerRenewal ? "<li>Automatic renewal is off</li>" : "<li><strong>" + onboardingEscape(String(monthlyPrice)) + "</strong> every " + onboardingEscape(String(renewalDays)) + " days after the trial</li>");
           setText("cardBindingPrimary", "Link card in Monobank");
-          setText("cardBindingLater", "Not now");
+          setText("cardBindingLater", "Back — access stays locked");
         } else {
           setText("cardBindingEyebrow", "Останній крок");
           setText("cardBindingTitle", "Прив’яжіть картку й активуйте доступ");
           setText("cardBindingMessage", "Ваш фінансовий простір уже готовий. Активуйте пробний період зараз, щоб одразу почати користуватися.");
-          document.getElementById("cardBindingBenefits").innerHTML = "<li><strong>" + onboardingEscape(String(trialDays)) + " днів</strong> повного доступу</li><li><strong>" + onboardingEscape(String(bindAmount)) + " зараз</strong> — перевірка картки</li><li><strong>" + onboardingEscape(String(monthlyPrice)) + "</strong> кожні " + onboardingEscape(String(renewalDays)) + " днів після trial</li>";
+          document.getElementById("cardBindingBenefits").innerHTML = "<li><strong>" + onboardingEscape(String(trialDays)) + " днів</strong> після успішної прив’язки картки</li><li><strong>" + onboardingEscape(String(bindAmount)) + " зараз</strong> — перевірка картки</li>" + (partnerRenewal ? "<li>Автопродовження вимкнене</li>" : "<li><strong>" + onboardingEscape(String(monthlyPrice)) + "</strong> кожні " + onboardingEscape(String(renewalDays)) + " днів після trial</li>");
           setText("cardBindingPrimary", "Прив’язати в Monobank");
-          setText("cardBindingLater", "Не зараз");
+          setText("cardBindingLater", "Назад — доступ залишиться закритим");
         }
         setCardBindingStatus("", "");
         openAccessibleModal(modal, hideCardBindingNudge, "cardBindingLater", function () { return !cardBindingRequestBusy; });

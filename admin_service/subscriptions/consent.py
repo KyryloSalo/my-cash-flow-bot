@@ -18,13 +18,13 @@ from users.models import TelegramUser, UserAdminState
 COURSE_OFFER_ID = "askills_course_90d"
 
 
-def build_server_consent_terms(*, trial_days: int, copy_locale: str) -> dict[str, Any]:
-    normalized_trial_days = max(1, min(int(trial_days or 0), 365))
+def build_server_consent_terms(*, trial_days: int, copy_locale: str, partner_offer_id: str = "") -> dict[str, Any]:
+    normalized_trial_days = max(1, int(trial_days or 0)) if partner_offer_id else max(1, min(int(trial_days or 0), 365))
     locale = str(copy_locale or "uk").strip().lower()
     if locale not in {"uk", "en"}:
         locale = "uk"
     return {
-        "offer_id": str(
+        "offer_id": partner_offer_id or str(
             getattr(settings, "PWA_BILLING_OFFER_ID", "organic_30d_1uah_499uah")
             or "organic_30d_1uah_499uah"
         ),
@@ -34,7 +34,7 @@ def build_server_consent_terms(*, trial_days: int, copy_locale: str) -> dict[str
         "trial_days": normalized_trial_days,
         "renewal_amount_minor": int(settings.MONO_RENEWAL_AMOUNT),
         "renewal_period_days": int(settings.MONO_RENEWAL_PERIOD_DAYS),
-        "renewal_anchor": "payment_success",
+        "renewal_anchor": "disabled" if partner_offer_id else "payment_success",
         "first_renewal_at": None,
         "terms_version": str(getattr(settings, "PWA_BILLING_TERMS_VERSION", "2026-09") or "2026-09"),
         "privacy_version": str(getattr(settings, "PWA_PRIVACY_VERSION", "2026-09") or "2026-09"),
@@ -106,12 +106,19 @@ def accept_billing_consent(
         parsed_key = uuid.UUID(str(idempotency_key or ""))
     except (ValueError, TypeError, AttributeError) as exc:
         raise FunnelValidationError("invalid_idempotency_key", "idempotency_key must be a UUID.") from exc
-    terms = build_server_consent_terms(trial_days=trial_days, copy_locale=copy_locale)
+    from miniapp.partner_offers import partner_offer_for_user, pending_partner_trial_days
+
+    partner_days = pending_partner_trial_days(user.tg_user_id)
+    partner_offer = partner_offer_for_user(user=user) if partner_days else None
+    terms = build_server_consent_terms(
+        trial_days=partner_days or trial_days, copy_locale=copy_locale,
+        partner_offer_id=partner_offer["offer_id"] if partner_offer else "",
+    )
     pending_start = str(
         UserAdminState.objects.filter(telegram_user=user)
         .values_list("pending_start_payload", flat=True).first() or ""
     )
-    if terms["trial_days"] == 90 and (pending_start == "course" or pending_start.startswith("course_")):
+    if not partner_offer and terms["trial_days"] == 90 and (pending_start == "course" or pending_start.startswith("course_")):
         terms["offer_id"] = COURSE_OFFER_ID
     snapshot = acquisition_consent_snapshot(acquisition)
     payload_hash = _consent_hash(terms=terms, acquisition_snapshot=snapshot)

@@ -1,0 +1,56 @@
+from datetime import timedelta
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from django.test import SimpleTestCase
+from django.utils import timezone
+
+from miniapp import services
+
+
+class CardAccessTests(SimpleTestCase):
+    def resolve(self, *, status="trial", card=False, source="promo", grace=False):
+        now = timezone.now()
+        subscription = SimpleNamespace(
+            status=status, source=source, expires_at=now + timedelta(days=-1 if grace else 90),
+            grace_expires_at=now + timedelta(days=1) if grace else None,
+            trial_days=90, next_charge_at=None,
+        )
+        profile = SimpleNamespace(
+            card_token="synthetic-bound-card" if card else "", masked_pan="", status="active",
+            auto_renew_enabled=False, last_charge_status="", last_failure_reason="", last_action_url="",
+        )
+        user = SimpleNamespace(tg_user_id=999001, lang="en")
+        with (
+            patch.object(services.UserAdminState.objects, "filter") as states,
+            patch.object(services.Subscription.objects, "filter") as subscriptions,
+            patch.object(services.BillingProfile.objects, "filter") as profiles,
+            patch.object(services, "_resolve_finance_scope", return_value=SimpleNamespace(is_family=False)),
+            patch.object(services, "activated_course_bonus", return_value=None),
+            patch.object(services, "partner_offer_for_user", return_value={"trial_days": 90}),
+        ):
+            states.return_value.first.return_value = None
+            subscriptions.return_value.order_by.return_value.first.return_value = subscription
+            profiles.return_value.first.return_value = profile
+            return services.resolve_access(user)
+
+    def test_cardless_partner_trial_is_blocked_despite_future_expiry(self):
+        access = self.resolve()
+        self.assertEqual(access["mode"], "blocked")
+        self.assertEqual(access["access_scope"], "paywall")
+        self.assertEqual(access["recommended_action"], "start_trial")
+
+    def test_cardless_organic_trial_is_blocked(self):
+        self.assertEqual(self.resolve(source="payment")["mode"], "blocked")
+
+    def test_bound_trial_remains_active(self):
+        self.assertEqual(self.resolve(card=True)["mode"], "active")
+
+    def test_every_subscription_requires_verified_card(self):
+        for status in ("active", "paid", "manual", "lifetime"):
+            with self.subTest(status=status):
+                self.assertEqual(self.resolve(status=status, source="payment")["mode"], "blocked")
+                self.assertEqual(self.resolve(status=status, source="payment", card=True)["mode"], "active")
+
+    def test_cardless_trial_cannot_use_read_only_grace(self):
+        self.assertEqual(self.resolve(grace=True)["mode"], "blocked")

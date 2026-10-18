@@ -554,6 +554,7 @@ class PartnerTrialClaim(models.Model):
     name = models.CharField(max_length=160)
     trial_days = models.PositiveIntegerField()
     claimed_at = models.DateTimeField(auto_now_add=True)
+    activated_at = models.DateTimeField(blank=True, null=True, db_index=True)
 
     class Meta:
         db_table = "partner_trial_claims"

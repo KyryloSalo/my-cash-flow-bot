@@ -19,6 +19,8 @@ from django.utils import timezone
 
 from common.telegram import send_telegram_message
 from miniapp.push import emit_notification
+from miniapp.models import PartnerTrialClaim
+from miniapp.partner_offers import pending_partner_trial_days
 from subscriptions.consent import finalize_paid_consent
 from subscriptions.models import BillingProfile, Payment, PromoOffer, PromoOfferClaim, Subscription, SubscriptionEvent
 from subscriptions.monobank import (
@@ -43,7 +45,7 @@ MONO_CURRENCY = "UAH"
 MONO_CURRENCY_CODE = 980
 MIN_BIND_INVOICE_VALIDITY_SECONDS = 300
 DUPLICATE_BIND_REFUND_WINDOW = timedelta(hours=24)
-TRIAL_FLOWS = {30, 90}
+
 RETURN_TOKEN_SALT = "subscriptions.monobank.return"
 RETURN_TOKEN_MAX_AGE_SECONDS = 24 * 60 * 60
 RETURN_TOKEN_FLOWS = frozenset({"bind", "recovery"})
@@ -105,7 +107,7 @@ def _trial_days(value: Any) -> int:
         days = int(value)
     except (TypeError, ValueError):
         days = 30
-    return days if days in TRIAL_FLOWS else 30
+    return days if days > 0 else 30
 
 
 def _normalize_promo_code(value: Any) -> str:
@@ -1220,6 +1222,9 @@ def _apply_bind_subscription_state(
 
     current_profile = BillingProfile.objects.filter(user_id=payment.user_id).first()
     mandate_enabled = bool(current_profile and current_profile.canary_owned == (provider == "canary") and current_profile.auto_renew_enabled and current_profile.card_token)
+    partner_trial = pending_partner_trial_days(payment.user_id) is not None
+    if partner_trial:
+        mandate_enabled = False
     if trial_granted:
         subscription.status = Subscription.Status.TRIAL
         subscription.provider = provider
@@ -1385,7 +1390,13 @@ def _handle_bind_success(payment: Payment, payload: dict[str, Any], *, apply_eff
     trial_days = _trial_days(bind_context.get("trial_days"))
     # A checkout can predate another successful bind (or an admin grant).
     # The user lock in process_monobank_event serializes this eligibility check.
-    trial_granted = _payment_bind_trial_granted(payment) and not Subscription.objects.filter(user_id=payment.user_id).exists()
+    partner_claim = PartnerTrialClaim.objects.filter(user_id=payment.user_id).first()
+    existing_subscription = payment.subscription or latest_subscription_for_user(payment.user)
+    protected_existing = existing_subscription is not None and (
+        existing_subscription.source == Subscription.Source.PAYMENT
+        or existing_subscription.status in {Subscription.Status.ACTIVE, Subscription.Status.PAID, Subscription.Status.MANUAL, Subscription.Status.LIFETIME}
+    )
+    trial_granted = _payment_bind_trial_granted(payment) and (partner_claim is not None or not Subscription.objects.filter(user_id=payment.user_id).exists()) and not protected_existing
     modified_at = payment.provider_modified_at or timezone.now()
     if not _payment_mandate_is_current(payment, newer_pending_blocks=False):
         if apply_effect:
@@ -1419,6 +1430,11 @@ def _handle_bind_success(payment: Payment, payload: dict[str, Any], *, apply_eff
     )
     if not apply_effect:
         return
+    if partner_claim is not None and not card_token:
+        _apply_bind_subscription_state(payment, provider=provider, trial_days=0, mode=mode, trial_granted=False)
+        return
+    if partner_claim is not None and trial_granted:
+        trial_days = int(partner_claim.trial_days)
     subscription = _apply_bind_subscription_state(
         payment,
         trial_days=trial_days,
@@ -1434,6 +1450,8 @@ def _handle_bind_success(payment: Payment, payload: dict[str, Any], *, apply_eff
         first_renewal_at=getattr(subscription, "next_charge_at", None),
     )
     if trial_granted and subscription is not None:
+        if partner_claim is not None:
+            PartnerTrialClaim.objects.filter(pk=partner_claim.pk, activated_at__isnull=True).update(activated_at=timezone.now())
         support_note = ""
         if failure_reason:
             support_note = "Картку для автосписань не вдалося зберегти. Напишіть у підтримку, щоб ми допомогли."
@@ -2042,12 +2060,13 @@ def build_bind_invoice(*, user_id: int, trial_days: int, mode: str = "bind", pro
         profile.save(update_fields=["status", "last_action_url", "last_failure_reason", "updated_at"])
         return pending_checkout
 
-    trial_granted = _bind_trial_granted(user=user, mode=mode)
+    partner_claim = PartnerTrialClaim.objects.select_for_update().filter(user_id=user.tg_user_id).first()
+    trial_granted = _bind_trial_granted(user=user, mode=mode) and (partner_claim is None or pending_partner_trial_days(user.tg_user_id) is not None)
     effective_mode = mode if trial_granted else "rebind"
     promo_offer = _resolve_promo_offer(user=user, promo_code=promo_code, mode=effective_mode)
     promo_code = promo_offer.code if promo_offer is not None else ""
     effective_trial_days = (
-        _trial_days(promo_offer.trial_days if promo_offer is not None else trial_days)
+        _trial_days(pending_partner_trial_days(user.tg_user_id) if partner_claim is not None else (promo_offer.trial_days if promo_offer is not None else trial_days))
         if trial_granted
         else 0
     )
@@ -2091,6 +2110,7 @@ def build_bind_invoice(*, user_id: int, trial_days: int, mode: str = "bind", pro
                 "wallet_id": profile.wallet_id,
                 "promo_code": promo_code,
                 "promo_offer_id": promo_offer.pk if promo_offer is not None else None,
+                "partner_claim_id": partner_claim.pk if partner_claim is not None else None,
                 "return_token": return_token,
                 "page_url": page_url,
             },

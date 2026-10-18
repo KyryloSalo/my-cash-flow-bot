@@ -21,6 +21,7 @@ from subscriptions.models import BillingProfile, PromoOffer, Subscription
 from subscriptions.consent import activated_course_bonus
 from transactions.models import Debt, DebtPayment, Transaction
 from users.models import TelegramUser, UserAdminState
+from miniapp.partner_offers import partner_offer_for_user
 
 
 ZERO = Decimal("0.00")
@@ -543,6 +544,8 @@ def _family_sponsor_has_access(family_id: int) -> bool:
     if subscription is None:
         return False
     profile = BillingProfile.objects.filter(user_id=owner_id).first()
+    if not (profile and profile.card_token and profile.status == BillingProfile.Status.ACTIVE):
+        return False
     soft = subscription.status == "expired" and _is_soft_grace_reason(profile.last_failure_reason if profile else "")
     return (
         _billing_access_mode(subscription_status=subscription.status, expires_at=subscription.expires_at, grace_expires_at=subscription.grace_expires_at, soft_grace_active=soft) == "full"
@@ -555,6 +558,10 @@ def resolve_access(user: TelegramUser) -> dict[str, object]:
     admin_state = UserAdminState.objects.filter(telegram_user_id=user.tg_user_id).first()
     subscription = Subscription.objects.filter(user_id=user.tg_user_id).order_by("-created_at").first()
     profile = BillingProfile.objects.filter(user_id=user.tg_user_id).first()
+
+    has_card = bool(profile and profile.card_token and profile.status == BillingProfile.Status.ACTIVE)
+    card_required = not has_card
+    partner_offer = partner_offer_for_user(user=user)
 
     subscription_status = str(subscription.status if subscription else "")
     expires_at = subscription.expires_at if subscription else None
@@ -575,12 +582,14 @@ def resolve_access(user: TelegramUser) -> dict[str, object]:
     access_scope = str(admin_state.access_scope if admin_state else UserAdminState.AccessScope.PAYWALL)
     is_blocked = bool(admin_state.is_blocked or getattr(admin_state, "status", "") == "banned") if admin_state else False
     scope = _resolve_finance_scope(user, refresh=True)
-    sponsored = not is_blocked and scope.is_family and scope.role != "owner" and _family_sponsor_has_access(scope.family_id)
-    personal_full = billing_access_mode == "full" and (subscription_status in PERSONAL_FULL_STATUSES or soft_grace_active)
+    sponsored = has_card and not is_blocked and scope.is_family and scope.role != "owner" and _family_sponsor_has_access(scope.family_id)
+    personal_full = not card_required and billing_access_mode == "full" and (subscription_status in PERSONAL_FULL_STATUSES or soft_grace_active)
     # AccessScope is only a UI projection. Manual/lifetime grants live in Subscription.
     access_scope = "family_full" if sponsored else "personal_full" if personal_full else "debt_only" if access_scope == "debt_only" else "paywall"
+    if card_required:
+        access_scope = "paywall"
 
-    if is_blocked:
+    if is_blocked or card_required:
         mode = "blocked"
     elif sponsored or personal_full:
         mode = "active"
@@ -603,7 +612,6 @@ def resolve_access(user: TelegramUser) -> dict[str, object]:
             locale,
         )
 
-    has_card = bool(profile and profile.card_token)
     card_status = "bound" if has_card else "not_bound"
     card_status_label = mt("Картка прив'язана", "Card linked", locale) if has_card else mt(
         "Картка ще не прив'язана",
@@ -611,6 +619,8 @@ def resolve_access(user: TelegramUser) -> dict[str, object]:
         locale,
     )
     trial_days = int(subscription.trial_days or 0) if subscription else 0
+    if partner_offer and not has_card:
+        trial_days = int(partner_offer["trial_days"])
     if trial_days <= 0:
         trial_days = int(getattr(settings, "MONO_RENEWAL_PERIOD_DAYS", 30) or 30)
 
@@ -671,6 +681,13 @@ def resolve_access(user: TelegramUser) -> dict[str, object]:
                 locale,
             )
 
+    if mode == "blocked" and not has_card and partner_offer:
+        entry_message = mt(
+            f"Прив'яжи картку, щоб завершити реєстрацію. {trial_days} днів почнуться лише після успішної перевірки картки. Перевірка: {bind_amount_label}. Автопродовження вимкнене.",
+            f"Link a card to complete registration. Your {trial_days} days start only after successful card verification. Verification: {bind_amount_label}. Automatic renewal is off.",
+            locale,
+        )
+
     return {
         "locale": locale,
         "mode": mode,
@@ -691,6 +708,7 @@ def resolve_access(user: TelegramUser) -> dict[str, object]:
         "last_action_url": str(profile.last_action_url or "") if profile else "",
         "billing_banner": billing_banner,
         "trial_days": trial_days,
+        "partner_trial": bool(partner_offer),
         "promo_code": promo_code,
         "promo_trial_days": promo_trial_days,
         "course_bonus": activated_course_bonus(user=user, subscription=subscription, has_card=has_card) if mode == "active" else None,

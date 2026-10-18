@@ -167,6 +167,7 @@ def billing_consent(request: HttpRequest) -> JsonResponse:
             "terms": build_server_consent_terms(
                 trial_days=consent.trial_days,
                 copy_locale=consent.copy_locale,
+                partner_offer_id=consent.offer_id if consent.offer_id.startswith("partner_link:") else "",
             ),
         }
     )
