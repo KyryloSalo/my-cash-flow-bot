@@ -2150,6 +2150,10 @@ def build_recovery_invoice(*, user_id: int) -> dict[str, Any]:
     if user is None:
         raise ValueError("User not found.")
 
+    subscription = Subscription.objects.filter(user_id=user.tg_user_id).order_by("-created_at").first()
+    if _subscription_grants_full_access(subscription):
+        raise ValueError("Existing access has not expired; recovery payment is not allowed.")
+
     profile, _ = BillingProfile.objects.get_or_create(
         user_id=user.tg_user_id,
         defaults={"provider": MONO_PROVIDER, "wallet_id": _wallet_id(user.tg_user_id)},
@@ -2174,7 +2178,6 @@ def build_recovery_invoice(*, user_id: int) -> dict[str, Any]:
         invoice_hint = pending_payment.provider_payment_id or f"payment#{pending_payment.pk}"
         raise ValueError(f"Another Monobank charge is already pending ({invoice_hint}).")
 
-    subscription = Subscription.objects.filter(user_id=user.tg_user_id).order_by("-created_at").first()
     return_token = build_bind_return_token(user_id=user.tg_user_id, flow="recovery", lang=user.lang)
     response = create_invoice(
         {

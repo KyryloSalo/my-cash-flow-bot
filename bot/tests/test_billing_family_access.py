@@ -131,7 +131,8 @@ class BillingFamilyAccessConn:
                 return None
             return {
                 "status": state.get("subscription_status"),
-                "source": state.get("subscription_source", "payment"),
+                "source": state.get("subscription_source", ""),
+                "payment_id": state.get("subscription_payment_id", ""),
                 "expires_at": state.get("expires_at"),
                 "next_charge_at": state.get("next_charge_at"),
                 "grace_expires_at": state.get("grace_expires_at"),
@@ -155,6 +156,22 @@ class BillingFamilyAccessTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(state["access_scope"], "personal_full")
                 self.assertEqual(state["billing_state"]["access_mode"], "full")
                 self.assertFalse(state["billing_state"]["has_card"])
+
+    async def test_paid_entitlement_remains_full_without_card(self) -> None:
+        billing = _personal_full_billing_state()
+        billing.update(has_card=False, profile_status="missing_token", subscription_status="paid", subscription_source="payment")
+        conn = BillingFamilyAccessConn(finance_scope=None, billing_states={288834786: billing})
+        state = await billing_client.get_access_state(conn, 288834786)
+        self.assertEqual(state["access_scope"], "personal_full")
+        self.assertEqual(state["billing_state"]["access_mode"], "full")
+
+    async def test_activated_trial_remains_full_without_card(self) -> None:
+        billing = _personal_full_billing_state()
+        billing.update(has_card=False, profile_status="missing_token", subscription_status="trial", subscription_source="payment")
+        conn = BillingFamilyAccessConn(finance_scope=None, billing_states={288834786: billing})
+        state = await billing_client.get_access_state(conn, 288834786)
+        self.assertEqual(state["access_scope"], "personal_full")
+        self.assertEqual(state["billing_state"]["access_mode"], "full")
 
     async def test_unbound_trial_cannot_use_cached_full_access(self) -> None:
         for profile_status in ("pending", "failed", "active"):
@@ -221,6 +238,18 @@ class BillingFamilyAccessTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(state["access_scope"], "personal_full")
         self.assertEqual(state["access_source"], "billing")
+
+    async def test_activated_promo_trial_without_card_keeps_access(self) -> None:
+        conn = BillingFamilyAccessConn(finance_scope=None, billing_states={
+            288834786: {
+                "subscription_status": "trial", "subscription_source": "promo",
+                "subscription_payment_id": "synthetic-confirmed-bind",
+                "expires_at": datetime(2030, 1, 1, tzinfo=UTC),
+            },
+        })
+        state = await billing_client.get_access_state(conn, 288834786)
+        self.assertEqual(state["access_scope"], "personal_full")
+        self.assertFalse(state["billing_state"]["has_card"])
 
     async def test_manual_subscription_without_card_keeps_granted_access(self) -> None:
         expiry = datetime(2030, 1, 1, tzinfo=UTC)

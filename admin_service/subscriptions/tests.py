@@ -545,6 +545,32 @@ class SubscriptionFlowTests(TestCase):
         )
         mock_create_invoice.assert_not_called()
 
+    @patch("subscriptions.billing.create_invoice")
+    def test_recovery_rejects_current_entitlement_even_with_pending_checkout(self, mock_create_invoice):
+        Subscription.objects.create(
+            user=self.telegram_user, status=Subscription.Status.ACTIVE,
+            source=Subscription.Source.PAYMENT,
+            expires_at=timezone.now() + timedelta(days=60),
+        )
+        self._recovery_payment(invoice_id="stale-recovery", page_url="https://mono.test/stale")
+        before = Payment.objects.filter(user=self.telegram_user).count()
+        with self.assertRaisesMessage(ValueError, "Existing access has not expired"):
+            build_recovery_invoice(user_id=self.telegram_user.tg_user_id)
+        mock_create_invoice.assert_not_called()
+        self.assertEqual(Payment.objects.filter(user=self.telegram_user).count(), before)
+
+    @patch("subscriptions.billing.create_invoice")
+    def test_recovery_rejects_current_trial_without_new_payment(self, mock_create_invoice):
+        Subscription.objects.create(
+            user=self.telegram_user, status=Subscription.Status.TRIAL,
+            source=Subscription.Source.PAYMENT,
+            expires_at=timezone.now() + timedelta(days=40),
+        )
+        with self.assertRaisesMessage(ValueError, "Existing access has not expired"):
+            build_recovery_invoice(user_id=self.telegram_user.tg_user_id)
+        mock_create_invoice.assert_not_called()
+        self.assertFalse(Payment.objects.filter(user=self.telegram_user).exists())
+
     def test_monobank_bind_success_consumes_promo_claim_and_marks_promo_source(self):
         offer = PromoOffer.objects.create(
             code="PROMO90",
