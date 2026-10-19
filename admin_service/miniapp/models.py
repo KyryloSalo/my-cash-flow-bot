@@ -640,3 +640,34 @@ class FunnelEvent(models.Model):
                 name="funnel_last_link_event_idx",
             ),
         ]
+
+class RecognitionCaptureConfig(models.Model):
+    enabled = models.BooleanField(default=False)
+    cohort_ids = models.JSONField(default=list)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    max_bytes_per_file = models.PositiveIntegerField(default=10 * 1024 * 1024)
+    max_total_bytes = models.PositiveBigIntegerField(default=1024 * 1024 * 1024)
+    storage_warning_at = models.DateTimeField(null=True, blank=True)
+    storage_full_at = models.DateTimeField(null=True, blank=True)
+    retention_days = models.PositiveIntegerField(default=7)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta: db_table = 'miniapp_recognition_capture_config'
+
+class RecognitionCapture(models.Model):
+    attempt_id = models.CharField(max_length=128, db_index=True)
+    user_id = models.BigIntegerField(db_index=True)
+    source = models.CharField(max_length=16)
+    raw_text = models.TextField(blank=True, default='')
+    # Opaque private filename, never a public MEDIA_URL or a database blob.
+    raw_media = models.CharField(max_length=64, blank=True, default='')
+    raw_media_size = models.PositiveBigIntegerField(default=0)
+    mime_type = models.CharField(max_length=80, blank=True, default='')
+    provider = models.CharField(max_length=80, blank=True, default='')
+    provider_result = models.JSONField(default=dict)
+    normalized_result = models.JSONField(default=dict)
+    correction = models.JSONField(null=True, blank=True)
+    outcome = models.CharField(max_length=24, blank=True, default='')
+    error_code = models.CharField(max_length=128, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    class Meta: db_table = 'miniapp_recognition_captures'; ordering = ('-created_at',)

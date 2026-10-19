@@ -7,4 +7,5 @@ class MiniappConfig(AppConfig):
 
     def ready(self) -> None:
         from miniapp import checks  # noqa: F401
+        from miniapp import recognition_signals  # noqa: F401
 

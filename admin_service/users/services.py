@@ -163,6 +163,7 @@ class HardDeleteStats:
     deleted_pending_saving_tasks: int = 0
     deleted_capture_events: int = 0
     deleted_capture_connections: int = 0
+    deleted_recognition_captures: int = 0
     deleted_debt_invites: int = 0
     deleted_family_members: int = 0
     deleted_family_invites: int = 0
@@ -226,6 +227,7 @@ class HardDeleteStats:
             "deleted_pending_saving_tasks": self.deleted_pending_saving_tasks,
             "deleted_capture_events": self.deleted_capture_events,
             "deleted_capture_connections": self.deleted_capture_connections,
+            "deleted_recognition_captures": self.deleted_recognition_captures,
             "deleted_debt_invites": self.deleted_debt_invites,
             "deleted_family_members": self.deleted_family_members,
             "deleted_family_invites": self.deleted_family_invites,
@@ -1545,6 +1547,15 @@ def _delete_capture_rows(*, user_id: int, stats: HardDeleteStats, existing_table
     )
 
 
+def _remove_recognition_media(keys, root_factory, unlink):
+    try:
+        root = root_factory()
+    except OSError:
+        return
+    for key in keys:
+        unlink(root, key)
+
+
 def hard_delete_user(
     user_id: int,
     *,
@@ -1590,6 +1601,35 @@ def hard_delete_user(
         user = TelegramUser.objects.select_for_update().get(pk=user_id)
         existing_tables = _existing_table_names()
         columns_cache: dict[str, set[str]] = {}
+        recognition_media_keys = []
+        if "miniapp_recognition_captures" in existing_tables:
+            # Account first, then storage: match capture lock ordering and finish
+            # any in-flight export before deleting its source rows/private files.
+            from miniapp.recognition_storage import _locked_config
+            _locked_config()
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT raw_media FROM miniapp_recognition_captures "
+                    "WHERE user_id = %s AND raw_media <> '' FOR UPDATE",
+                    [user.tg_user_id],
+                )
+                recognition_media_keys = [row[0] for row in cursor.fetchall() if row[0]]
+            stats.deleted_recognition_captures = _delete_rows(
+                table_name="miniapp_recognition_captures",
+                where_sql="user_id = %s",
+                params=[user.tg_user_id],
+                existing_tables=existing_tables,
+            )
+            if stats.deleted_recognition_captures:
+                from miniapp.recognition_storage import invalidate_private_exports
+                transaction.on_commit(invalidate_private_exports)
+            if recognition_media_keys:
+                from miniapp.recognition_storage import _private_root, _unlink_media
+                transaction.on_commit(
+                    lambda keys=tuple(recognition_media_keys): _remove_recognition_media(
+                        keys, _private_root, _unlink_media
+                    )
+                )
         owned_family_ids = _lock_owned_family_ids(
             user_id=user.tg_user_id,
             existing_tables=existing_tables,

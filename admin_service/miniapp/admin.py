@@ -209,3 +209,17 @@ class PartnerLinkAdmin(AuditedModelAdmin):
     @admin.display(description="Оплата", ordering="metric_payment")
     def payment_conversions(self, obj: PartnerLink) -> int:
         return self._metric(obj, "metric_payment")
+
+from .models import RecognitionCapture, RecognitionCaptureConfig
+from django.contrib import admin
+
+@admin.register(RecognitionCaptureConfig)
+class RecognitionCaptureConfigAdmin(admin.ModelAdmin):
+    list_display = ('enabled','expires_at','max_total_bytes','retention_days','storage_warning_at','storage_full_at','updated_at')
+    readonly_fields = ('storage_warning_at','storage_full_at','updated_at')
+
+@admin.register(RecognitionCapture)
+class RecognitionCaptureAdmin(admin.ModelAdmin):
+    list_display = ('created_at','user_id','source','provider','outcome','reviewed_at')
+    readonly_fields = ('attempt_id','user_id','source','raw_text','raw_media','raw_media_size','mime_type','provider','provider_result','normalized_result','created_at')
+    def has_add_permission(self, request): return False
