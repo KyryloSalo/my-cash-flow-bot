@@ -3027,6 +3027,7 @@ def history(request: HttpRequest) -> JsonResponse:
                 date_to=period.date_to,
                 limit=limit,
                 cursor=cursor or None,
+                **({"account_id": request.GET["account_id"]} if "account_id" in request.GET else {}),
             )
         )
     except MiniAppHistoryError as exc:
