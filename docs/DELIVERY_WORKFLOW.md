@@ -61,7 +61,22 @@ python ops/delivery.py readiness --session-id "$HERMES_SESSION_ID"
 python ops/delivery.py status --session-id "$HERMES_SESSION_ID"
 ```
 
-Readiness reports `COMPLETE — LOCAL` only when the named route exists, current-candidate preflight is recorded, a passing target-environment acceptance check records that exact route command, every requirement has current target-environment acceptance, required unit checks and independent review pass, reproduction/reassessment gates pass, and all evidence hashes still match. Run the separate `delivery-verification` executable receipt gate too. Neither checker interprets whether a log tells the truth: exercised scenarios and source review remain mandatory.
+Readiness reports `COMPLETE — LOCAL` only when the named route exists, current-candidate preflight is recorded, a passing target-environment acceptance check records that exact route command, every requirement has current target-environment acceptance, required unit checks and independent review pass, reproduction/reassessment gates pass, and all evidence hashes still match. The CLI does not interpret whether a log tells the truth: exercised scenarios and source review remain mandatory.
+
+### Evidence-before-claims verification
+
+The repository CLI and direct verification of its evidence are the active local verification process. Apply `verification-before-completion` when that skill is available; the checks below remain mandatory without any agent-specific skill. The intentionally removed custom `delivery-verification` skill is neither an installed executable nor an additional required receipt gate. Do not restore it or add a parallel receipt system to satisfy an obsolete reference.
+
+Before claiming completion or integrating a candidate:
+
+1. Compare the complete original request, appended clarifications and every requirement with the actual observed outcomes. Do not reduce the contract to the implementation or treat a passing test count as acceptance.
+2. Inspect the exact final candidate's snapshot and preflight, then read the real sanitized logs, commands, exit codes and explicit acceptance links for every requirement. For a bugfix, also verify the original failing reproduction and required reassessment history.
+3. Verify that the named user-scenario command actually ran in the required environment and exercised the requested behavior. PWA work requires browser evidence; shell/onboarding smoke is not finance acceptance, and local evidence is not production evidence.
+4. Inspect the independent review of that same candidate against the original requirements and evidence. Resolve blocking findings; a reviewer flag alone is not a review.
+5. Run `readiness` and read its full result. Missing, failed, stale, tampered, blocked or incomplete evidence remains a blocker, even if another check is green. Reuse unchanged valid evidence; rerun checks invalidated by a source or scope change.
+6. Before merge, read back the PR's exact head, required CI and review status. After merge, read back `state`, `mergedAt` and the merge SHA. Production still requires the separate approved exact-SHA deployment and authoritative behavior/revision readback below.
+
+Removing the obsolete skill reference does not waive any of these checks, change CLI readiness semantics, weaken required CI or branch protection, or change the production delivery flow.
 
 Production tasks remain `INCOMPLETE` from local checks: they require separate production acceptance per requirement, runtime/activation evidence and `record-release` for the exact clean full SHA and agreed cohort with `--behavior-enabled --authoritative`. Only record that after real approved rollout/readback; this is an evidence index, not permission to skip release gates. Use the existing PR → protected main → exact-SHA validation artifact → production Environment approval → rollout → revision/behavior readback route. A validated artifact or green unit suite is not an active feature.
 
