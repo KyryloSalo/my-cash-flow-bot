@@ -39,7 +39,7 @@ MINIAPP_TRANSACTION_SOURCE = "miniapp_manual"
 CREDIT_ACCOUNT_TYPE = "credit"
 LEGACY_ACCOUNT_TYPE_ALIASES = {"card": "main", "bank": "main", "crypto": "investment"}
 SUPPORTED_ACCOUNT_TYPES = ASSET_ACCOUNT_TYPES | LIABILITY_ACCOUNT_TYPES | {"other"}
-ACCOUNT_ACTIONS = {"create", "rename", "archive", "balance_correction", "goal_update"}
+ACCOUNT_ACTIONS = {"create", "rename", "archive", "balance_correction", "goal_update", "goal_create", "goal_complete"}
 MINIAPP_ACCOUNT_SOURCE = "miniapp_account"
 MINIAPP_BALANCE_CORRECTION_SOURCE = "miniapp_balance_correction"
 MINIAPP_TRANSFER_SOURCE = "miniapp_transfer"
@@ -1085,8 +1085,8 @@ def _goal_account_type(account: Account) -> str:
 
 def _goal_lifecycle_status(account: Account) -> str:
     stored_status = str(getattr(account, "goal_status", "") or "").strip().lower()
-    if stored_status == "spent":
-        return "spent"
+    if stored_status in {"spent", "completed"}:
+        return stored_status
     target = _quantize(getattr(account, "goal_amount", None))
     balance = _quantize(getattr(account, "balance", None))
     if target > ZERO and balance >= target:
@@ -1625,6 +1625,9 @@ def build_transaction_draft(user: TelegramUser, payload: dict[str, object], *, d
         raise MiniAppTransactionError("account_missing", "Account is not available.", status=404)
     category = _active_scoped_category(user, category_id, kind)
     goal_spend = payload.get("goal_spend") is True
+    if kind == "expense" and getattr(account, "goal_amount", None) is not None and not goal_spend:
+        if _goal_lifecycle_status(account) in {"active", "funded"}:
+            raise MiniAppTransactionError("goal_spend_requires_full_balance", "goal spending must use the full saved balance.")
     if goal_spend:
         if kind != "expense" or _goal_lifecycle_status(account) != "funded":
             raise MiniAppTransactionError("goal_not_ready_to_spend", "Goal must be fully funded before spending it.")
@@ -1767,6 +1770,11 @@ def commit_transaction_draft(user: TelegramUser, draft: dict[str, object]) -> di
             )
 
         current_balance = _quantize(account.balance)
+        if kind == "expense" and getattr(account, "goal_amount", None) is not None and not goal_spend:
+            if _goal_lifecycle_status(account) in {"active", "funded"}:
+                raise MiniAppTransactionError(
+                    "goal_spend_requires_full_balance", "Goal spending must use the full saved balance."
+                )
         if goal_spend:
             if kind != "expense" or _goal_lifecycle_status(account) != "funded":
                 raise MiniAppTransactionError("goal_not_ready_to_spend", "Goal must be fully funded before spending it.")
@@ -1972,6 +1980,8 @@ def _account_draft_confirmation(action: str, summary: list[str], locale: str) ->
         "archive": mt("Підтвердьте архівацію рахунку", "Confirm account archive", locale),
         "balance_correction": mt("Підтвердьте корекцію балансу", "Confirm balance correction", locale),
         "goal_update": mt("Підтвердьте оновлення цілі", "Confirm goal update", locale),
+        "goal_create": mt("Підтвердьте створення цілі", "Confirm goal creation", locale),
+        "goal_complete": mt("Підтвердьте завершення цілі", "Confirm goal completion", locale),
     }
     return {"title": titles[action], "summary": summary}
 
@@ -1979,6 +1989,21 @@ def _account_draft_confirmation(action: str, summary: list[str], locale: str) ->
 def build_account_draft(user: TelegramUser, payload: dict[str, object], *, draft_id: str) -> dict[str, object]:
     locale = locale_for_user(user)
     action = _parse_account_action(payload.get("action"))
+
+    if action == "goal_create":
+        goal_name = _parse_account_label(payload.get("goal_name"))
+        _ensure_unique_account_label(user, goal_name)
+        currency = _parse_currency_code(payload.get("currency"), default="UAH")
+        goal_amount = _parse_signed_transaction_amount(payload.get("goal_amount"))
+        if goal_amount <= ZERO:
+            raise MiniAppTransactionError("invalid_goal_amount", "Goal amount must be positive.")
+        goal_date_raw = str(payload.get("goal_date") or "").strip()
+        goal_date = _parse_transaction_date(goal_date_raw) if goal_date_raw else None
+        return {"draft_id": draft_id, "action": action, "account": {"label": goal_name, "currency": currency,
+            "account_type": "savings", "requested_account_type": "savings", "starting_balance": "0.00",
+            "non_negative_account_type": "savings", "goal_name": goal_name, "goal_amount": f"{goal_amount:.2f}",
+            "goal_date": goal_date.isoformat() if goal_date else None},
+            "confirmation": _account_draft_confirmation(action, [goal_name, f"{goal_amount:.2f} {currency}"], locale)}
 
     if action == "create":
         label = _parse_account_label(payload.get("label"))
@@ -2033,6 +2058,13 @@ def build_account_draft(user: TelegramUser, payload: dict[str, object], *, draft
     if account is None:
         raise MiniAppTransactionError("account_missing", "Account is not available.", status=404)
     account_data = _account_payload(account, locale=locale)
+
+    if action == "goal_complete":
+        if (not str(account.goal_name or "").strip() or account.goal_amount is None
+                or account.goal_amount <= ZERO or _goal_account_type(account) not in GOAL_TYPES):
+            raise MiniAppTransactionError("goal_not_supported", "Account is not a goal account.")
+        return {"draft_id": draft_id, "action": action, "account_id": account_id, "account": account_data,
+                "confirmation": _account_draft_confirmation(action, [str(account.label)], locale)}
 
     if action == "rename":
         label = _parse_account_label(payload.get("label"))
@@ -2148,10 +2180,35 @@ def commit_account_draft(user: TelegramUser, draft: dict[str, object]) -> dict[s
             )
             return {"status": "completed", "action": action, "account": _account_payload(account, locale=locale), "dashboard_refresh": True}
 
+        if action == "goal_create":
+            account_data = draft.get("account") or {}
+            label = _parse_account_label(account_data.get("label"))
+            _ensure_unique_account_label(user, label)
+            goal_amount = _parse_signed_transaction_amount(account_data.get("goal_amount"))
+            if goal_amount <= ZERO:
+                raise MiniAppTransactionError("goal_amount_invalid", "Goal amount must be positive.")
+            account = Account.objects.create(tg_user=user, family_id=scope.family_id if scope.is_family else None,
+                label=label, currency=_parse_currency_code(account_data.get("currency"), default="UAH"),
+                account_type="savings", starting_balance=ZERO, balance=ZERO,
+                non_negative_account_type="savings", goal_name=label, goal_amount=goal_amount,
+                goal_date=_parse_transaction_date(account_data.get("goal_date")) if account_data.get("goal_date") else None,
+                goal_status="active", is_active=True, created_at=timezone.now(), updated_at=timezone.now())
+            return {"status": "completed", "action": action, "account": _account_payload(account, locale=locale), "dashboard_refresh": True}
+
         account_id = _parse_positive_int(draft.get("account_id"), code="account_missing", message="Account is required.")
         account = _active_scoped_account(user, account_id, for_update=True)
         if account is None:
             raise MiniAppTransactionError("account_missing", "Account is not available.", status=404)
+
+        if action == "goal_complete":
+            if (not str(account.goal_name or "").strip() or account.goal_amount is None
+                    or account.goal_amount <= ZERO or _goal_account_type(account) not in GOAL_TYPES):
+                raise MiniAppTransactionError("goal_not_supported", "Account is not a goal account.")
+            if getattr(account, "goal_status", "active") != "completed":
+                account.goal_status = "completed"
+                account.goal_completed_at = getattr(account, "goal_completed_at", None) or timezone.now()
+                account.save(update_fields=["goal_status", "goal_completed_at", "updated_at"])
+            return {"status": "completed", "action": action, "account": _account_payload(account, locale=locale), "dashboard_refresh": True}
 
         if action == "rename":
             label = _parse_account_label(draft.get("label"))

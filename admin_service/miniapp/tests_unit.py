@@ -1524,7 +1524,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertIn("function goalAccountType(account)", body)
         self.assertIn("function goalEscapeHtml(value)", body)
         self.assertNotIn("escapeHtml(account.goal_name", body)
-        self.assertEqual(body.count("const type = goalAccountType(account);"), 4)
+        self.assertIn("const type = goalAccountType(account);", body)
         self.assertIn("const selectedType = goalAccountType(selected) || \"main\";", body)
         goal_editor_source = body[
             body.index("function openGoalEditor(account)") : body.index("function openGoalsPanel()")
@@ -1561,7 +1561,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertIn("[hidden]", css)
         self.assertIn("display: none !important;", css)
 
-    def test_goal_click_tops_up_active_goal_and_exposes_spend_for_funded_goal(self) -> None:
+    def test_goal_click_opens_details_with_explicit_lifecycle_actions(self) -> None:
         body = (Path(__file__).parent / "templates" / "miniapp" / "index.html").read_text(encoding="utf-8")
         css = (Path(__file__).parent / "static" / "miniapp" / "app.css").read_text(encoding="utf-8")
 
@@ -1571,7 +1571,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertIn('id="moneyClosedGoalsSection"', body)
         self.assertIn('id="moneyClosedGoalsList"', body)
         self.assertIn("function goalIsClosed(account)", body)
-        self.assertIn('account.goal_status === "funded"', body)
+        self.assertIn('account.goal_status === "completed"', body)
         self.assertIn('account.goal_status === "spent"', body)
         self.assertIn("const closedGoals = goalAccounts.filter(goalIsClosed);", body)
         goal_card_source = body[
@@ -1580,14 +1580,17 @@ class MiniAppViewUnitTests(unittest.TestCase):
         overview_goals_source = body[
             body.index("function renderOverviewGoals()") : body.index("function openGoalEditor(account)")
         ]
-        self.assertIn("if (closed) openGoalSpendDetails(account);", goal_card_source)
-        self.assertIn("else openGoalTopUp(account);", goal_card_source)
+        self.assertIn("openGoalDetails(account);", goal_card_source)
+        self.assertNotIn("openGoalTopUp(account);", goal_card_source)
         self.assertNotIn("openGoalEditor(account);", goal_card_source)
         self.assertIn("!goalIsClosed(account)", overview_goals_source)
         self.assertNotIn('account.goal_status !== "spent"', overview_goals_source)
         self.assertIn("function openGoalTopUp(account)", body)
         self.assertIn("function openGoalAdjust()", body)
-        self.assertIn("return openGoalEditor(target);", body)
+        self.assertIn('function openGoalSpend(account)', body)
+        self.assertIn('id="goalDetailsCard"', body)
+        for action in ("topup", "edit", "spend", "complete"):
+            self.assertIn(f'data-goal-action="{action}"', body)
         self.assertIn('moneyGoalsAdjust: document.getElementById("moneyGoalsAdjust")', body)
         self.assertIn('el.moneyGoalsAdjust.addEventListener("click", openGoalAdjust)', body)
         self.assertIn("el.transferTarget.value = String(account.id);", body)

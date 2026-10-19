@@ -751,6 +751,8 @@
                 <span data-money-i18n="moneyAccountAction">Дія з рахунком</span>
                 <select id="accountAction" name="action">
                   <option value="create" data-money-i18n="accountActionCreate">Створити рахунок</option>
+                  <option value="goal_create">Створити ціль</option>
+                  <option value="goal_complete">Завершити ціль</option>
                   <option value="rename" data-money-i18n="accountActionRename">Перейменувати</option>
                   <option value="balance_correction" data-money-i18n="accountActionBalance">Скоригувати баланс</option>
                   <option value="goal_update" data-money-i18n="accountActionGoal">Налаштувати ціль</option>
@@ -1007,7 +1009,7 @@
               <div class="section-head goals-management-head">
                 <div>
                   <h2 data-money-i18n="goalsListTitle">Цілі та накопичення</h2>
-                  <p data-money-i18n="goalsListSubtitle">Натисніть на ціль, щоб поповнити її з іншого рахунку.</p>
+                  <p data-money-i18n="goalsListSubtitle">Відкрийте ціль, щоб переглянути рахунок, історію та доступні дії.</p>
                 </div>
               </div>
               <div class="goals-management-actions">
@@ -1029,6 +1031,16 @@
                 </div>
                 <button class="primary-action" id="moneyGoalSpendBtn" type="button" data-money-i18n="goalSpendAction">Витратити</button>
               </div>
+              <article class="goal-details-card" id="goalDetailsCard" hidden>
+                <div class="section-head"><div><h3 id="goalDetailsName">Ціль</h3><p id="goalDetailsMeta"></p></div></div>
+                <div id="goalDetailsHistory" class="goal-details-history" aria-live="polite"></div>
+                <div class="goal-details-actions">
+                  <button class="secondary-action" type="button" data-goal-action="topup">Поповнити</button>
+                  <button class="secondary-action" type="button" data-goal-action="edit">Редагувати</button>
+                  <button class="secondary-action" type="button" data-goal-action="spend">Витратити</button>
+                  <button class="primary-action" type="button" data-goal-action="complete">Завершити</button>
+                </div>
+              </article>
               <div class="overview-goals-empty" id="moneyGoalsEmpty" hidden>
                 <strong data-money-i18n="goalsNoItems">Немає рахунків для накопичень або інвестицій.</strong>
                 <button class="primary-action" id="moneyGoalsCreate" type="button" data-money-i18n="goalsCreate">Створити ціль</button>
@@ -2078,7 +2090,7 @@
           debtCommitted: "Борг оновлено.",
           debtNoItems: "Активних боргів поки немає.",
           goalsListTitle: "Цілі та накопичення",
-          goalsListSubtitle: "Натисніть на ціль, щоб поповнити її переказом з іншого рахунку.",
+          goalsListSubtitle: "Відкрийте ціль, щоб переглянути рахунок, історію та доступні дії.",
           goalsNoItems: "Немає рахунків для накопичень або інвестицій.",
           goalsCreate: "Створити ціль",
           goalsAdjust: "Коригувати ціль",
@@ -2390,7 +2402,7 @@
           debtCommitted: "Debt updated.",
           debtNoItems: "No active debts yet.",
           goalsListTitle: "Goals and savings",
-          goalsListSubtitle: "Tap a goal to top it up with a transfer from another account.",
+          goalsListSubtitle: "Open a goal to view its account, history, and available actions.",
           goalsNoItems: "No savings or investment accounts yet.",
           goalsCreate: "Create goal",
           goalsAdjust: "Adjust goal",
@@ -4597,16 +4609,18 @@
         const action = el.accountAction ? el.accountAction.value : "create";
         const selected = selectedMoneyAccount();
         const creatingGoalAccount = (el.accountType && ["savings", "deposit", "investment"].indexOf(el.accountType.value) !== -1);
-        const customCurrency = action === "create" && el.accountCurrency && el.accountCurrency.value === "__custom__";
+        const creating = action === "create" || action === "goal_create";
+        const customCurrency = creating && el.accountCurrency && el.accountCurrency.value === "__custom__";
         document.querySelectorAll("[data-account-field]").forEach(function (field) {
           const fieldName = field.dataset.accountField;
           const visible = (
-            (fieldName === "target" && action !== "create") ||
+            (fieldName === "target" && !creating) ||
             (fieldName === "label" && (action === "create" || action === "rename")) ||
             (["currency", "type", "starting", "credit", "interest"].indexOf(fieldName) !== -1 && action === "create") ||
+            (fieldName === "currency" && action === "goal_create") ||
             (fieldName === "custom-currency" && customCurrency) ||
             (fieldName === "balance" && action === "balance_correction") ||
-            (fieldName === "goal" && (action === "goal_update" || (action === "create" && creatingGoalAccount)))
+            (fieldName === "goal" && (action === "goal_update" || action === "goal_create" || (action === "create" && creatingGoalAccount)))
           );
           field.hidden = !visible;
           field.querySelectorAll("input, select, textarea").forEach(function (control) {
@@ -4615,14 +4629,14 @@
         });
         if (el.accountLabel) el.accountLabel.required = action === "create" || action === "rename";
         if (el.accountCustomCurrency) el.accountCustomCurrency.required = customCurrency;
-        if (el.accountPreviewButton) el.accountPreviewButton.disabled = moneyState.accountBusy || (action !== "create" && !selected);
+        if (el.accountPreviewButton) el.accountPreviewButton.disabled = moneyState.accountBusy || (!creating && !selected);
       }
 
       function hydrateAccountFormFromTarget() {
         const el = moneyElements();
         const action = el.accountAction ? el.accountAction.value : "create";
         const selected = selectedMoneyAccount();
-        if (!selected || action === "create") return;
+        if (!selected || action === "create" || action === "goal_create") return;
         const selectedType = goalAccountType(selected) || "main";
         if (el.accountCurrency) el.accountCurrency.value = selected.currency || "";
         if (el.accountType) el.accountType.value = selectedType;
@@ -4793,11 +4807,11 @@
         const selectedGoal = goalAccounts.find(function (account) {
           return String(account.id) === String(moneyState.selectedGoalSpendAccountId || "");
         });
-        if (el.goalSpendPanel) el.goalSpendPanel.hidden = !selectedGoal || goalIsSpent(selectedGoal);
+        if (el.goalSpendPanel) el.goalSpendPanel.hidden = true;
         if (el.goalSpendTitle && selectedGoal) {
           el.goalSpendTitle.textContent = tr("goalSpendTitle", { goal: selectedGoal.goal_name || selectedGoal.label || tr("goalsConfigure") });
         }
-        if (el.goalSpendButton) el.goalSpendButton.disabled = !selectedGoal || goalIsSpent(selectedGoal);
+        if (el.goalSpendButton) el.goalSpendButton.disabled = !selectedGoal || selectedGoal.goal_status !== "funded";
         if (el.moneyGoalsEmpty) el.moneyGoalsEmpty.hidden = Boolean(goalAccounts.length);
         if (el.moneyGoalsAdjust) el.moneyGoalsAdjust.disabled = !goalAccounts.length;
         renderOverviewGoals();
@@ -4820,7 +4834,7 @@
       }
 
       function goalIsClosed(account) {
-        return account && (account.goal_status === "funded" || account.goal_status === "spent");
+        return account && (account.goal_status === "spent" || account.goal_status === "completed");
       }
 
       function goalIsSpent(account) {
@@ -4828,7 +4842,7 @@
       }
 
       function goalDisplayProgress(account) {
-        return goalIsClosed(account) ? 100 : goalProgress(account);
+        return goalProgress(account);
       }
 
       function goalScopeLabel() {
@@ -4843,9 +4857,7 @@
         const spent = goalIsSpent(account);
         const progressWidth = goalProgressWidth(progress);
         const goalAmount = account.goal_amount && account.goal_amount.display ? account.goal_amount.display : "—";
-        const currentAmount = closed
-          ? goalAmount
-          : (account.balance && account.balance.display ? account.balance.display : "0");
+        const currentAmount = account.balance && account.balance.display ? account.balance.display : "0";
         row.type = "button";
         row.className = (compact ? "overview-goal-item" : "money-goal-row") + (closed ? " is-closed" : "");
         row.dataset.accountId = String(account.id);
@@ -4855,8 +4867,7 @@
           "<span class=\"goal-progress-track\" role=\"progressbar\" aria-label=\"" + goalEscapeHtml(tr("goalProgress")) + "\" aria-valuemin=\"0\" aria-valuemax=\"" + String(Math.max(100, progress)) + "\" aria-valuenow=\"" + String(progress) + "\"><span style=\"width:" + String(progressWidth) + "%\"></span></span>" +
           (closed ? "<small class=\"goal-closed-note\">" + goalEscapeHtml(tr(spent ? "goalSpent" : "goalClosed")) + "</small>" : (account.goal_date ? "<small class=\"goal-date\">" + goalEscapeHtml(shortDate(account.goal_date)) + "</small>" : ""));
         row.addEventListener("click", function () {
-          if (closed) openGoalSpendDetails(account);
-          else openGoalTopUp(account);
+          openGoalDetails(account);
         });
         return row;
       }
@@ -4932,6 +4943,53 @@
         }) || null;
       }
 
+      function openGoalDetails(account) {
+        return showScreen("money").then(function () {
+          setMoneyMode("goals");
+          moneyState.selectedGoalSpendAccountId = String(account.id);
+          renderGoals();
+          const card = document.getElementById("goalDetailsCard");
+          const name = document.getElementById("goalDetailsName");
+          const meta = document.getElementById("goalDetailsMeta");
+          const history = document.getElementById("goalDetailsHistory");
+          if (card) card.hidden = false;
+          if (name) name.textContent = account.goal_name || account.label || tr("goalsConfigure");
+          if (meta) meta.textContent = ["Рахунок: " + account.label, "Баланс: " + (account.balance && account.balance.display || "0"), "Ціль: " + (account.goal_amount && account.goal_amount.display || "—"), account.goal_date].filter(Boolean).join(" · ");
+          if (history) history.textContent = "Завантаження історії…";
+          document.querySelectorAll("[data-goal-action]").forEach(function (button) {
+            const action = button.dataset.goalAction;
+            button.disabled = action === "spend" ? account.goal_status !== "funded" : (action === "complete" || action === "edit") ? goalIsClosed(account) : false;
+            button.onclick = function () {
+              if (action === "topup") return openGoalTopUp(account);
+              if (action === "edit") return openGoalEditor(account);
+              if (action === "spend") return openGoalSpend(account);
+              if (action === "complete") return completeGoal(account);
+            };
+          });
+          if (historyUrl && history) getJson(historyUrl + "?account_id=" + encodeURIComponent(account.id)).then(function (payload) {
+            if (String(moneyState.selectedGoalSpendAccountId) !== String(account.id)) return;
+            const items = Array.isArray(payload.items) ? payload.items : [];
+            history.textContent = items.length ? items.map(function (item) { return [item.date || item.transaction_date, item.comment || item.description, item.amount && item.amount.display || item.amount].filter(Boolean).join(" · "); }).join("\n") : "Історія порожня";
+          }).catch(function () {
+            if (String(moneyState.selectedGoalSpendAccountId) === String(account.id)) history.textContent = "Не вдалося завантажити історію";
+          });
+          if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+
+      function completeGoal(account) {
+        if (!account || goalIsClosed(account)) return Promise.resolve();
+        return showScreen("money").then(function () {
+          const el = moneyElements();
+          setMoneyMode("accounts");
+          if (el.accountAction) el.accountAction.value = "goal_complete";
+          if (el.accountTarget) el.accountTarget.value = String(account.id);
+          resetAccountDraft();
+          updateAccountActionFields();
+          return submitAccountDraft({ preventDefault: function () {} });
+        });
+      }
+
       function openGoalSpend(account) {
         if (!account || goalIsSpent(account) || account.goal_status !== "funded") return Promise.resolve();
         return showScreen("add").then(function () {
@@ -4951,15 +5009,10 @@
       }
 
       function openGoalAdjust() {
-        const goalAccounts = (moneyState.options && moneyState.options.accounts || []).filter(function (account) {
-          const type = goalAccountType(account);
-          return ["savings", "deposit", "investment"].indexOf(type) !== -1 && goalMoneyValue(account.goal_amount) > 0;
+        return showScreen("money").then(function () {
+          setMoneyMode("goals");
+          showStatus("Оберіть ціль зі списку та натисніть «Редагувати».", false);
         });
-        const target = goalAccounts.find(function (account) {
-          return String(account.id) === String(moneyState.goalTopUpAccountId || "");
-        }) || goalAccounts[0];
-        if (target) return openGoalEditor(target);
-        return openGoalCreate();
       }
 
       function openGoalsPanel() {
@@ -4969,20 +5022,14 @@
       }
 
       function openGoalCreate() {
-        const accounts = (moneyState.options && moneyState.options.accounts) || [];
-        const target = accounts.find(function (account) {
-          const type = goalAccountType(account);
-          return ["savings", "deposit", "investment"].indexOf(type) !== -1 && goalMoneyValue(account.goal_amount) <= 0;
-        });
-        if (target) return openGoalEditor(target);
         return showScreen("money").then(function () {
           const el = moneyElements();
           setMoneyMode("accounts");
-          if (el.accountAction) el.accountAction.value = "create";
-          if (el.accountType) el.accountType.value = "savings";
+          if (el.accountAction) el.accountAction.value = "goal_create";
+          if (el.accountCurrency) el.accountCurrency.value = "UAH";
           resetAccountDraft();
           updateAccountActionFields();
-          if (el.accountLabel) el.accountLabel.focus();
+          if (el.accountGoalName) el.accountGoalName.focus();
         });
       }
 
@@ -5806,10 +5853,11 @@
         if (event) event.preventDefault();
         const el = moneyElements();
         if (moneyState.accountBusy || !el.accountForm) return;
+        const submittedPayload = accountPayload();
         resetAccountDraft();
         setMoneyBusy("account", true);
         loadMoneyOptions(false)
-          .then(function () { return postJson(accountDraftUrl, accountPayload()); })
+          .then(function () { return postJson(accountDraftUrl, submittedPayload); })
           .then(function (payload) {
             moneyState.accountDraft = payload.draft || null;
             moneyState.accountIdempotencyKey = makeIdempotencyKey();

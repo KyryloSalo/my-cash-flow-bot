@@ -72,21 +72,24 @@ def _normal_transaction(user: TelegramUser, transaction_id: int, *, lock: bool =
 
 
 def _history_item(transaction: Transaction, *, locale: str, voidable: bool | None = None) -> dict[str, object]:
-    action_allowed = True if voidable is None else bool(voidable)
+    is_transfer = transaction.flow_kind == "transfer"
+    action_allowed = not is_transfer and (True if voidable is None else bool(voidable))
+    account = transaction.from_account if is_transfer else transaction.account
     return {
         "id": int(transaction.id),
         "date": transaction.date.isoformat(),
-        "kind": str(transaction.type or "expense"),
+        "kind": "transfer" if is_transfer else str(transaction.type or "expense"),
         "amount": money_payload(transaction.amount, transaction.currency),
         "amount_value": f"{_quantize(transaction.amount):.2f}",
         "currency": _normalize_currency(transaction.currency),
         "comment": str(transaction.comment or ""),
         "account_id": int(transaction.account_id) if transaction.account_id else None,
         "category_id": int(transaction.category_id) if transaction.category_id else None,
-        "account": _account_payload(transaction.account, locale=locale) if transaction.account else None,
+        "account": _account_payload(account, locale=locale) if account else None,
+        "target_account": _account_payload(transaction.to_account, locale=locale) if is_transfer and transaction.to_account else None,
         "category": _category_payload(transaction.category) if transaction.category else None,
         "editable": action_allowed and transaction.account_id is not None and transaction.category_id is not None,
-        "voidable": bool(voidable and transaction.account_id is not None),
+        "voidable": bool(action_allowed and voidable and transaction.account_id is not None),
     }
 
 
@@ -415,16 +418,31 @@ def build_history_payload(
     date_to,
     limit: int = 100,
     cursor: str | None = None,
+    account_id: int | None = None,
 ) -> dict[str, object]:
     locale = locale_for_user(user)
     page_size = max(1, min(int(limit), 200))
     cursor_context = _history_cursor_context(user, date_from=date_from, date_to=date_to)
+    if account_id is not None:
+        try:
+            account_id = int(account_id)
+        except (TypeError, ValueError) as exc:
+            raise MiniAppHistoryError("invalid_account", "Invalid account.") from exc
+        if account_id <= 0 or not _scoped_accounts_qs(user).filter(id=account_id).exists():
+            raise MiniAppHistoryError("account_not_found", "Account was not found.", status=404)
+        cursor_context["account_id"] = account_id
     queryset = (
         _scoped_transactions_qs(user)
-        .filter(flow_kind="normal", date__gte=date_from, date__lte=date_to)
-        .select_related("account", "category")
+        .filter(date__gte=date_from, date__lte=date_to)
+        .select_related("account", "category", "from_account", "to_account")
         .order_by("-date", "-created_at", "-id")
     )
+    if account_id is None:
+        queryset = queryset.filter(flow_kind="normal")
+    else:
+        queryset = queryset.filter(flow_kind__in=("normal", "transfer")).filter(
+            Q(account_id=account_id) | Q(from_account_id=account_id) | Q(to_account_id=account_id)
+        )
     if cursor:
         cursor_date, cursor_created_at, cursor_id = _decode_history_cursor(
             cursor,
