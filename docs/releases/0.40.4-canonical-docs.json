@@ -1,0 +1,41 @@
+{
+  "version": "0.40.4",
+  "environment": "production",
+  "deployed_sha": "77d3600364856583ff0da6ebc9becc912f16a699",
+  "implementation_pr": 49,
+  "source_pr_head": "6fb4fb5dc94b97dda3493c4126666c4006947cac",
+  "validation_run_id": 39169384816,
+  "exact_main_validation_run_id": 39169745032,
+  "production_run_id": 39170229882,
+  "deployment_evidence_artifact_id": 12169477165,
+  "deployment_readback_at_utc": "2026-10-19T07:22:31.249880+00:00",
+  "purpose": "Scoped post-deploy canonical documentation updates after protected-main documentation PR and required validation. No runtime redeploy.",
+  "acceptance_boundary": "Exact-SHA production readback and focused local browser/backend acceptance passed. No payment, card, financial transaction, or production user data was changed; no direct authenticated production browser session for Telegram user 288834786 is claimed.",
+  "changes": [
+    {
+      "path": "VERSION",
+      "old_string": "0.40.3",
+      "new_string": "0.40.4"
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.40.4 — 2026-10-19\n\n- Cardless manual, lifetime, and explicit administrator-granted personal access now resolves as active in PWA/API and bot without the card-binding popup. Cardless self-service payment, promo, and partner trials remain blocked and continue to receive the binding action. Runtime exact SHA `77d3600364856583ff0da6ebc9becc912f16a699` was deployed from implementation PR `#49` (`6fb4fb5dc94b97dda3493c4126666c4006947cac`) after source validation `39169384816`, exact-main validation `39169745032`, and manually approved production run `39170229882`. Deployment evidence artifact `12169477165` records `readback: passed` at `2026-10-19T07:22:31.249880+00:00`; encrypted off-host backup artifact `12169392078` was checksum-verified. Focused Django `11/11`, bot `13/13`, browser acceptance, and independent review passed. No payment, card, financial transaction, or production user data was changed. The workflow proves the shipped runtime and service health; no direct authenticated production browser session for Telegram user `288834786` is claimed. See `code/docs/releases/0.40.4-cardless-admin-grants.md`.\n- Documentation-only post-deploy synchronization; no runtime redeploy.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "old_string": "Current released version is tracked in the root `VERSION` file. **ARTIFACT DEPLOYED; MANUAL REAL-CARD QA PENDING.** Partner registration now reserves `PartnerTrialClaim` without creating a subscription; finance access through PWA/API/bot requires a confirmed card across family, manual and paid paths. A valid PSP bind callback activates the exact snapshotted trial days, including `90` and `7889`; `auto_renew=false` and `next_charge=None`. Replay/rebind protection, entitlement preservation and reserved cardless legacy claims are retained. Runtime exact SHA `253c276b097b12ac29dc77d02f58cd6a5c2985df` was deployed from implementation PR `#46` after validation `39152126820`, exact-main validation `39152591339` and manually approved production run `39153085298`. Deployment evidence artifact `12146235695` completed at `2026-10-18T18:16:28.861297+00:00`; external `/app/`, `/healthz` and `/readyz` returned HTTP `200`. Canonical CI passed bot, Django, isolated PWA and image tests. Owner manual real-card QA remains pending; the local synthetic browser harness crashed during tiny-headless-shell screenshot capture, so no browser card flow is claimed passed. See `code/docs/releases/0.40.3-partner-card-required.md`.\n\nPrevious release `0.40.2` acceptance record (historical runtime identity; outstanding acceptance is unchanged):",
+      "new_string": "Current released version is tracked in the root `VERSION` file. Cardless manual, lifetime, and explicit administrator-granted personal access now resolves as active in PWA/API and bot without the card-binding popup. Cardless self-service payment, promo, and partner trials remain blocked and continue to receive the binding action. Runtime exact SHA `77d3600364856583ff0da6ebc9becc912f16a699` was deployed from implementation PR `#49` after source validation `39169384816`, exact-main validation `39169745032`, and manually approved production run `39170229882`. Deployment evidence artifact `12169477165` records `readback: passed` at `2026-10-19T07:22:31.249880+00:00`; encrypted off-host backup artifact `12169392078` was checksum-verified. Focused Django `11/11`, bot `13/13`, browser acceptance, and independent review passed. No payment, card, financial transaction, or production user data was changed. The workflow proves the shipped runtime and service health; no direct authenticated production browser session for Telegram user `288834786` is claimed. See `code/docs/releases/0.40.4-cardless-admin-grants.md`.\n\nPrevious release `0.40.3` acceptance record (historical runtime identity; outstanding acceptance is unchanged):"
+    },
+    {
+      "path": "README.md",
+      "old_string": "**ARTIFACT DEPLOYED; MANUAL REAL-CARD QA PENDING.** Partner registration now reserves `PartnerTrialClaim` without creating a subscription; finance access through PWA/API/bot requires a confirmed card across family, manual and paid paths. A valid PSP bind callback activates the exact snapshotted trial days, including `90` and `7889`; `auto_renew=false` and `next_charge=None`. Replay/rebind protection, entitlement preservation and reserved cardless legacy claims are retained. Runtime exact SHA `253c276b097b12ac29dc77d02f58cd6a5c2985df` was deployed from implementation PR `#46` after validation `39152126820`, exact-main validation `39152591339` and manually approved production run `39153085298`. Deployment evidence artifact `12146235695` completed at `2026-10-18T18:16:28.861297+00:00`; external `/app/`, `/healthz` and `/readyz` returned HTTP `200`. Canonical CI passed bot, Django, isolated PWA and image tests. Owner manual real-card QA remains pending; the local synthetic browser harness crashed during tiny-headless-shell screenshot capture, so no browser card flow is claimed passed. See `code/docs/releases/0.40.3-partner-card-required.md`.\n\nPrevious release `0.40.2` acceptance record (historical runtime identity; outstanding acceptance is unchanged):",
+      "new_string": "Cardless manual, lifetime, and explicit administrator-granted personal access now resolves as active in PWA/API and bot without the card-binding popup. Cardless self-service payment, promo, and partner trials remain blocked and continue to receive the binding action. Runtime exact SHA `77d3600364856583ff0da6ebc9becc912f16a699` was deployed from implementation PR `#49` after source validation `39169384816`, exact-main validation `39169745032`, and manually approved production run `39170229882`. Deployment evidence artifact `12169477165` records `readback: passed` at `2026-10-19T07:22:31.249880+00:00`; encrypted off-host backup artifact `12169392078` was checksum-verified. Focused Django `11/11`, bot `13/13`, browser acceptance, and independent review passed. No payment, card, financial transaction, or production user data was changed. The workflow proves the shipped runtime and service health; no direct authenticated production browser session for Telegram user `288834786` is claimed. See `code/docs/releases/0.40.4-cardless-admin-grants.md`.\n\nPrevious release `0.40.3` acceptance record (historical runtime identity; outstanding acceptance is unchanged):"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "old_string": "Updated: 2026-10-18  \nCurrent latest production release: `0.40.3` (partner card-required hotfix deployed on exact SHA `253c276b097b12ac29dc77d02f58cd6a5c2985df`; owner manual real-card QA pending; documentation-only post-deploy sync with no runtime redeploy)",
+      "new_string": "Updated: 2026-10-19  \nCurrent latest production release: `0.40.4` (cardless administrator-grant hotfix deployed on exact SHA `77d3600364856583ff0da6ebc9becc912f16a699`; cardless self-service trials remain blocked; documentation-only post-deploy sync with no runtime redeploy)"
+    }
+  ]
+}
