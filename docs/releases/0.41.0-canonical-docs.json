@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "version": "0.41.0",
+  "deployed_sha": "da885d1327cdd068357786f20415a207b900a0a9",
+  "production_run_id": 39289922585,
+  "deployment_date": "2026-10-19",
+  "validation_run_id": 39288707124,
+  "readback_at_utc": "2026-10-19T17:04:14.853368+00:00",
+  "readback": "passed",
+  "backup_receipt_artifact_id": 12203678806,
+  "source_of_truth": "Reviewed GitHub release documentation; apply only exact replacements after this documentation PR is merged. Runtime deployment run completed successfully; production acceptance is not claimed complete.",
+  "scope": "Scoped post-production canonical documentation sync for the goals release; no credentials or customer-specific financial details.",
+  "semver_rationale": "MINOR: adds backwards-compatible user-facing goal lifecycle and server-scoped history capabilities.",
+  "acceptance_boundary": "Authenticated goal test 22 / 9998 remains unverified and is explicitly deferred by user request. Preserve all existing historical warnings and incomplete-acceptance records.",
+  "changes": [
+    {
+      "path": "VERSION",
+      "kind": "replace_once",
+      "old_string": "0.40.5\n",
+      "new_string": "0.41.0\n"
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "kind": "replace_once",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.41.0 - 2026-10-19 (deployed)\n\nProduction deployment run `39289922585` completed successfully from SHA `da885d1327cdd068357786f20415a207b900a0a9` on **2026-10-19**. This release adds the goals lifecycle and scoped transaction-history behavior described below. This record documents the deployed runtime and verification boundary; it does **not** claim production acceptance complete.\n\nGoals now create a dedicated account atomically per goal. Goal details expose explicit actions, including funding and spending. Spending uses the full funded goal-account balance as one ordinary expense; completing a goal preserves its funds/account, marks the goal complete, and prevents repeat completion. Transactions and transfer history are scoped to the relevant server-authoritative finance scope.\n\nVerification boundary: the successful production deployment run is recorded above. Authenticated goal `test 22`, target `9998` remains unverified and is explicitly deferred by user request. No production acceptance claim is made for that deferred check. Existing historical release warnings and incomplete-acceptance records remain unchanged.\n\nThis reviewed documentation sync updates canonical version/release/current-state documentation; no runtime redeploy is implied.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "Last updated: 2026-10-19\n\n## Runtime delivery status — 2026-10-19 (0.40.5)\n",
+      "new_string": "Last updated: 2026-10-19\n\n## Runtime delivery status — 2026-10-19 (0.41.0)\n\nProduction deployment run `39289922585` completed successfully from SHA `da885d1327cdd068357786f20415a207b900a0a9` on **2026-10-19**. The goals release adds dedicated per-goal atomic account creation, explicit goal-detail actions, full-funded full-balance spending, completion that preserves the goal funds/account while preventing repeat completion, and server-scoped transactions plus transfer history.\n\nVerification boundary: this records the successful production deployment only and does **not** claim production acceptance complete. Authenticated goal `test 22`, target `9998` remains unverified and is explicitly deferred by user request. Existing historical warnings and incomplete-acceptance records remain unchanged.\n\n## Previous runtime delivery status — 2026-10-19 (0.40.5)\n"
+    },
+    {
+      "path": "README.md",
+      "kind": "replace_once",
+      "old_string": "Current production release: **0.40.5**, deployed **2026-10-19** from protected main SHA `56f3debd95158e5ef650626148deefdd2ac98f04` through GitHub production run `39266074822` after exact-SHA validation `39265010531` and Environment approval; readback passed at `2026-10-19T14:12:48.611893+00:00`. Paid access and activated trials no longer depend on a renewal card; unactivated trials remain card-gated and valid access cannot create a recovery invoice. Post-deploy: 23/23 activated entitlements accessible, eight services healthy; regression and PWA acceptance passed. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for scope and verification boundaries.\n\n",
+      "new_string": "Current production release: **0.41.0**, deployed **2026-10-19** from SHA `da885d1327cdd068357786f20415a207b900a0a9` through successful production run `39289922585`. The goals release adds dedicated per-goal atomic account creation, explicit details actions, full-funded full-balance spending, completion that preserves funds/account and prevents repeat completion, and server-scoped transactions plus transfer history. This deployment record does **not** claim production acceptance complete; authenticated goal `test 22`, target `9998` remains unverified and is explicitly deferred by user request. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for the verification boundary.\n\n"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Current production version: `0.40.5` (deployed 2026-10-19). Semver rationale: PATCH for separating current entitlement from renewal-card capability and blocking duplicate recovery payments, while retaining trial activation and authorization gates. No new product capability.",
+      "new_string": "Current production version: `0.41.0` (deployed 2026-10-19). Semver rationale: MINOR for backwards-compatible user-facing goal lifecycle and server-scoped history capabilities: dedicated per-goal atomic account creation, explicit goal actions, full-funded full-balance spending, completion preserving funds/account, and scoped transactions plus transfer history."
+    }
+  ]
+}
