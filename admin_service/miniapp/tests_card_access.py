@@ -9,12 +9,12 @@ from miniapp import services
 
 
 class CardAccessTests(SimpleTestCase):
-    def resolve(self, *, status="trial", card=False, source="promo", grace=False):
+    def resolve(self, *, status="trial", card=False, source="promo", grace=False, payment_id=""):
         now = timezone.now()
         subscription = SimpleNamespace(
             status=status, source=source, expires_at=now + timedelta(days=-1 if grace else 90),
             grace_expires_at=now + timedelta(days=1) if grace else None,
-            trial_days=90, next_charge_at=None,
+            trial_days=90, next_charge_at=None, payment_id=payment_id,
         )
         profile = SimpleNamespace(
             card_token="synthetic-bound-card" if card else "", masked_pan="", status="active",
@@ -40,16 +40,19 @@ class CardAccessTests(SimpleTestCase):
         self.assertEqual(access["access_scope"], "paywall")
         self.assertEqual(access["recommended_action"], "start_trial")
 
-    def test_cardless_organic_trial_is_blocked(self):
-        self.assertEqual(self.resolve(source="payment")["mode"], "blocked")
+    def test_activated_trial_keeps_access_without_saved_card(self):
+        self.assertEqual(self.resolve(source="payment")["mode"], "active")
+
+    def test_activated_promo_trial_keeps_access_without_saved_card(self):
+        self.assertEqual(self.resolve(source="promo", payment_id="synthetic-confirmed-bind")["mode"], "active")
 
     def test_bound_trial_remains_active(self):
         self.assertEqual(self.resolve(card=True)["mode"], "active")
 
-    def test_self_service_subscription_requires_verified_card(self):
+    def test_paid_entitlement_does_not_require_saved_card(self):
         for status in ("active", "paid"):
             with self.subTest(status=status):
-                self.assertEqual(self.resolve(status=status, source="payment")["mode"], "blocked")
+                self.assertEqual(self.resolve(status=status, source="payment")["mode"], "active")
                 self.assertEqual(self.resolve(status=status, source="payment", card=True)["mode"], "active")
 
     def test_explicit_admin_grants_do_not_require_a_card(self):
@@ -68,3 +71,6 @@ class CardAccessTests(SimpleTestCase):
 
     def test_cardless_trial_cannot_use_read_only_grace(self):
         self.assertEqual(self.resolve(grace=True)["mode"], "blocked")
+
+    def test_expired_paid_entitlement_stays_blocked_without_card(self):
+        self.assertEqual(self.resolve(status="expired", source="payment")["mode"], "blocked")

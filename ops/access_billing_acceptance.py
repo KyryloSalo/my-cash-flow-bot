@@ -150,7 +150,7 @@ def main() -> int:
             self_service = (
                 "from subscriptions.models import Subscription; "
                 f"s=Subscription.objects.filter(user_id={DEV_TG_USER_ID}).latest('created_at'); "
-                "s.status=Subscription.Status.TRIAL; s.source=Subscription.Source.PAYMENT; s.provider='monobank'; "
+                "s.status=Subscription.Status.TRIAL; s.source=Subscription.Source.PROMO; s.provider='monobank'; "
                 "s.save(update_fields=['status','source','provider'])"
             )
             manage(app_root, env, "shell", "-c", self_service)
@@ -177,9 +177,37 @@ def main() -> int:
                     })"""
                 )
                 raise AssertionError(f"card binding modal did not open: {state}")
+            # Reproduce the incident without a real card or payment-provider call:
+            # a previously activated trial must not be revoked by losing its mandate.
+            activated = (
+                "from subscriptions.models import Subscription, Payment; "
+                f"s=Subscription.objects.filter(user_id={DEV_TG_USER_ID}).latest('created_at'); "
+                "s.source=Subscription.Source.PAYMENT; s.payment_id='incident-browser-synthetic-bind'; "
+                "s.save(update_fields=['source', 'payment_id']); "
+                "Payment.objects.create(user=s.user, subscription=s, provider='monobank', "
+                "provider_payment_id='incident-browser-synthetic-bind', kind='bind', status='paid', amount=1, currency='UAH')"
+            )
+            manage(app_root, env, "shell", "-c", activated)
+            for status in ("trial", "active", "paid"):
+                if status != "trial":
+                    manage(app_root, env, "shell", "-c", (
+                        "from subscriptions.models import Subscription; "
+                        f"s=Subscription.objects.filter(user_id={DEV_TG_USER_ID}).latest('created_at'); "
+                        f"s.status='{status}'; s.save(update_fields=['status'])"
+                    ))
+                page = context.new_page()
+                page.goto(base_url + "/", wait_until="networkidle")
+                actual = page.evaluate("url => fetch(url).then(r => r.json())", base_url + "/api/settings")["access"]
+                assert actual["subscription_status"] == status, actual
+                assert actual["mode"] == "active", actual
+                assert actual["access_scope"] == "personal_full", actual
+                assert actual["has_card"] is False, actual
+                assert actual["recommended_action"] is None, actual
+                assert page.locator("#cardBindingModal").is_hidden()
+                assert page.locator("main.app").is_visible()
             browser.close()
 
-        result = "ACCESS_BILLING_ACCEPTANCE_PASS: cardless manual admin grant is active without popup; cardless self-service trial remains blocked with popup"
+        result = "ACCESS_BILLING_ACCEPTANCE_PASS: cardless admin grant, previously activated trial, active and paid subscriptions open the real PWA without a card popup; unactivated self-service trial remains blocked with popup; no provider calls or real charges"
         print(result)
         return 0
     finally:

@@ -527,9 +527,18 @@ def _billing_access_mode(
 
 
 def _subscription_waives_card(subscription: Subscription | None) -> bool:
-    # Explicit operator grants are not self-service card-activated subscriptions.
+    # Current entitlement is independent of a mandate for future renewals.
+    # payment-source trials have already completed activation; new promo/system
+    # trials still require their initial verification.
     return bool(subscription and (
-        subscription.status in {Subscription.Status.MANUAL, Subscription.Status.LIFETIME}
+        subscription.status in {
+            Subscription.Status.ACTIVE, Subscription.Status.PAID,
+            Subscription.Status.MANUAL, Subscription.Status.LIFETIME,
+        }
+        or (subscription.status == Subscription.Status.TRIAL and (
+            subscription.source == Subscription.Source.PAYMENT
+            or (subscription.source == Subscription.Source.PROMO and bool(getattr(subscription, "payment_id", "")))
+        ))
         or (subscription.source == Subscription.Source.ADMIN and subscription.status in PERSONAL_FULL_STATUSES)
     ))
 
