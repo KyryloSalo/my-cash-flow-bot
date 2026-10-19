@@ -318,6 +318,7 @@ from vision_tx import (
     OpenAIVisionConfigError,
     OpenAIVisionError,
     OpenAIVisionInvalidResponseError,
+    PhotoEvidenceReviewRequired,
     ScreenshotAnalysis,
     analyze_screenshot,
     is_screenshot_currency_explicit,
@@ -17201,6 +17202,13 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             expense_categories=_vision_category_options("expense", catalog["expense_full"]),
             income_categories=_vision_category_options("income", catalog["income_full"]),
         )
+    except PhotoEvidenceReviewRequired:
+        await message.reply_text(
+            "Не вдалося безпечно визначити дані операції з фото. Операцію не створено. "
+            "Відкрийте PWA та додайте операцію вручну або надішліть чіткіше фото "
+            "із сумою, валютою, датою та статусом операції."
+        )
+        return
     except OpenAIVisionConfigError as exc:
         await message.reply_text("Не вдалося розпізнати скріншот. Спробуйте інший скріншот або додайте операцію текстом.")
         return
