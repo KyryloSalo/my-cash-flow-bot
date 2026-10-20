@@ -195,16 +195,24 @@ def _record_new_registration_event(request: HttpRequest, registration) -> None:
 
 
 def _bootstrap_with_partner(request: HttpRequest, identity, *, source: str):
+    from miniapp.funnel import _ensure_durable_registration_attribution
+
     try:
         acquisition_id = uuid.UUID(str(request.session.get(ACQUISITION_SESSION_KEY) or ""))
     except (ValueError, TypeError, AttributeError):
-        return bootstrap_telegram_identity(identity, source=source)
+        acquisition_id = None
     with db_transaction.atomic():
         registration = bootstrap_telegram_identity(identity, source=source)
         if registration.created:
             acquisition = AcquisitionSession.objects.filter(pk=acquisition_id).select_related(
                 "last_partner_link", "first_partner_link",
             ).first()
+            if acquisition is not None and acquisition.user_id not in (None, registration.user.pk):
+                acquisition = None
+            # Registration and its accounting attribution must commit together.
+            # Unlike best-effort telemetry below, this failure must roll back
+            # creation rather than permanently lose the first source.
+            _ensure_durable_registration_attribution(user=registration.user, acquisition=acquisition)
             if acquisition is not None and acquisition.user_id in (None, registration.user.pk):
                 try:
                     claim_partner_offer(user=registration.user, acquisition=acquisition)

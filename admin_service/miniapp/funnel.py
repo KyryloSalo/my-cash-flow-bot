@@ -486,6 +486,22 @@ def record_server_event(
     )
 
 
+def _ensure_durable_registration_attribution(
+    *,
+    user: TelegramUser,
+    acquisition: AcquisitionSession | None,
+) -> None:
+    from miniapp.models import DurableRegistrationAttribution
+
+    DurableRegistrationAttribution.objects.get_or_create(
+        user=user,
+        defaults={
+            "partner_link_id": acquisition.first_partner_link_id if acquisition else None,
+            "registered_at": user.created_at,
+        },
+    )
+
+
 def record_request_server_event(
     request: HttpRequest,
     *,
@@ -494,14 +510,26 @@ def record_request_server_event(
     idempotency_key: str,
 ) -> tuple[FunnelEvent, bool] | None:
     acquisition = link_acquisition_session(request, user=user)
+    if event_name == "registration_completed":
+        # Persist the first-registration snapshot independently before telemetry;
+        # telemetry remains best-effort and retryable.
+        _ensure_durable_registration_attribution(user=user, acquisition=acquisition)
     if acquisition is None:
         return None
-    return record_server_event(
+    result = record_server_event(
         acquisition=acquisition,
         user=user,
         event_name=event_name,
         idempotency_key=idempotency_key,
     )
+    if result and event_name == "registration_completed":
+        from miniapp.models import DurableRegistrationAttribution
+        event, _ = result
+        if event is not None:
+            DurableRegistrationAttribution.objects.filter(user=user, source_event_id__isnull=True).update(
+                source_event_id=event.pk,
+            )
+    return result
 
 
 def retry_pending_registration_event(request: HttpRequest, *, user: TelegramUser) -> bool:
