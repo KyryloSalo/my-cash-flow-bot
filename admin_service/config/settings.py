@@ -196,6 +196,10 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
+# Deliberately unset until a private persistent directory is provisioned.
+# Must never be placed under static/media or served by the web server.
+RECOGNITION_QUALITY_STORAGE_ROOT = env("RECOGNITION_QUALITY_STORAGE_ROOT", "") or ""
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 TEST_RUNNER = "common.test_runner.RuntimeSchemaTestRunner"
 
@@ -266,6 +270,16 @@ CELERY_BEAT_SCHEDULE = {
         "task": "miniapp.purge_expired_auth_token_uses",
         "schedule": crontab(hour=3, minute=40),
         "options": {"expires": 60 * 60},
+    },
+    "miniapp-purge-expired-recognition-captures": {
+        "task": "miniapp.purge_expired_recognition_captures",
+        "schedule": crontab(minute=45),
+        "options": {"expires": 60 * 60},
+    },
+    "miniapp-recognition-storage-alert-retry": {
+        "task": "miniapp.deliver_recognition_storage_alerts",
+        "schedule": crontab(minute="*/5"),
+        "options": {"expires": 5 * 60},
     },
     "miniapp-billing-lifecycle-pushes": {
         "task": "miniapp.emit_billing_lifecycle_pushes",

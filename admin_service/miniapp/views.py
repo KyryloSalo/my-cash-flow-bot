@@ -48,6 +48,7 @@ from miniapp.auth import (
 from miniapp.ai_text_client import MiniAppAiTextError, request_ai_text_parse
 from miniapp.ai_image_client import MiniAppAiImageError, request_ai_image_parse
 from miniapp.ai_voice_client import MiniAppAiVoiceError, request_ai_voice_parse
+from miniapp.models import RecognitionCapture
 from miniapp.export_client import MiniAppExportError, request_export_csv, request_export_xlsx
 from miniapp.family import (
     MiniAppFamilyError,
@@ -77,6 +78,7 @@ from miniapp.history import (
     commit_history_edit_draft,
 )
 from miniapp.image_uploads import MiniAppImageUploadError, normalize_ai_image_upload
+from miniapp import recognition_quality
 from miniapp.services import (
     AI_IMAGE_MAX_BYTES,
     AI_TEXT_MAX_LENGTH,
@@ -2227,6 +2229,28 @@ def transaction_options(request: HttpRequest) -> JsonResponse:
     return _json_ok(options)
 
 
+def _recognition_user_id(user):
+    return getattr(user, "pk", None) or getattr(user, "id", None) or getattr(user, "tg_user_id", None)
+
+def _recognition_capture(user, **kwargs):
+    try:
+        user_id = _recognition_user_id(user)
+        return recognition_quality.capture_attempt(user_id=user_id, **kwargs) if user_id is not None else None
+    except Exception:
+        return None
+
+def _recognition_update(user, attempt_id, outcome, **kwargs):
+    """Best-effort update; never makes recognition a prerequisite for a write."""
+    if not attempt_id:
+        return None
+    try:
+        return recognition_quality.update_capture(
+            user_id=_recognition_user_id(user), attempt_id=attempt_id, outcome=outcome, **kwargs
+        )
+    except Exception:
+        return None
+
+
 @csrf_exempt
 @require_POST
 def transaction_draft(request: HttpRequest) -> JsonResponse:
@@ -2244,11 +2268,15 @@ def transaction_draft(request: HttpRequest) -> JsonResponse:
 
     drafts = _session_transaction_drafts(request)
     entry: dict[str, object] = {"status": "draft", "draft": draft}
+    recognition_attempt_id = str(payload.get("recognition_attempt_id") or "").strip()
+    if recognition_attempt_id:
+        entry["recognition_attempt_id"] = recognition_attempt_id
     if batch_context is not None:
         entry["ai_image_batch"] = batch_context
     _persist_draft_action(user=user, operation="normal_transaction", draft_id=draft_id, entry=entry)
     drafts[draft_id] = entry
     _save_session_transaction_drafts(request, drafts)
+    _recognition_update(user, recognition_attempt_id, "draft", normalized_result=draft)
     return _json_ok({"ok": True, "draft": draft})
 
 
@@ -2259,20 +2287,25 @@ def ai_text_parse(request: HttpRequest) -> JsonResponse:
     if isinstance(authorized, JsonResponse):
         return authorized
     user, _access = authorized
-    text = str(_read_json(request).get("text") or "").strip()
+    payload = _read_json(request)
+    text = str(payload.get("text") or "").strip()
     if not text:
         return JsonResponse({"error": {"code": "invalid_payload", "message": "Text is required."}}, status=400)
     if len(text) > AI_TEXT_MAX_LENGTH:
         return JsonResponse({"error": {"code": "invalid_payload", "message": "Text is too long."}}, status=400)
+    attempt_id = str(uuid.uuid4())
+    _recognition_capture(user, attempt_id=attempt_id, source="text", raw_text=text, provider="text")
     try:
         parsed = request_ai_text_parse(text=text, default_currency=str(user.base_currency or "UAH"))
         parsed = guard_ai_text_intent(parsed, text)
         suggestion = build_ai_text_suggestion(user, parsed)
     except MiniAppAiTextError as exc:
+        _recognition_update(user, attempt_id, "failed", error_code="ai_text_unavailable")
         return JsonResponse({"error": {"code": "ai_text_unavailable", "message": str(exc)}}, status=exc.status)
     except MiniAppTransactionError as exc:
         return _transaction_error_response(exc)
-    return _json_ok({"ok": True, "suggestion": suggestion})
+    _recognition_update(user, attempt_id, "redirect" if suggestion.get("mode") == "redirect" else "parsed", provider_result=parsed, normalized_result=suggestion)
+    return _json_ok({"ok": True, "suggestion": suggestion, "recognition_attempt_id": attempt_id})
 
 
 @csrf_exempt
@@ -2295,6 +2328,8 @@ def ai_voice_parse(request: HttpRequest) -> JsonResponse:
     if mime_type is None:
         return JsonResponse({"error": {"code": "invalid_payload", "message": "Use a WEBM, OGG, or M4A voice message."}}, status=400)
 
+    attempt_id = str(uuid.uuid4())
+    _recognition_capture(user, attempt_id=attempt_id, source="voice", raw_bytes=audio_bytes, mime_type=mime_type, provider="voice")
     try:
         result = request_ai_voice_parse(
             audio_bytes=audio_bytes,
@@ -2308,11 +2343,13 @@ def ai_voice_parse(request: HttpRequest) -> JsonResponse:
         parsed = guard_ai_text_intent(parsed, transcript)
         suggestion = build_ai_text_suggestion(user, parsed)
     except MiniAppAiVoiceError as exc:
+        _recognition_update(user, attempt_id, "failed", error_code="invalid_payload" if exc.status == 400 else "ai_voice_unavailable")
         code = "invalid_payload" if exc.status == 400 else "ai_voice_unavailable"
         return JsonResponse({"error": {"code": code, "message": str(exc)}}, status=exc.status)
     except MiniAppTransactionError as exc:
         return _transaction_error_response(exc)
-    return _json_ok({"ok": True, "transcript": transcript, "suggestion": suggestion})
+    _recognition_update(user, attempt_id, "redirect" if suggestion.get("mode") == "redirect" else "parsed", provider_result=result, normalized_result={"transcript": transcript, "suggestion": suggestion})
+    return _json_ok({"ok": True, "transcript": transcript, "suggestion": suggestion, "recognition_attempt_id": attempt_id})
 
 
 @csrf_exempt
@@ -2332,6 +2369,7 @@ def ai_image_parse(request: HttpRequest) -> JsonResponse:
     if not image_bytes or len(image_bytes) > AI_IMAGE_MAX_BYTES:
         return JsonResponse({"error": {"code": "invalid_payload", "message": "Screenshot is invalid or too large."}}, status=400)
     mime_type = detect_ai_image_mime(image_bytes)
+    original_image_bytes, original_mime_type = image_bytes, mime_type
     if mime_type is None:
         return JsonResponse(
             {"error": {"code": "invalid_payload", "message": "Use a JPG, PNG, WEBP, GIF, HEIC, or HEIF screenshot."}},
@@ -2350,6 +2388,8 @@ def ai_image_parse(request: HttpRequest) -> JsonResponse:
             status=400,
         )
 
+    attempt_id = str(uuid.uuid4())
+    _recognition_capture(user, attempt_id=attempt_id, source="image", raw_bytes=original_image_bytes, mime_type=original_mime_type or "", provider="image")
     try:
         parsed = request_ai_image_parse(
             image_bytes=image_bytes,
@@ -2365,11 +2405,13 @@ def ai_image_parse(request: HttpRequest) -> JsonResponse:
         else:
             suggestion = build_ai_image_suggestion(user, parsed)
     except MiniAppAiImageError as exc:
+        _recognition_update(user, attempt_id, "failed", error_code="invalid_payload" if exc.status == 400 else "ai_image_unavailable")
         code = "invalid_payload" if exc.status == 400 else "ai_image_unavailable"
         return JsonResponse({"error": {"code": code, "message": str(exc)}}, status=exc.status)
     except MiniAppTransactionError as exc:
         return _transaction_error_response(exc)
-    return _json_ok({"ok": True, "suggestion": suggestion})
+    _recognition_update(user, attempt_id, "redirect" if suggestion.get("mode") == "redirect" else "parsed", provider_result=parsed, normalized_result=suggestion)
+    return _json_ok({"ok": True, "suggestion": suggestion, "recognition_attempt_id": attempt_id})
 
 
 @require_GET
@@ -2482,6 +2524,7 @@ def transaction_confirm(request: HttpRequest) -> JsonResponse:
         return _transaction_error_response(exc)
 
     entry["status"] = "committed"
+    _recognition_update(user, entry.get("recognition_attempt_id"), "confirmed", normalized_result=result, correction={"confirmed_draft": entry.get("draft") or {}})
     entry["idempotency_key"] = idempotency_key
     entry["result"] = result
     drafts[draft_id] = entry
@@ -2504,8 +2547,16 @@ def transaction_cancel(request: HttpRequest) -> JsonResponse:
         return authorized
     payload = _read_json(request)
     draft_id = str(payload.get("draft_id") or "").strip()
+    attempt_id = str(payload.get("recognition_attempt_id") or "").strip()
+    if not draft_id and attempt_id:
+        # Dismissing a suggestion has no financial draft to cancel.
+        _recognition_update(authorized[0], attempt_id, "cancelled")
+        return _json_ok({"ok": True})
     try:
+        drafts = _session_transaction_drafts(request)
+        entry = drafts.get(draft_id) or {}
         _cancel_session_draft(request, authorized[0], TRANSACTION_DRAFTS_SESSION_KEY, draft_id)
+        _recognition_update(authorized[0], entry.get("recognition_attempt_id"), "cancelled")
     except MiniAppTransactionError as exc:
         return _transaction_error_response(exc)
     return _json_ok({"ok": True, "batch": _ai_image_batch_payload(_session_ai_image_batch(request))})

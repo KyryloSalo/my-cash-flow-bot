@@ -2745,6 +2745,7 @@
         busy: false,
         idempotencyKey: null,
         draftFingerprint: null,
+        recognitionAttemptId: null,
         requiredCurrency: null,
         aiImageBatchContext: null,
         goalSpendAccountId: null,
@@ -3381,6 +3382,7 @@
           return Promise.resolve(null);
         }
         return loadTransactionOptions(false).then(function () {
+          transactionState.recognitionAttemptId = payload.recognition_attempt_id || null;
           const confirmationShown = applyAiTextSuggestion(suggestion);
           setAiVoiceStatus(
             confirmationShown ? tr("aiVoiceReady") : tr("aiVoiceNeedsFields"),
@@ -4053,6 +4055,7 @@
         const el = transactionElements();
         return {
           kind: transactionState.kind,
+          recognition_attempt_id: transactionState.recognitionAttemptId || undefined,
           amount: el.amount ? el.amount.value : "",
           account_id: el.account ? el.account.value : "",
           category_id: el.category ? el.category.value : "",
@@ -4194,17 +4197,19 @@
       function cancelTransactionDraft() {
         const draft = transactionState.draft;
         const batchContext = transactionState.aiImageBatchContext;
+        const recognitionAttemptId = transactionState.recognitionAttemptId;
         resetTransactionDraft();
         clearReceiptItems();
         transactionState.aiImageBatchContext = null;
         setTransactionStatus(tr("addReady"), "muted");
-        if (draft && transactionCancelUrl) {
-          postJson(transactionCancelUrl, { draft_id: draft.draft_id })
+        if ((draft || recognitionAttemptId) && transactionCancelUrl) {
+          postJson(transactionCancelUrl, { draft_id: draft ? draft.draft_id : "", recognition_attempt_id: recognitionAttemptId || "" })
             .then(function (payload) {
               if (batchContext && payload && payload.batch) setAiImageBatch(payload.batch);
             })
             .catch(function () {});
         }
+        transactionState.recognitionAttemptId = null;
       }
 
       function setAiTextStatus(message, tone) {
@@ -4362,6 +4367,7 @@
         ensureSession()
           .then(function () { return postJson(aiTextParseUrl, { text: text }); })
           .then(function (payload) {
+            transactionState.recognitionAttemptId = payload.recognition_attempt_id || null;
             const suggestion = payload.suggestion || {};
             if (suggestion.mode === "redirect") {
               showScreen(suggestion.screen || "money");
@@ -4403,6 +4409,7 @@
         ensureSession()
           .then(function () { return postFormData(aiImageParseUrl, formData); })
           .then(function (payload) {
+            transactionState.recognitionAttemptId = payload.recognition_attempt_id || null;
             const suggestion = payload.suggestion || {};
             renderAiImageFindings(suggestion);
             if (suggestion.mode === "batch") {
