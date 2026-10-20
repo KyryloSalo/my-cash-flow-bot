@@ -69,4 +69,4 @@ jobs:
             -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=10 \
             -o StrictHostKeyChecking=yes \
             -o "UserKnownHostsFile=$RUNNER_TEMP/recognition_known_hosts" -o GlobalKnownHostsFile=none \
-            "$SSH_USER@31.131.31.117" sudo -n bash -s -- "$EXPECTED_SHA" "$OPERATOR_ACTION" < ops/recognition_operator.sh
+            "$SSH_USER@31.131.31.117" bash -s -- "$EXPECTED_SHA" "$OPERATOR_ACTION" < ops/recognition_operator.sh
