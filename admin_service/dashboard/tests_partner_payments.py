@@ -67,13 +67,12 @@ class PartnerPaymentReportIntegrationTests(TestCase):
         report = partner_payment_report(date(2026, 1, 1), date(2026, 1, 31))
         self.assertEqual(report["payments"], [])
 
-    def test_nonempty_report_renders_exact_currency_totals(self):
+    def test_old_report_redirects_to_existing_partner_links(self):
         user = get_user_model().objects.create_superuser(username="report-root", password="x")
         self.client.force_login(user)
         self.payment(self.user, Decimal("12.34"), "USD", timezone.make_aware(datetime(2026, 1, 2)), suffix="render-usd")
         response = self.client.get("/partner-payments/", {"start": "2026-01-01", "end": "2026-02-01"})
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "12,34 USD")
+        self.assertRedirects(response, "/miniapp/partnerlink/?period_start=2026-01-01&period_end=2026-02-01", fetch_redirect_response=False)
 
 
 class PartnerPaymentRegistrationDurabilityTests(TestCase):
@@ -96,12 +95,12 @@ class PartnerPaymentRegistrationDurabilityTests(TestCase):
 
 
 class PartnerPaymentPermissionTests(TestCase):
-    def test_view_requires_both_permissions(self):
+    def test_view_requires_partner_links_access(self):
         user = get_user_model().objects.create_user(username="staff", password="x", is_staff=True)
         self.client.force_login(user)
         self.assertEqual(self.client.get("/partner-payments/").status_code, 403)
 
-    def test_partner_selector_keeps_empty_partners_and_selected_value(self):
+    def test_redirect_keeps_empty_partner_in_integrated_table(self):
         from django.contrib.auth.models import Permission
 
         user = get_user_model().objects.create_user(username="finance", password="x", is_staff=True)
@@ -111,14 +110,15 @@ class PartnerPaymentPermissionTests(TestCase):
         )
         link = PartnerLink.objects.create(name="Empty", code="empty", utm_source="empty")
         self.client.force_login(user)
-        response = self.client.get("/partner-payments/", {"start": "2026-01-01", "end": "2026-02-01", "partner": link.pk})
+        response = self.client.get("/partner-payments/", {"start": "2026-01-01", "end": "2026-02-01", "partner": link.pk}, follow=True)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, f'<option value="{link.pk}" selected>Empty (empty)</option>', html=True)
+        self.assertContains(response, f'data-partner-id="{link.pk}"')
+        self.assertContains(response, "Empty")
 
     def test_invalid_dates_do_not_display_another_periods_totals(self):
         user = get_user_model().objects.create_superuser(username="root", password="x")
         self.client.force_login(user)
-        response = self.client.get("/partner-payments/", {"start": "bad", "end": "2026-02-01"})
+        response = self.client.get("/partner-payments/", {"start": "bad", "end": "2026-02-01"}, follow=True)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Некоректна дата")
-        self.assertEqual(response.context_data["payments"], [])
+        self.assertContains(response, "Вкажіть коректні дати")
+        self.assertTrue(response.context_data["partner_period"]["error"])

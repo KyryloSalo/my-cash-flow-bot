@@ -415,18 +415,19 @@ class PartnerLinkAdminTests(SimpleTestCase):
 
         self.assertTrue(
             {
-                "public_link",
                 "human_clicks",
-                "unique_visitors",
                 "first_touch_registrations",
-                "last_touch_registrations",
-                "registration_rate",
-                "onboarding_conversions",
-                "first_transaction_conversions",
-                "payment_conversions",
+                "successful_payments",
+                "successful_amount",
+                "first_payments",
+                "first_amount",
+                "repeat_payments",
+                "repeat_amount",
+                "refund_amount",
             }.issubset(set(model_admin.list_display))
         )
         self.assertFalse(model_admin.has_delete_permission(SimpleNamespace(user=None)))
+        self.assertTrue({"public_link", "unique_visitors", "onboarding_conversions", "first_transaction_conversions"}.issubset(model_admin.readonly_fields))
 
     def test_partner_links_have_a_primary_admin_navigation_entry(self) -> None:
         menu_items = {

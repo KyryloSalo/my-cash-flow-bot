@@ -1,0 +1,7 @@
+<td data-label="Успішних оплат" data-metric="successful_count">{% if partner_period.error %}—{% else %}{{ metrics.successful_count }}{% endif %}</td>
+<td data-label="Сума оплат (₴)" data-metric="successful_amount">{% if partner_period.error %}—{% else %}{{ metrics.successful_amount|floatformat:"2" }}{% endif %}</td>
+<td data-label="Перших оплат" data-metric="first_count">{% if partner_period.error %}—{% else %}{{ metrics.first_count }}{% endif %}</td>
+<td data-label="Сума перших (₴)" data-metric="first_amount">{% if partner_period.error %}—{% else %}{{ metrics.first_amount|floatformat:"2" }}{% endif %}</td>
+<td data-label="Повторних оплат" data-metric="repeat_count">{% if partner_period.error %}—{% else %}{{ metrics.repeat_count }}{% endif %}</td>
+<td data-label="Сума повторних (₴)" data-metric="repeat_amount">{% if partner_period.error %}—{% else %}{{ metrics.repeat_amount|floatformat:"2" }}{% endif %}</td>
+<td data-label="Повернення (₴)" data-metric="refund_amount">{% if partner_period.error %}—{% else %}{% if metrics.refund_amount == None %}Невідомо{% else %}{{ metrics.refund_amount|floatformat:"2" }}{% endif %}{% endif %}</td>
