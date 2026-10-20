@@ -22,7 +22,7 @@ class StorageFixture:
     def setUp(self):
         super().setUp()
         TelegramUser.objects.create(tg_user_id=7)
-        self.directory = TemporaryDirectory(dir=os.environ['TMPDIR'])
+        self.directory = TemporaryDirectory(dir=os.environ.get('TMPDIR'))
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name) / 'private-capture'
         self.settings_override = override_settings(RECOGNITION_QUALITY_STORAGE_ROOT=str(self.root),

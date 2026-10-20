@@ -22,7 +22,7 @@ from users.models import TelegramUser
                    TELEGRAM_BOT_TOKEN='synthetic-only', RECOGNITION_QUALITY_EXPORT_TOKEN='')
 class RecognitionOperatorTests(TestCase):
     def setUp(self):
-        self.directory = TemporaryDirectory(dir=os.environ['TMPDIR'])
+        self.directory = TemporaryDirectory(dir=os.environ.get('TMPDIR'))
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
         configured = override_settings(RECOGNITION_QUALITY_STORAGE_ROOT=str(self.root))
