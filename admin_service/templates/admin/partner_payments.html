@@ -1,0 +1,34 @@
+{% extends "admin/base_site.html" %}
+{% block extrastyle %}{{ block.super }}
+<style>
+.partner-payments { display:grid; gap:1rem; }
+.partner-payments form { display:flex; gap:1rem; align-items:end; flex-wrap:wrap; }
+.partner-payments label { display:grid; gap:.35rem; }
+.partner-payments input, .partner-payments select, .partner-payments button { border:1px solid var(--color-base-400); border-radius:.35rem; padding:.5rem .7rem; background:transparent; }
+.partner-payments button { cursor:pointer; font-weight:600; }
+.partner-payments h2 { font-size:1.1rem; font-weight:600; }
+.partner-payments .table-scroll { overflow-x:auto; }
+.partner-payments table { width:100%; border-collapse:collapse; }
+.partner-payments th, .partner-payments td { padding:.65rem; text-align:left; border-bottom:1px solid var(--color-base-400); }
+.partner-payments th { font-weight:600; }
+</style>{% endblock %}
+{% block content %}
+<div class="partner-payments">
+<form method="get">
+<label>Від <input type="date" name="start" value="{{ start_date|date:'Y-m-d' }}"></label>
+<label>До <input type="date" name="end" value="{{ end_date|date:'Y-m-d' }}"></label>
+<label>Групування <select name="grouping"><option value="day" {% if grouping == 'day' %}selected{% endif %}>День</option><option value="week" {% if grouping == 'week' %}selected{% endif %}>Тиждень</option><option value="month" {% if grouping == 'month' %}selected{% endif %}>Місяць</option></select></label>
+<label>Партнер <select name="partner"><option value="">Усі</option>{% for partner in partners %}<option value="{{ partner.id }}"{% if partner_id == partner.id %} selected{% endif %}>{{ partner.name }} ({{ partner.code }})</option>{% endfor %}</select></label>
+<button type="submit">Показати</button>
+</form>
+{% if error %}<p class="errornote">{{ error }}</p>{% endif %}
+<p><strong>Період оплат: {{ start_date|date:'d.m.Y' }}–{{ end_date|date:'d.m.Y' }} включно.</strong> Часовий пояс: {{ report_timezone }}. Дата реєстрації не обмежується цим періодом. Кожна успішна повторна оплата враховується окремо.</p>
+<p><strong>Визначення:</strong> {{ definition }}</p>
+<p class="help">{{ coverage_note }}</p>
+<h2>Підсумки за валютою</h2>
+<div class="table-scroll"><table><thead><tr><th>Період</th><th>Валюта</th><th>Кількість</th><th>Сума</th></tr></thead><tbody>{% for key,value in totals.items %}<tr><td>{{ key.0|date:'d.m.Y' }}</td><td>{{ key.1 }}</td><td>{{ value.count }}</td><td>{{ value.amount|floatformat:2 }}</td></tr>{% empty %}<tr><td colspan="4">Немає оплат</td></tr>{% endfor %}</tbody></table></div>
+<h2>За партнерами</h2><div class="table-scroll"><table id="partner-summary"><thead><tr><th>Партнер</th><th>Кількість</th><th>Суми</th></tr></thead><tbody>{% for key,value in by_partner.items %}<tr><td>{{ value.name }} ({{ value.code }})</td><td>{{ value.count }}</td><td>{% for currency,amount in value.amounts.items %}{{ amount|floatformat:2 }} {{ currency }} {% endfor %}</td></tr>{% empty %}<tr><td colspan="3">Немає оплат</td></tr>{% endfor %}</tbody></table></div>
+<h2>Деталі оплат</h2>
+<div class="table-scroll"><table id="payment-details"><thead><tr><th>Оплачено</th><th>Партнер</th><th>Користувач</th><th>Сума</th><th>Тип</th><th>Provider ID</th></tr></thead><tbody>{% for payment in payments %}<tr><td>{{ payment.paid_at|date:'d.m.Y H:i:s' }}</td><td>{{ payment.partner }} ({{ payment.code }})</td><td>{{ payment.tg_user_id }}</td><td>{{ payment.amount|floatformat:2 }} {{ payment.currency }}</td><td>{{ payment.kind }}</td><td>{{ payment.provider_payment_id }}</td></tr>{% empty %}<tr><td colspan="6">Немає оплат</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% endblock %}

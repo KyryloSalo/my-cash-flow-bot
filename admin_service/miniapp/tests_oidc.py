@@ -387,6 +387,7 @@ class TelegramRegistrationBootstrapTests(UnitTestCase):
         with connection.cursor() as cursor:
             cursor.execute("DELETE FROM bot_settings WHERE key = %s", ["registration_enabled"])
             for table, column in (
+                ("durable_registration_attributions", "telegram_user_id"),
                 ("user_oidc_token_uses", "tg_user_id"),
                 ("user_auth_sessions", "telegram_user_id"),
                 ("user_auth_identities", "telegram_user_id"),
@@ -1059,15 +1060,15 @@ class TelegramOidcCallbackDiagnosticsTests(SimpleTestCase):
             "exchange_authorization_code": "private-synthetic-id-token",
             "verify_id_token": SimpleNamespace(),
             "consume_id_token_once": None,
-            "bootstrap_telegram_identity": None,
+            "_bootstrap_with_partner": None,
         }
         cases = (
             ("consume_pending_authorization", "consume", TelegramOidcError("private-synthetic-detail", code="telegram_oidc_state_invalid"), 400),
             ("exchange_authorization_code", "exchange", TelegramOidcError("private-synthetic-detail", code="telegram_oidc_exchange_failed"), 400),
             ("verify_id_token", "verify", TelegramOidcError("private-synthetic-detail", code="telegram_oidc_token_invalid"), 400),
             ("consume_id_token_once", "consume_token", TelegramOidcError("private-synthetic-detail", code="telegram_oidc_token_replayed"), 400),
-            ("bootstrap_telegram_identity", "bootstrap", RegistrationClosed("private-synthetic-detail"), 503),
-            ("bootstrap_telegram_identity", "bootstrap", RegistrationIdentityConflict("private-synthetic-detail"), 409),
+            ("_bootstrap_with_partner", "bootstrap", RegistrationClosed("private-synthetic-detail"), 503),
+            ("_bootstrap_with_partner", "bootstrap", RegistrationIdentityConflict("private-synthetic-detail"), 409),
         )
         for failing_step, stage, error, status in cases:
             with self.subTest(stage=stage, error=type(error).__name__), ExitStack() as stack:

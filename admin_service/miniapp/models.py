@@ -479,6 +479,18 @@ class PartnerLink(models.Model):
         return f"https://{settings.DOMAIN}/app/r/{self.code}"
 
 
+class DurableRegistrationAttribution(models.Model):
+    user = models.OneToOneField(TelegramUser, on_delete=models.CASCADE, to_field="tg_user_id", db_column="telegram_user_id", related_name="durable_registration_attribution")
+    partner_link = models.ForeignKey(PartnerLink, on_delete=models.SET_NULL, null=True, blank=True, related_name="durable_registrations")
+    registered_at = models.DateTimeField()
+    source_event_id = models.BigIntegerField(null=True, blank=True, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "durable_registration_attributions"
+        indexes = [models.Index(fields=("registered_at", "partner_link"), name="dur_reg_registered_link_idx")]
+
+
 class AcquisitionSession(models.Model):
     class AutomationStatus(models.TextChoices):
         UNKNOWN = "unknown", "Unknown"
