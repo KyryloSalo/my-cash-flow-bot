@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "version": "0.43.1",
+  "deployed_sha": "fed8cb34dfe754977ab1ecaace1040d596bb7119",
+  "runtime_pr": 65,
+  "production_run_id": 39499650367,
+  "deployment_date": "2026-10-20",
+  "validation_run_id": 39498765192,
+  "pr_sync_validation_run_id": 39498060455,
+  "readback_at_utc": "2026-10-20T21:26:26.932827+00:00",
+  "readback": "passed",
+  "source_of_truth": "GitHub production deployment artifact; documentation merge is not runtime activation",
+  "semver_rationale": "PATCH: backwards-compatible PartnerLink admin UI/behavior correction",
+  "acceptance_boundary": "Exact-SHA validation 39498765192 and approved production deployment 39499650367 passed. PostgreSQL and Chromium acceptance passed 75 tests; independent backend, UI, and final integration reviews passed; PR sync validation 39498060455 passed. No authenticated production partner-report reconciliation is claimed.",
+  "changes": [
+    {
+      "path": "VERSION",
+      "kind": "replace_once",
+      "old_string": "0.43.0\n",
+      "new_string": "0.43.1\n"
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "kind": "prepend_after_heading",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.43.1 - 2026-10-20 (deployed)\n\nEnvironment: production. Deployed SHA `fed8cb34dfe754977ab1ecaace1040d596bb7119`, run `39499650367`. PATCH: PartnerLink admin UI/behavior correction.\n\nDate presets default to the current month; UAH totals expose all/first/repeat counts and amounts with refunds shown separately; day/week/month grouping is inline in the existing screen. No separate tab, export, or sort surface was added.\n\nExact-SHA validation `39498765192`, PR sync validation `39498060455`, deployment/readiness readback passed at `2026-10-20T21:26:26.932827+00:00`, and 75 PostgreSQL/Chromium acceptance tests passed. Independent backend, UI, and final integration reviews passed. No authenticated production partner-report reconciliation is claimed.\n\nDocumentation-only sync; documentation merge SHA is separate from the active runtime and does not imply another rollout.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "## Runtime delivery status — 2026-10-20 (0.43.0)",
+      "new_string": "## Runtime delivery status — 2026-10-20 (0.43.1)\n\nProduction run `39499650367` deployed SHA `fed8cb34dfe754977ab1ecaace1040d596bb7119` on **2026-10-20**. PartnerLink admin reporting now defaults date presets to the current month, shows UAH all/first/repeat counts and amounts with refunds separately, and keeps day/week/month grouping inline in the existing screen. No separate tab, export, or sort surface was added. Exact-SHA validation `39498765192`, PR sync validation `39498060455`, deployment/readiness readback, and 75 PostgreSQL/Chromium acceptance tests passed. No authenticated production partner-report reconciliation is claimed.\n\n## Previous runtime delivery status — 2026-10-20 (0.43.0)"
+    },
+    {
+      "path": "README.md",
+      "kind": "replace_once",
+      "old_string": "Current production release: **0.43.0**",
+      "new_string": "Current production release: **0.43.1**"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Current production version: `0.43.0` (deployed 2026-10-20).",
+      "new_string": "Current production version: `0.43.1` (deployed 2026-10-20)."
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "- `0.43.0` - current production artifact",
+      "new_string": "- `0.43.1` - current production artifact (PartnerLink UI/behavior correction; authenticated production report reconciliation remains unverified)\n- `0.43.0` - historical artifact"
+    }
+  ]
+}
