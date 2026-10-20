@@ -106,6 +106,7 @@ services:
       dockerfile: admin_service/Dockerfile
     env_file: ${HOST_ENV_FILE:-.env}
     environment:
+      RECOGNITION_QUALITY_STORAGE_ROOT: /var/lib/recognition-quality/raw
       DOMAIN: vydno.capital
       ADMIN_DOMAIN: admin.vydno.capital
       LEGACY_ADMIN_DOMAIN: cashflowbot.mygpttest.space

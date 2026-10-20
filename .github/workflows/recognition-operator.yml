@@ -1,0 +1,72 @@
+name: Operate private recognition quality capture
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployed_sha:
+        description: Full SHA already deployed through the approved production workflow
+        required: true
+        type: string
+      action:
+        description: Fixed-purpose operation (never exports private samples)
+        required: true
+        type: choice
+        options: [status, activate, disable]
+        default: status
+      confirm:
+        description: Type recognition-status, recognition-activate or recognition-disable
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  operate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: production
+    env:
+      EXPECTED_SHA: ${{ inputs.deployed_sha }}
+      OPERATOR_ACTION: ${{ inputs.action }}
+      OPERATOR_CONFIRM: ${{ inputs.confirm }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Authorize fixed-purpose operation from protected main
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != refs/heads/main ]]; then exit 2; fi
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 2
+          [[ "$OPERATOR_ACTION" =~ ^(status|activate|disable)$ ]] || exit 2
+          [[ "$OPERATOR_CONFIRM" == "recognition-$OPERATOR_ACTION" ]] || exit 2
+          main_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          [[ "$main_sha" == "$GITHUB_SHA" ]] || { printf 'Operator workflow revision is stale\n' >&2; exit 2; }
+          validation=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/runs" -f head_sha="$EXPECTED_SHA" -f status=completed --jq '[.workflow_runs[] | select(.event == "push" and .conclusion == "success")] | first | .id // empty')
+          [[ "$validation" =~ ^[0-9]+$ ]] || { printf 'Runtime SHA is not validated\n' >&2; exit 2; }
+          deployment=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/production.yml/runs" -f status=completed -f per_page=100 --jq "[.workflow_runs[] | select(.head_sha == \"$EXPECTED_SHA\" and .conclusion == \"success\")] | first | .id // empty")
+          [[ "$deployment" =~ ^[0-9]+$ ]] || { printf 'No approved successful runtime deployment found\n' >&2; exit 2; }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Run bounded operator with pinned production identity
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "$SSH_USER" =~ ^[a-zA-Z0-9_-]+$ ]] || exit 2
+          install -m 600 ops/known_hosts.production "$RUNNER_TEMP/recognition_known_hosts"
+          install -m 600 /dev/null "$RUNNER_TEMP/recognition_identity"
+          trap 'rm -f "$RUNNER_TEMP/recognition_identity" "$RUNNER_TEMP/recognition_known_hosts"' EXIT
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/recognition_identity"
+          ssh -i "$RUNNER_TEMP/recognition_identity" -p 22 \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=10 \
+            -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$RUNNER_TEMP/recognition_known_hosts" -o GlobalKnownHostsFile=none \
+            "$SSH_USER@31.131.31.117" bash -s -- "$EXPECTED_SHA" "$OPERATOR_ACTION" < ops/recognition_operator.sh

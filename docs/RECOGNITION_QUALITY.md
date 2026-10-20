@@ -2,11 +2,19 @@
 
 ## Status and access
 
-This is an unreleased candidate. Production capture and scheduled weekly analysis must remain disabled until reviewed PR/CI, approved exact-SHA rollout and runtime readback. There is no public media or export endpoint.
+The capture implementation was merged in PR #58. The production deployment receipt for run `39464505710` records release `7971839dae4260f21a08f2bd19061d07d06b65b8` on 2026-10-20, but that receipt does not establish capture activation or private analyst access. The protected operator below is a follow-up candidate until separately merged and deployed. Scheduled weekly analysis remains paused until target acceptance and private analyst access pass. There is no public media or export endpoint.
 
 Use an authenticated private-server operator session: `python manage.py enable_recognition_quality` previews the current tester count; `--apply` freezes all current users for seven days. Repeated apply while active neither adds users nor extends expiry; future users remain excluded. `--status` emits bounded operational metadata; `--disable` is idempotent. Activation fails closed without private storage, enabled admin notifications, administrator IDs and bot access. Presence checks do not prove persistent mounts or live delivery. Confirmation is not audited ground truth; cancellation is not automatically an error. No automatic fine-tuning is performed.
 
 ## Private disk quota
+
+### Protected production operator
+
+The manual `recognition-operator.yml` workflow accepts only `status`, `activate` or `disable`, an exact already-deployed SHA and matching `recognition-<action>` confirmation. It runs only from the current protected `main`, requires the existing `production` Environment approval, uses the production concurrency group and verifies successful validation/deployment evidence. This is not a replacement deployment route.
+
+The fixed-purpose remote script takes the same host lock as deployment, verifies `current-release`, the release path and healthy exact-SHA service image tags, and checks that admin and cleanup worker share the same private named volume. It never reads container environments or renders resolved compose configuration. Disable needs only the admin service, not healthy storage/worker/beat. There is no export action or raw-data artifact upload.
+
+The runtime `recognition_quality_operator --action activate` validates private-root restrictions, disk headroom, notification settings and private export authorization; performs an exclusive synthetic write/read/unlink probe within the quota; and sends a sanitized real administrator-channel delivery probe before enabling the seven-day frozen cohort. An already-active cohort is never extended or enlarged. Output contains aggregate operational metadata only, and a separate status invocation reads back the write. Failures are sanitized. The admin API and cleanup worker explicitly configure the same persistent root in compose. Activation is not proof that real PWA photo/audio examples or a private analyst retrieval path have passed acceptance.
 
 - Configure `RECOGNITION_QUALITY_STORAGE_ROOT` as an absolute, dedicated, persistent private directory, shared by every API/worker replica using this database. Do not use static/media directories, a public web-server mount, an ephemeral container layer or a symlink. Without this directory, media capture is skipped without stopping recognition; text/metadata collection can continue.
 - The hard ceiling is **1 GiB (1,073,741,824 bytes)** of actual files in the private directory, including raw audio/photo, private review exports and orphans. This is disk usage, not a RAM allowance, DB row count or physical server-space reservation. Database metadata/text and filesystem overhead are outside this file quota. Provision free server disk and the persistent mount separately during approved rollout; compose does not allocate production storage automatically.
