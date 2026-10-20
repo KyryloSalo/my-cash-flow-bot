@@ -68,6 +68,7 @@ services:
       dockerfile: bot/Dockerfile
     env_file: ${HOST_ENV_FILE:-.env}
     environment:
+      RECOGNITION_QUALITY_STORAGE_ROOT: /var/lib/recognition-quality/raw
       FAMILY_ACCESS_ENABLED: ${FAMILY_ACCESS_ENABLED:-true}
       SUPPORT_CONTACT_URL: ${SUPPORT_CONTACT_URL:-https://t.me/Askills_Support}
       PHOTO_PIPELINE_ENABLED: 'true'
@@ -128,6 +129,7 @@ services:
     - python manage.py collectstatic --noinput && exec gunicorn -c gunicorn.conf.py
       config.wsgi:application
     volumes:
+    - recognition_private:/var/lib/recognition-quality
     - admin_static:/app/staticfiles
     - ${DJANGO_SECRET_HOST_PATH:-/opt/my-cash-flow-bot/runtime-secrets/django_secret_key}:/run/secrets/django_secret_key:ro
     - ${TELEGRAM_OIDC_CLIENT_ID_HOST_PATH:-/opt/my-cash-flow-bot/runtime-secrets/telegram_oidc_client_id}:/run/secrets/telegram_oidc_client_id:ro
@@ -160,6 +162,7 @@ services:
       dockerfile: admin_service/Dockerfile
     env_file: ${HOST_ENV_FILE:-.env}
     environment:
+      RECOGNITION_QUALITY_STORAGE_ROOT: /var/lib/recognition-quality/raw
       DOMAIN: vydno.capital
       ADMIN_DOMAIN: admin.vydno.capital
       LEGACY_ADMIN_DOMAIN: cashflowbot.mygpttest.space
@@ -182,6 +185,7 @@ services:
     restart: unless-stopped
     image: mcf-admin:${RELEASE_ID:-local}
     volumes:
+    - recognition_private:/var/lib/recognition-quality
     - ${DJANGO_SECRET_HOST_PATH:-/opt/my-cash-flow-bot/runtime-secrets/django_secret_key}:/run/secrets/django_secret_key:ro
     logging:
       driver: json-file
@@ -304,6 +308,7 @@ volumes:
   redisdata: null
   admin_static: null
   beat_state: null
+  recognition_private: null
 networks:
   default: {}
   edge:

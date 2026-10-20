@@ -22,6 +22,20 @@ def purge_expired_auth_token_uses_task() -> dict[str, int]:
     return purge_expired_auth_token_uses()
 
 
+@shared_task(name="miniapp.purge_expired_recognition_captures")
+def purge_expired_recognition_captures_task() -> dict[str, int]:
+    from miniapp.recognition_quality import purge_expired
+
+    return {"deleted": purge_expired()}
+
+
+@shared_task(name="miniapp.deliver_recognition_storage_alerts")
+def deliver_recognition_storage_alerts_task(log_ids=None) -> dict[str, int]:
+    from miniapp.recognition_storage import deliver_storage_alerts
+
+    return deliver_storage_alerts(log_ids)
+
+
 @shared_task(name="miniapp.dispatch_pending_pushes")
 def dispatch_pending_pushes() -> dict[str, int]:
     delivered = 0

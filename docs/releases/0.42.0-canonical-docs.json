@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "version": "0.42.0",
+  "deployed_sha": "7cd6cdd397420478c0fbd14ce9d9d9351a550039",
+  "production_run_id": 39433327350,
+  "deployment_date": "2026-10-20",
+  "validation_run_id": 39432251347,
+  "readback_at_utc": "2026-10-20T16:14:35.509685+00:00",
+  "readback": "passed",
+  "source_of_truth": "Reviewed GitHub release documentation; apply only exact replacements after this documentation PR is merged. Runtime deployment is verified; feature acceptance is isolated, not authenticated production-report acceptance.",
+  "semver_rationale": "MINOR: backwards-compatible partner payment reporting capability.",
+  "acceptance_boundary": "Verification: exact-SHA validation 39432251347 and approved production deployment 39433327350 succeeded; production revision/readiness readback passed at 2026-10-20T16:14:35.509685+00:00. Feature acceptance used isolated synthetic data (60 regression tests and Chromium browser acceptance); no authenticated production report acceptance or real customer-payment reconciliation is claimed. The historical deferred goals acceptance remains unchanged.",
+  "changes": [
+    {
+      "path": "VERSION",
+      "kind": "replace_once",
+      "old_string": "0.41.0\n",
+      "new_string": "0.42.0\n"
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "kind": "replace_once",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.42.0 - 2026-10-20 (deployed)\n\nEnvironment: production. Deployed SHA `7cd6cdd397420478c0fbd14ce9d9d9351a550039`, run `39433327350`. MINOR: new backwards-compatible partner payment reporting capability.\n\nPartner payment reporting adds inclusive Payment.paid_at date filters, daily/weekly/monthly grouping, repeat and renewal payment events, exact currency-separated totals, and durable first-touch registration attribution. The finance-admin report is permission-gated and supports manual partner settlement only; no commissions or automatic payouts are introduced.\n\nVerification: exact-SHA validation 39432251347 and approved production deployment 39433327350 succeeded; production revision/readiness readback passed at 2026-10-20T16:14:35.509685+00:00. Feature acceptance used isolated synthetic data (60 regression tests and Chromium browser acceptance); no authenticated production report acceptance or real customer-payment reconciliation is claimed. The historical deferred goals acceptance remains unchanged.\n\nDocumentation-only sync; documentation merge SHA is not the deployed runtime SHA and does not imply another rollout.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "Last updated: 2026-10-19\n\n## Runtime delivery status — 2026-10-19 (0.41.0)\n",
+      "new_string": "Last updated: 2026-10-20\n\n## Runtime delivery status — 2026-10-20 (0.42.0)\n\nProduction run `39433327350` deployed SHA `7cd6cdd397420478c0fbd14ce9d9d9351a550039` on **2026-10-20**.\n\nPartner payment reporting adds inclusive Payment.paid_at date filters, daily/weekly/monthly grouping, repeat and renewal payment events, exact currency-separated totals, and durable first-touch registration attribution. The finance-admin report is permission-gated and supports manual partner settlement only; no commissions or automatic payouts are introduced.\n\nVerification: exact-SHA validation 39432251347 and approved production deployment 39433327350 succeeded; production revision/readiness readback passed at 2026-10-20T16:14:35.509685+00:00. Feature acceptance used isolated synthetic data (60 regression tests and Chromium browser acceptance); no authenticated production report acceptance or real customer-payment reconciliation is claimed. The historical deferred goals acceptance remains unchanged.\n\n## Previous runtime delivery status — 2026-10-19 (0.41.0)\n"
+    },
+    {
+      "path": "README.md",
+      "kind": "replace_once",
+      "old_string": "Current production release: **0.41.0**, deployed **2026-10-19** from SHA `da885d1327cdd068357786f20415a207b900a0a9` through successful production run `39289922585`. The goals release adds dedicated per-goal atomic account creation, explicit details actions, full-funded full-balance spending, completion that preserves funds/account and prevents repeat completion, and server-scoped transactions plus transfer history. This deployment record does **not** claim production acceptance complete; authenticated goal `test 22`, target `9998` remains unverified and is explicitly deferred by user request. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for the verification boundary.",
+      "new_string": "Current production release: **0.42.0**, deployed **2026-10-20** from SHA `7cd6cdd397420478c0fbd14ce9d9d9351a550039` through successful production run `39433327350` after exact-SHA validation `39432251347` and Environment approval. Partner payment reporting adds inclusive Payment.paid_at date filters, daily/weekly/monthly grouping, repeat and renewal payment events, exact currency-separated totals, and durable first-touch registration attribution. The finance-admin report is permission-gated and supports manual partner settlement only; no commissions or automatic payouts are introduced. Verification: exact-SHA validation 39432251347 and approved production deployment 39433327350 succeeded; production revision/readiness readback passed at 2026-10-20T16:14:35.509685+00:00. Feature acceptance used isolated synthetic data (60 regression tests and Chromium browser acceptance); no authenticated production report acceptance or real customer-payment reconciliation is claimed. The historical deferred goals acceptance remains unchanged. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for scope and verification boundaries."
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Current production version: `0.41.0` (deployed 2026-10-19). Semver rationale: MINOR for backwards-compatible user-facing goal lifecycle and server-scoped history capabilities: dedicated per-goal atomic account creation, explicit goal actions, full-funded full-balance spending, completion preserving funds/account, and scoped transactions plus transfer history.",
+      "new_string": "Current production version: `0.42.0` (deployed 2026-10-20). Semver rationale: MINOR for backwards-compatible partner payment reporting, inclusive payment-date filtering, period grouping, currency-separated totals, and durable referral attribution."
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Last updated: 2026-10-19",
+      "new_string": "Last updated: 2026-10-20"
+    }
+  ]
+}
