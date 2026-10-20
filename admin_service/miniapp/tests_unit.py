@@ -1988,7 +1988,15 @@ class MiniAppShellTemplateUnitTests(SimpleTestCase):
             response,
             'accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.heic,.heif"',
         )
-        self.assertNotContains(response, 'capture="environment"')
+        self.assertContains(response, 'id="aiImageCameraInput"')
+        self.assertContains(response, 'capture="environment"')
+        import re
+
+        markup = response.content.decode()
+        camera_input = re.search(r'<input\b[^>]*id="aiImageCameraInput"[^>]*>', markup).group(0)
+        gallery_input = re.search(r'<input\b[^>]*id="aiImageInput"[^>]*>', markup).group(0)
+        self.assertIn('capture="environment"', camera_input)
+        self.assertNotIn('capture=', gallery_input)
         self.assertContains(response, 'id="aiImageBatchCard"')
         self.assertContains(response, 'Операції з банківського скріншота')
         self.assertContains(response, 'id="aiImageBatchAccount"')
