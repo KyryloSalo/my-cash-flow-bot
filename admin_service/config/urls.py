@@ -12,6 +12,7 @@ from subscriptions.views import (
     monobank_webhook,
 )
 from miniapp.views import (
+    internal_browser_login_link,
     internal_notification_event,
     internal_transaction_void_confirm,
     internal_transaction_void_draft,
@@ -31,6 +32,7 @@ urlpatterns = [
     path("internal/billing/mono/retry-renew", monobank_retry_renew, name="billing-mono-retry-renew"),
     path("internal/billing/mono/sync-bind-status", monobank_sync_bind_status, name="billing-mono-sync-bind-status"),
     path("internal/push/event", internal_notification_event, name="push-internal-event"),
+    path("internal/auth/browser-login-link", internal_browser_login_link, name="browser-login-link-internal"),
     path("internal/transactions/recent", internal_transactions_recent, name="transactions-internal-recent"),
     path("internal/transactions/void/draft", internal_transaction_void_draft, name="transactions-internal-void-draft"),
     path("internal/transactions/void/confirm", internal_transaction_void_confirm, name="transactions-internal-void-confirm"),

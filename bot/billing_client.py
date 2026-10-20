@@ -315,6 +315,14 @@ async def _post_json(path: str, payload: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+async def create_browser_login_url(tg_user_id: int, *, locale: str = "uk") -> str:
+    data = await _post_json(
+        "/internal/auth/browser-login-link",
+        {"tg_user_id": int(tg_user_id), "locale": locale},
+    )
+    return str(data.get("url") or "")
+
+
 async def init_bind_session(*, tg_user_id: int, trial_days: int, mode: str, promo_code: str = "") -> dict[str, Any]:
     return await _post_json(
         "/internal/billing/mono/init-bind",
