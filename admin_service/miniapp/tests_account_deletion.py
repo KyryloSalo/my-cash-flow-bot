@@ -94,7 +94,7 @@ class AccountDeletionApiTests(TestCase):
         registration = SimpleNamespace(user=self.user)
         with (
             patch("miniapp.views.validate_telegram_init_data", return_value=identity),
-            patch("miniapp.views.bootstrap_telegram_identity", return_value=registration),
+            patch("miniapp.views._bootstrap_with_partner", return_value=registration),
         ):
             auth_response = self.client.post(
                 "/app/api/auth/telegram",
