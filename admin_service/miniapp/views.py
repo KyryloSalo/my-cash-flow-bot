@@ -10,7 +10,7 @@ import uuid
 from datetime import timedelta
 from html import escape
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from django.conf import settings
 from django.core.cache import cache
@@ -908,9 +908,30 @@ def browser_login_handoff(request: HttpRequest, token: str) -> HttpResponse:
     # without waiting for a Service Worker update.
     login_url = f"/app/api/browser-login/{quote(token, safe='')}/{login_query}"
     user_agent = str(request.META.get("HTTP_USER_AGENT") or "").lower()
+    is_android_handoff = "android" in user_agent
+    is_telegram_handoff = "telegram" in user_agent
     is_ios_handoff = any(marker in user_agent for marker in ("iphone", "ipad", "ipod")) or (
         "macintosh" in user_agent and "mobile" in user_agent
     )
+    if is_android_handoff and is_telegram_handoff:
+        absolute_login_url = request.build_absolute_uri(login_url)
+        request_parts = urlsplit(absolute_login_url)
+        intent_path = request_parts.path
+        if request_parts.query:
+            intent_path = f"{intent_path}?{request_parts.query}"
+        chrome_intent_url = (
+            f"intent://{request_parts.netloc}{intent_path}"
+            f"#Intent;scheme={request_parts.scheme}"
+            ";package=com.android.chrome"
+            f";S.browser_fallback_url={quote(absolute_login_url, safe='')}"
+            ";end"
+        )
+        response = HttpResponse(status=302)
+        response["Location"] = chrome_intent_url
+        response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, private"
+        response["Pragma"] = "no-cache"
+        response["Expires"] = "0"
+        return response
     if is_ios_handoff:
         handoff_intro = (
             "Відкрий цю сторінку в Safari, натисни кнопку входу та встанови Vydno. "
@@ -1064,6 +1085,26 @@ def _complete_browser_login(
                 expected_purpose=expected_purpose,
             )
     except MiniAppAuthError as exc:
+        if expected_purpose == "ordinary_browser_login" and "already used" in str(exc).lower():
+            try:
+                link_identity = validate_browser_login_token(token)
+                current_user = get_session_user(request)
+            except (MiniAppAuthError, MiniAppSessionError):
+                pass
+            else:
+                if int(current_user.tg_user_id) == int(link_identity.tg_user_id):
+                    if str(request.GET.get("operator") or "") == "1":
+                        if not is_operator_user(current_user):
+                            return JsonResponse(
+                                {"error": {"code": "operator_access_denied", "message": "Operator access denied."}},
+                                status=403,
+                            )
+                        return redirect("/app/operator/")
+                    target = "/app/?install=1" if str(request.GET.get("install") or "") == "1" else "/app/"
+                    response = redirect(target)
+                    response["Cache-Control"] = "no-store"
+                    response["Referrer-Policy"] = "no-referrer"
+                    return response
         return _browser_login_error_response(exc)
 
     auth_mode = (
