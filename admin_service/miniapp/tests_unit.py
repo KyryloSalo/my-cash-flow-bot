@@ -364,7 +364,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
 
         with (
             patch.object(views, "validate_telegram_init_data", return_value=identity),
-            patch.object(views, "bootstrap_telegram_identity", return_value=registration),
+            patch.object(views, "_bootstrap_with_partner", return_value=registration),
             patch.object(views, "login_session") as login_mock,
             patch.object(views, "resolve_access", return_value={"mode": "active"}),
         ):
@@ -387,7 +387,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
             patch.object(views, "exchange_authorization_code", return_value="id-token"),
             patch.object(views, "verify_id_token", return_value=oidc_identity),
             patch.object(views, "consume_id_token_once"),
-            patch.object(views, "bootstrap_telegram_identity", return_value=registration),
+            patch.object(views, "_bootstrap_with_partner", return_value=registration),
             patch.object(views, "login_session") as login_mock,
         ):
             response = views.telegram_oidc_callback(request)

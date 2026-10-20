@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
+from django.utils import timezone
 from unfold.sites import UnfoldAdminSite
 
 from common.admin import ADMIN_PAGE_METADATA
@@ -58,6 +59,7 @@ class CashFlowAdminSite(UnfoldAdminSite):
             path("onboarding-debug/", self.admin_view(self.onboarding_debug_view), name="onboarding_debug"),
             path("healthcheck/", self.admin_view(self.healthcheck_view), name="system_health"),
             path("admin-notifications/", self.admin_view(self.admin_notifications_view), name="admin_notifications"),
+            path("partner-payments/", self.admin_view(self.partner_payments_view), name="partner_payments"),
         ]
         return custom_urls + urls
 
@@ -81,6 +83,39 @@ class CashFlowAdminSite(UnfoldAdminSite):
 
     def admin_notifications_view(self, request):
         return admin_notifications_view(self, request)
+
+    def partner_payments_view(self, request):
+        from datetime import date, timedelta
+        from dashboard.partner_payments import partner_payment_report
+        from common.admin_actions import require_admin_action
+        from miniapp.models import PartnerLink
+        require_admin_action(request.user, "partner_payments_view")
+        today = timezone.localdate()
+        start, end = today - timedelta(days=29), today
+        grouping = request.GET.get("grouping", "day")
+        partner_id = request.GET.get("partner", "")
+        report = {"totals": {}, "by_partner": {}, "payments": []}
+        try:
+            if "start" in request.GET or "end" in request.GET:
+                try:
+                    start = date.fromisoformat(request.GET.get("start", ""))
+                    end = date.fromisoformat(request.GET.get("end", ""))
+                except ValueError as exc:
+                    raise ValueError("Некоректна дата. Вкажіть початок і завершення періоду.") from exc
+            if partner_id and (not partner_id.isdecimal() or not PartnerLink.objects.filter(pk=partner_id).exists()):
+                raise ValueError("Невідоме партнерське посилання.")
+            report = partner_payment_report(start, end, grouping, partner_id or None)
+        except ValueError as exc:
+            report["error"] = str(exc)
+        context = {
+            **self.each_context(request), **report,
+            "start_date": start, "end_date": end, "grouping": grouping,
+            "partner_id": partner_id,
+            "partners": [{"id": str(link.pk), "name": link.name, "code": link.code} for link in PartnerLink.objects.order_by("name", "pk")],
+            "report_timezone": timezone.get_current_timezone_name(),
+            "title": "Платежі партнерів",
+        }
+        return TemplateResponse(request, "admin/partner_payments.html", context)
 
     def _is_developer_mode(self, request) -> bool:
         return settings.ENABLE_ADMIN_DEVELOPER_MODE and getattr(request.user, "is_superuser", False)
@@ -154,6 +189,11 @@ class CashFlowAdminSite(UnfoldAdminSite):
                 object_name="AdminNotifications",
                 url=reverse("admin:admin_notifications"),
             )
+
+        if model_key == "custom:partner_payments":
+            if not can_admin_action(request.user, "partner_payments_view"):
+                return None
+            return self._custom_item(name=label, object_name="PartnerPayments", url=reverse("admin:partner_payments"))
 
         return None
 

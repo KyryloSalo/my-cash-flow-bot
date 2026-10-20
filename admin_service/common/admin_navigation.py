@@ -27,6 +27,7 @@ PRIMARY_MENU_SECTIONS = (
             ("users.TelegramUser", "Усі користувачі"),
             ("users.Tag", "Теги користувачів"),
             ("miniapp.PartnerLink", "Партнерські посилання"),
+            ("custom:partner_payments", "Платежі партнерів"),
         ),
     ),
     AdminMenuSection(

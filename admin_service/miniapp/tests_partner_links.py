@@ -327,7 +327,7 @@ class PartnerLinkRegistrationAttributionTests(SimpleTestCase):
             patch("miniapp.views.exchange_authorization_code", return_value="id-token"),
             patch("miniapp.views.verify_id_token", return_value=oidc_identity),
             patch("miniapp.views.consume_id_token_once"),
-            patch("miniapp.views.bootstrap_telegram_identity", return_value=registration),
+            patch("miniapp.views._bootstrap_with_partner", return_value=registration),
             patch("miniapp.views.login_session"),
             patch("miniapp.views.queue_registration_event") as record_event,
         ):
@@ -362,7 +362,7 @@ class PartnerLinkRegistrationAttributionTests(SimpleTestCase):
 
         with (
             patch("miniapp.views.validate_telegram_init_data", return_value=identity),
-            patch("miniapp.views.bootstrap_telegram_identity", return_value=registration),
+            patch("miniapp.views._bootstrap_with_partner", return_value=registration),
             patch("miniapp.views.login_session"),
             patch("miniapp.views.resolve_access", return_value={"mode": "active"}),
             patch("miniapp.views.queue_registration_event") as record_event,
@@ -397,7 +397,7 @@ class PartnerLinkRegistrationAttributionTests(SimpleTestCase):
 
         with (
             patch("miniapp.views.validate_telegram_init_data", return_value=identity),
-            patch("miniapp.views.bootstrap_telegram_identity", return_value=registration),
+            patch("miniapp.views._bootstrap_with_partner", return_value=registration),
             patch("miniapp.views.login_session"),
             patch("miniapp.views.resolve_access", return_value={"mode": "active"}),
             patch("miniapp.views.queue_registration_event") as record_event,

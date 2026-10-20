@@ -36,6 +36,7 @@ ACTION_PERMISSIONS = {
     "health_view": (("bot_events.view_botevent",),),
     "notification_view": (("admin_notifications.view_adminnotificationlog",),),
     "notification_send": (("admin_notifications.add_adminnotificationlog",),),
+    "partner_payments_view": (("miniapp.view_partnerlink", "subscriptions.view_payment"),),
 }
 
 
