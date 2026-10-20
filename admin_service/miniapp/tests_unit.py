@@ -1772,6 +1772,44 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertEqual(response["Content-Type"], "text/html; charset=utf-8")
         self.assertEqual(response["Cache-Control"], "no-store, no-cache, must-revalidate, max-age=0, private")
 
+    def test_browser_login_view_reuses_existing_same_user_session_when_link_was_already_consumed(self) -> None:
+        request = self.factory.get("/app/api/browser-login/raw-token/")
+        request.session = FakeSession()
+        current_user = SimpleNamespace(tg_user_id=1001)
+
+        with (
+            patch.object(
+                views,
+                "consume_browser_login_token_with_identity",
+                side_effect=auth.MiniAppAuthError("Browser login link already used."),
+            ),
+            patch.object(views, "validate_browser_login_token", return_value=SimpleNamespace(tg_user_id=1001)),
+            patch.object(views, "get_session_user", return_value=current_user),
+        ):
+            response = views.browser_login(request, "raw-token")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/app/")
+
+    def test_browser_login_view_does_not_reuse_consumed_link_for_another_session_user(self) -> None:
+        request = self.factory.get("/app/api/browser-login/raw-token/")
+        request.session = FakeSession()
+        current_user = SimpleNamespace(tg_user_id=2002)
+
+        with (
+            patch.object(
+                views,
+                "consume_browser_login_token_with_identity",
+                side_effect=auth.MiniAppAuthError("Browser login link already used."),
+            ),
+            patch.object(views, "validate_browser_login_token", return_value=SimpleNamespace(tg_user_id=1001)),
+            patch.object(views, "get_session_user", return_value=current_user),
+        ):
+            response = views.browser_login(request, "raw-token")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("already used", response.content.decode("utf-8"))
+
     def test_browser_login_handoff_does_not_consume_token(self) -> None:
         request = self.factory.get(
             "/app/browser-login/raw-token/",
@@ -1804,6 +1842,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
     def test_browser_login_handoff_non_ios_copy_is_chrome_oriented(self) -> None:
         request = self.factory.get(
             "/app/browser-login/raw-token/",
+            HTTP_HOST="vydno.capital",
             HTTP_USER_AGENT=(
                 "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 "
                 "Chrome/128.0 Mobile Safari/537.36 Telegram"
@@ -1812,10 +1851,28 @@ class MiniAppViewUnitTests(unittest.TestCase):
 
         response = views.browser_login_handoff(request, "raw-token")
 
-        handoff_copy = response.content.decode("utf-8").split("<main>", 1)[1].split("</main>", 1)[0]
-        self.assertIn("Chrome", handoff_copy)
-        self.assertNotIn("Safari", handoff_copy)
-        self.assertIn("меню ⋮", handoff_copy)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("package=com.android.chrome", response["Location"])
+        self.assertIn("/app/api/browser-login/raw-token/", response["Location"])
+
+    def test_browser_login_handoff_android_telegram_redirects_to_chrome_without_consuming_token(self) -> None:
+        request = self.factory.get(
+            "/app/browser-login/raw-token/?install=1",
+            HTTP_HOST="vydno.capital",
+            HTTP_USER_AGENT=(
+                "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 "
+                "Chrome/128.0 Mobile Safari/537.36 Telegram"
+            ),
+        )
+
+        with patch.object(views, "consume_browser_login_token_with_identity") as consume_mock:
+            response = views.browser_login_handoff(request, "raw-token")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response["Location"].startswith("intent://vydno.capital/app/api/browser-login/raw-token/"))
+        self.assertIn("package=com.android.chrome", response["Location"])
+        self.assertIn("install%3D1", response["Location"])
+        consume_mock.assert_not_called()
 
     @override_settings(MINIAPP_BROWSER_SESSION_AGE_SECONDS=123456)
     def test_install_handoff_preserves_install_intent_through_browser_login(self) -> None:
