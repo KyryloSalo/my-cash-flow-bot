@@ -97,10 +97,10 @@ def browser_acceptance(base, output):
             browser.close()
 
 
-def main():
+def main(*, seed_module="ops.partner_payments_acceptance_support", browser_scenario=browser_acceptance, default_tests=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--unit-only", action="store_true")
-    parser.add_argument("--tests", nargs="+", default=["dashboard.tests_partner_payments", "miniapp.tests_partner_attribution"])
+    parser.add_argument("--tests", nargs="+", default=default_tests or ["dashboard.tests_partner_payments", "miniapp.tests_partner_attribution"])
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     app = root / "admin_service"
@@ -129,14 +129,14 @@ def main():
         manage("test", *args.tests, "--noinput", "--verbosity", "1")
         if not args.unit_only:
             manage("migrate", "--noinput", "--verbosity", "0")
-            manage("shell", "-c", f"import sys; sys.path.insert(0, {str(root)!r}); from ops.partner_payments_acceptance_support import seed; seed()")
+            manage("shell", "-c", f"import sys; sys.path.insert(0, {str(root)!r}); from {seed_module} import seed; seed()")
             web_port = free_port()
             with (output / "server.log").open("w", encoding="utf-8") as log:
                 server = subprocess.Popen([sys.executable, "manage.py", "runserver", f"127.0.0.1:{web_port}", "--noreload"], cwd=app, env=env, stdout=log, stderr=subprocess.STDOUT)
                 base = f"http://127.0.0.1:{web_port}"
                 wait_ready(base + "/login/", server)
-                browser_acceptance(base, output)
-            print("REAL_PARTNER_PAYMENTS_ACCEPTANCE_PASS: real PostgreSQL migrations, tests, Chromium login, custom paid-date boundaries, day/week/month, partner selection, exact currency totals, payment detail, empty state, unauthorized/403")
+                browser_scenario(base, output)
+            print("PARTNER_ACCEPTANCE_PASS: real PostgreSQL migrations, regression tests and Chromium scenario completed")
         else:
             print("PARTNER_PAYMENT_UNIT_PASS")
     finally:

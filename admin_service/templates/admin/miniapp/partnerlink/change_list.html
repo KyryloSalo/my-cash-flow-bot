@@ -1,0 +1,30 @@
+{% extends "admin/change_list.html" %}
+{% load static %}
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'miniapp/partner_cabinet.css' %}">{% endblock %}
+{% block extrahead %}{{ block.super }}<script src="{% static 'miniapp/partner_cabinet.js' %}" defer></script>{% endblock %}
+{% block content_title %}<h1 class="pc-title">Партнерські посилання</h1>{% endblock %}
+{% block date_hierarchy %}
+<section class="pc-period" aria-label="Період звіту">
+  <div class="pc-period-heading"><strong>Результати за період</strong><span>Часовий пояс: Europe/Kyiv</span></div>
+  <nav class="pc-presets" aria-label="Швидкі періоди">
+    {% for preset in partner_presets %}<a href="{{ preset.url }}" class="pc-preset{% if preset.active %} pc-active{% endif %}"{% if preset.active %} aria-current="date"{% endif %}>{{ preset.label }}</a>{% endfor %}
+  </nav>
+  <form id="partner-period-form" method="get" class="pc-range" aria-label="Довільний діапазон">
+    {% for key, value in partner_period_hidden %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+    <label>Початок<input type="date" name="period_start" value="{{ partner_period.start }}" required></label>
+    <span aria-hidden="true">—</span>
+    <label>Кінець<input type="date" name="period_end" value="{{ partner_period.end }}" required></label>
+    <button type="submit" class="pc-apply">Застосувати</button>
+  </form>
+  {% if partner_period.error %}<p role="alert" class="pc-error">{{ partner_period.error }}</p>{% else %}<p class="pc-applied">{{ partner_period.start_date|date:"d.m.Y" }} — {{ partner_period.end_date|date:"d.m.Y" }} · включно</p>{% endif %}
+  {% for warning in partner_warnings %}<p role="status" class="pc-warning">{{ warning }}</p>{% endfor %}
+</section>
+{% endblock %}
+{% block result_list %}
+<div class="pc-results">
+<table class="pc-table" aria-label="Метрики партнерських посилань">
+<thead><tr><th scope="col">Партнерське посилання</th><th scope="col">Переходи</th><th scope="col">Реєстрації</th><th scope="col">Успішних оплат за період</th><th scope="col">Сума оплат за період (₴)</th><th scope="col">Кількість перших оплат</th><th scope="col">Сума перших оплат (₴)</th><th scope="col">Кількість повторних оплат</th><th scope="col">Сума повторних оплат (₴)</th><th scope="col">Сума повернень (₴)</th></tr></thead>
+{% for link in cl.result_list %}{% include "admin/miniapp/partnerlink/partner_rows.html" %}{% empty %}<tbody><tr><td colspan="10">Посилань за умовами пошуку немає.</td></tr></tbody>{% endfor %}
+</table>
+</div>
+{% endblock %}

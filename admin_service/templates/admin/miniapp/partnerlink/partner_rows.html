@@ -1,0 +1,27 @@
+{% load admin_urls %}
+<tbody class="pc-partner" data-partner-id="{{ link.pk }}">
+<tr class="pc-main">
+  <th scope="row" data-label="Посилання"><div class="pc-link-name"><span class="pc-dot{% if link.is_active %} pc-live{% endif %}" title="{% if link.is_active %}Активне{% else %}Неактивне{% endif %}"></span><a href="{% add_preserved_filters link.cabinet_edit_url %}">{{ link.name }}</a></div><div class="pc-actions"><a href="{{ link.cabinet_public_url }}" target="_blank" rel="noopener noreferrer">Відкрити ↗</a><button type="button" data-partner-toggle="pc-detail-{{ link.pk }}" aria-expanded="false" aria-controls="pc-detail-{{ link.pk }}">Деталі</button></div></th>
+  <td data-label="Переходи" data-metric="clicks">{% if partner_period.error %}—{% else %}{{ link.metric_human_clicks }}{% endif %}</td>
+  <td data-label="Реєстрації" data-metric="registrations">{% if partner_period.error %}—{% else %}{{ link.metric_first_registrations }}{% endif %}</td>
+  {% include "admin/miniapp/partnerlink/money_cells.html" with metrics=link.cabinet %}
+</tr>
+<tr id="pc-detail-{{ link.pk }}" class="pc-detail" hidden><td colspan="10">
+  <dl class="pc-funnel">
+    <div><dt>Код</dt><dd>{{ link.code }}</dd></div><div><dt>Джерело</dt><dd>{{ link.utm_source|default:"—" }}</dd></div><div><dt>Кампанія</dt><dd>{{ link.utm_campaign|default:"—" }}</dd></div><div><dt>Створено</dt><dd>{{ link.created_at|date:"d.m.Y" }}</dd></div>
+    {% if not partner_period.error %}
+    <div><dt>Унікальні відвідувачі</dt><dd data-funnel="unique_visitors">{{ link.metric_unique_visitors }}</dd></div>
+    <div><dt>Авторизації</dt><dd data-funnel="auth">{{ link.metric_auth }}</dd></div>
+    <div><dt>Last-touch реєстрації</dt><dd data-funnel="last_registrations">{{ link.metric_last_registrations }}</dd></div>
+    <div><dt>Онбординг</dt><dd data-funnel="onboarding">{{ link.metric_onboarding }}</dd></div>
+    <div><dt>Перша транзакція</dt><dd data-funnel="first_transaction">{{ link.metric_first_transaction }}</dd></div>
+    <div><dt>Конверсії в оплату</dt><dd data-funnel="payment">{{ link.metric_payment }}</dd></div>
+    <div><dt>Конверсія в реєстрацію</dt><dd data-funnel="registration_rate">{{ link.cabinet_registration_rate }}</dd></div>
+    {% endif %}
+  </dl>
+  {% if not partner_period.error %}{% for kind, buckets in link.cabinet.groups.items %}
+  <details class="pc-group"><summary>{% if kind == 'day' %}За днями{% elif kind == 'week' %}За тижнями{% else %}За місяцями{% endif %}</summary>
+    {% include "admin/miniapp/partnerlink/payment_groups.html" %}
+  </details>{% endfor %}{% endif %}
+</td></tr>
+</tbody>
