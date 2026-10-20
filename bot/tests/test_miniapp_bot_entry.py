@@ -100,6 +100,7 @@ class MiniAppBotEntryTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(bot_main.config, "MINIAPP_URL", "https://vydno.capital/app/"),
             patch.object(bot_main.config, "BOT_TOKEN", "123456:test-miniapp-token"),
+            patch.object(bot_main, "_server_issued_browser_login_url", new=AsyncMock(return_value="https://vydno.capital/app/browser-login/server-token/")),
             patch.object(
                 bot_main,
                 "_maybe_sync_pending_bind_access_state",
@@ -121,12 +122,23 @@ class MiniAppBotEntryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("/app/browser-login/", browser_login_url)
         self.assertNotIn("tg_user_id=", browser_login_url)
 
+    async def test_server_issued_browser_login_does_not_fallback_to_locally_signed_token(self) -> None:
+        with (
+            patch("billing_client.create_browser_login_url", new=AsyncMock(side_effect=RuntimeError("admin unavailable"))),
+            patch.object(bot_main, "_miniapp_browser_login_url", return_value="https://vydno.capital/app/browser-login/local-token/") as local_mock,
+        ):
+            url = await bot_main._server_issued_browser_login_url(123)
+
+        self.assertEqual(url, "")
+        local_mock.assert_not_called()
+
     async def test_show_miniapp_onboarding_entry_bypasses_paywall_and_launches_app(self) -> None:
         message = harness.DummyMessage()
 
         with (
             patch.object(bot_main.config, "MINIAPP_URL", "https://vydno.capital/app/"),
             patch.object(bot_main.config, "BOT_TOKEN", "123456:test-miniapp-token"),
+            patch.object(bot_main, "_server_issued_browser_login_url", new=AsyncMock(return_value="https://vydno.capital/app/browser-login/server-token/")),
             patch.object(bot_main, "_set_locale_for_user", new=AsyncMock()),
         ):
             shown = await bot_main._show_miniapp_onboarding_entry(message, object(), 123)
@@ -157,6 +169,7 @@ class MiniAppBotEntryTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(bot_main.config, "MINIAPP_URL", "https://vydno.capital/app/"),
             patch.object(bot_main.config, "BOT_TOKEN", "123456:test-miniapp-token"),
+            patch.object(bot_main, "_server_issued_browser_login_url", new=AsyncMock(return_value="https://vydno.capital/app/browser-login/server-token/")),
             patch.object(
                 bot_main,
                 "_maybe_sync_pending_bind_access_state",
@@ -189,6 +202,7 @@ class MiniAppBotEntryTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(bot_main.config, "MINIAPP_URL", "https://vydno.capital/app/"),
             patch.object(bot_main.config, "BOT_TOKEN", "123456:test-miniapp-token"),
+            patch.object(bot_main, "_server_issued_browser_login_url", new=AsyncMock(return_value="https://vydno.capital/app/browser-login/server-token/")),
             patch.object(
                 bot_main,
                 "_maybe_sync_pending_bind_access_state",
@@ -373,6 +387,7 @@ class MiniAppBotEntryTests(unittest.IsolatedAsyncioTestCase):
             patch.object(bot_main.config, "MINIAPP_URL", "https://vydno.capital/app/"),
             patch.object(bot_main.config, "MINIAPP_OPERATOR_TELEGRAM_IDS", [7884326049]),
             patch.object(bot_main.config, "BOT_TOKEN", "123456:test-miniapp-token"),
+            patch.object(bot_main, "_server_issued_browser_login_url", new=AsyncMock(return_value="https://vydno.capital/app/browser-login/server-token/?operator=1")),
             patch.object(bot_main, "_set_locale_for_user", new=AsyncMock()),
             patch.object(bot_main, "kb_dashboard_launch_menu", wraps=bot_main.kb_dashboard_launch_menu) as menu_builder,
         ):

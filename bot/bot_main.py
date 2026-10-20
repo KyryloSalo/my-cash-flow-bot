@@ -3132,7 +3132,7 @@ async def _server_issued_browser_login_url(tg_user_id: int, *, operator: bool = 
         url = await create_browser_login_url(tg_user_id, locale="uk")
     except Exception:
         logger.exception("Failed to request server-issued browser login URL")
-        return _miniapp_browser_login_url(tg_user_id, operator=operator)
+        return ""
     if not url:
         return ""
     if operator:
