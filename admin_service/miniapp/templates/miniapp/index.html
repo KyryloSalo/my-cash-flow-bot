@@ -599,7 +599,7 @@
                   </svg>
                 </span>
                 <span class="ai-intake-copy">
-                  <strong id="aiImageTitle">Зі скріншота</strong>
+                  <strong id="aiImageTitle">З фото</strong>
                   <small id="aiImageLaunchHint">Чек або банківський екран</small>
                 </span>
               </button>
@@ -625,18 +625,32 @@
             </div>
 
             <form class="tx-form ai-intake-panel" id="aiImageForm" hidden>
-              <span class="form-field-label" id="aiImageLabel">Скріншот</span>
-              <label class="file-picker" for="aiImageInput">
-                <span id="aiImageChoose">Обрати файл</span>
-                <input id="aiImageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.heic,.heif">
-              </label>
+              <span class="form-field-label" id="aiImageLabel">Фото чека або скріншот</span>
+              <div class="ai-image-sources">
+                <label class="file-picker" for="aiImageCameraInput">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m8 5 1.5-2h5L16 5h3a2 2 0 0 1 2 2v12H3V7a2 2 0 0 1 2-2h3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.5" stroke="currentColor" stroke-width="1.6"/></svg>
+                  <span id="aiImageCameraChoose">Сфотографувати чек</span>
+                  <input id="aiImageCameraInput" type="file" accept="image/*" capture="environment">
+                </label>
+                <label class="file-picker" for="aiImageInput">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="m3 17 5-5 4 4 4-6 5 7" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>
+                  <span id="aiImageChoose">Обрати з галереї</span>
+                  <input id="aiImageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.heic,.heif">
+                </label>
+              </div>
+              <p class="ai-image-source-hint" id="aiImageSourceHint">Якщо камера недоступна, зробіть фото окремо й оберіть його з галереї.</p>
               <div class="file-picker-name" id="aiImageFileName">Файл не вибрано.</div>
-              <div class="ai-image-review" id="aiImageReview" hidden>
-                <img id="aiImagePreview" alt="Оригінальне фото чека" loading="lazy">
+              <div class="ai-image-review" id="aiImageReview" aria-busy="false" hidden>
+                <div class="ai-image-scan-frame">
+                  <img id="aiImagePreview" alt="Оригінальне фото чека">
+                  <div class="ai-image-scan-beam" aria-hidden="true"></div>
+                  <div class="ai-image-scan-corners" aria-hidden="true"></div>
+                  <p class="ai-image-preview-hint" id="aiImagePreviewHint" hidden>Попередній перегляд недоступний. Фото все одно можна надіслати на розпізнавання.</p>
+                </div>
                 <div class="ai-image-findings" id="aiImageFindings" aria-live="polite"></div>
               </div>
               <button class="secondary-action" id="aiImageParseBtn" type="submit">Розпізнати</button>
-              <div class="form-status" id="aiImageStatus" hidden aria-live="polite"></div>
+              <div class="form-status muted" id="aiImageStatus" role="status" aria-live="polite" hidden></div>
             </form>
 
             <form class="tx-form ai-intake-panel" id="aiTextForm" hidden>
@@ -1985,13 +1999,16 @@
           aiVoicePermissionDenied: "Дозвольте доступ до мікрофона, щоб записати голосове повідомлення.",
           aiVoiceInvalid: "Не вдалося записати підтримуваний аудіофайл. Спробуйте ще раз.",
           aiVoiceTranscript: "Розпізнано: {value}",
-          aiImageTitle: "Зі скріншота",
+          aiImageTitle: "З фото",
           aiImageLaunchHint: "Чек або банківський екран",
-          aiImageLabel: "Скріншот",
-          aiImageChoose: "Обрати файл",
+          aiImageLabel: "Фото чека або скріншот",
+          aiImageChoose: "Обрати з галереї",
+          aiImageCameraChoose: "Сфотографувати чек",
+          aiImageSourceHint: "Якщо камера недоступна, зробіть фото окремо й оберіть його з галереї.",
+          aiImagePreviewHint: "Попередній перегляд недоступний. Фото все одно можна надіслати на розпізнавання.",
           aiImageNoFile: "Файл не вибрано.",
           aiImageParse: "Розпізнати",
-          aiImageLoading: "Розпізнаємо скріншот...",
+          aiImageLoading: "Скануємо зображення…",
           aiImageReady: "Операцію підготовлено до підтвердження.",
           aiImageNeedsFields: "Перевірте незаповнені поля.",
           aiImageUnrecognized: "Не вдалося розпізнати операцію. Заповніть форму вручну.",
@@ -2297,13 +2314,16 @@
           aiVoicePermissionDenied: "Allow microphone access to record a voice message.",
           aiVoiceInvalid: "A supported audio file could not be recorded. Try again.",
           aiVoiceTranscript: "Recognized: {value}",
-          aiImageTitle: "From screenshot",
+          aiImageTitle: "From photo",
           aiImageLaunchHint: "Receipt or banking screen",
-          aiImageLabel: "Screenshot",
-          aiImageChoose: "Choose file",
+          aiImageLabel: "Receipt photo or screenshot",
+          aiImageChoose: "Choose from gallery",
+          aiImageCameraChoose: "Take receipt photo",
+          aiImageSourceHint: "Camera unavailable? Take a photo separately, then choose it from your gallery.",
+          aiImagePreviewHint: "Preview unavailable. You can still send this photo for recognition.",
           aiImageNoFile: "No file selected.",
           aiImageParse: "Recognize",
-          aiImageLoading: "Recognizing screenshot...",
+          aiImageLoading: "Scanning image…",
           aiImageReady: "The transaction is ready to confirm.",
           aiImageNeedsFields: "Review the missing fields.",
           aiImageUnrecognized: "The operation could not be recognized. Fill in the form manually.",
@@ -2632,6 +2652,9 @@
         setText("aiImageLaunchHint", tr("aiImageLaunchHint"));
         setText("aiImageLabel", tr("aiImageLabel"));
         setText("aiImageChoose", tr("aiImageChoose"));
+        setText("aiImageCameraChoose", tr("aiImageCameraChoose"));
+        setText("aiImageSourceHint", tr("aiImageSourceHint"));
+        setText("aiImagePreviewHint", tr("aiImagePreviewHint"));
         setText("aiImageParseBtn", tr("aiImageParse"));
         setText("aiImageBatchTitle", tr("aiImageBatchTitle"));
         setText("aiImageBatchAccountLabel", tr("aiImageBatchAccount"));
@@ -3199,11 +3222,14 @@
         };
       }
 
+      const aiImageCaptureState = { file: null, busy: false };
+
       function aiImageElements() {
         return {
           launch: document.getElementById("aiImageLaunchBtn"),
           form: document.getElementById("aiImageForm"),
           input: document.getElementById("aiImageInput"),
+          cameraInput: document.getElementById("aiImageCameraInput"),
           fileName: document.getElementById("aiImageFileName"),
           review: document.getElementById("aiImageReview"),
           preview: document.getElementById("aiImagePreview"),
@@ -3257,7 +3283,6 @@
         if (image.launch) {
           image.launch.addEventListener("click", function () {
             setAiIntakeMode("image");
-            if (image.input && !image.input.disabled) image.input.click();
           });
         }
         if (text.launch) {
@@ -4243,18 +4268,28 @@
 
       function setAiImageBusy(value) {
         const el = aiImageElements();
+        aiImageCaptureState.busy = Boolean(value);
         if (el.launch) el.launch.disabled = Boolean(value);
         if (el.button) el.button.disabled = Boolean(value);
         if (el.input) el.input.disabled = Boolean(value);
+        if (el.cameraInput) el.cameraInput.disabled = Boolean(value);
+        if (el.review) {
+          el.review.classList.toggle("is-scanning", Boolean(value));
+          el.review.setAttribute("aria-busy", String(Boolean(value)));
+        }
       }
 
       function syncAiImageFileName() {
         const el = aiImageElements();
         if (!el.fileName) return;
-        const file = el.input && el.input.files ? el.input.files[0] : null;
+        const file = aiImageCaptureState.file;
         el.fileName.textContent = file ? file.name : tr("aiImageNoFile");
         if (el.review) el.review.hidden = !file;
         if (el.preview) {
+          if (file && el.preview.dataset.objectUrl) return;
+          const hint = document.getElementById("aiImagePreviewHint");
+          el.preview.hidden = false;
+          if (hint) hint.hidden = true;
           if (file && window.URL && typeof URL.createObjectURL === "function") {
             if (el.preview.dataset.objectUrl) URL.revokeObjectURL(el.preview.dataset.objectUrl);
             const url = URL.createObjectURL(file);
@@ -4266,6 +4301,37 @@
             el.preview.removeAttribute("src");
           }
         }
+      }
+
+      function isValidAiImageFile(file) {
+        if (!file || !file.size || file.size > 10 * 1024 * 1024) return false;
+        const mime = String(file.type || "").toLowerCase();
+        return /^(image\/(jpeg|png|webp|gif|heic|heif))$/.test(mime) ||
+          (!mime && /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name || ""));
+      }
+
+      function selectAiImageFile(input) {
+        if (aiImageCaptureState.busy || transactionState.busy) return;
+        const file = input && input.files ? input.files[0] : null;
+        if (!file) return;
+        if (!isValidAiImageFile(file)) {
+          input.value = "";
+          setAiImageStatus(tr("aiImageInvalid"), "error");
+          return;
+        }
+        const el = aiImageElements();
+        if (el.preview && el.preview.dataset.objectUrl) {
+          URL.revokeObjectURL(el.preview.dataset.objectUrl);
+          delete el.preview.dataset.objectUrl;
+        }
+        aiImageCaptureState.file = file;
+        if (el.findings) el.findings.innerHTML = "";
+        setAiImageStatus("", "muted");
+        setAiIntakeMode("image");
+        syncAiImageFileName();
+        // Keep the selected File in state: a picker cancel must not discard it,
+        // and choosing the same file again must still fire a change event.
+        input.value = "";
       }
 
       function renderAiImageFindings(suggestion) {
@@ -4388,11 +4454,11 @@
       }
 
       function parseAiImage(event) {
-        if (transactionState.busy) return false;
         if (event) event.preventDefault();
+        if (transactionState.busy || aiImageCaptureState.busy) return false;
         const ai = aiImageElements();
-        const file = ai.input && ai.input.files ? ai.input.files[0] : null;
-        if (!file || !aiImageParseUrl || file.size > 10 * 1024 * 1024) {
+        const file = aiImageCaptureState.file;
+        if (!isValidAiImageFile(file) || !aiImageParseUrl) {
           setAiImageStatus(tr("aiImageInvalid"), "error");
           return;
         }
@@ -4462,12 +4528,14 @@
 
       function setupAiImageForm() {
         const el = aiImageElements();
-        if (el.input) {
-          el.input.addEventListener("change", function () {
-            setAiIntakeMode("image");
-            syncAiImageFileName();
-          });
-        }
+        if (el.preview) el.preview.addEventListener("error", function () {
+          el.preview.hidden = true;
+          const hint = document.getElementById("aiImagePreviewHint");
+          if (hint) hint.hidden = false;
+        });
+        [el.input, el.cameraInput].forEach(function (input) {
+          if (input) input.addEventListener("change", function () { selectAiImageFile(input); });
+        });
         if (el.form) el.form.addEventListener("submit", parseAiImage);
       }
 
