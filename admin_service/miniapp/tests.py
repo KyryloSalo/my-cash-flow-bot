@@ -609,15 +609,20 @@ class MiniAppTests(TestCase):
         self.assertEqual(session.get("miniapp_auth_mode"), miniapp_auth.BROWSER_AUTH_MODE)
         self.assertGreater(session.get_expiry_age(), 170 * 24 * 60 * 60)
 
-    def test_browser_login_link_is_one_use(self):
+    def test_browser_login_link_reuses_existing_same_user_session(self):
         token = miniapp_auth.build_browser_login_token(self.user.tg_user_id, nonce="n" * 18)
 
         first_response = self.client.get(f"/app/login/{token}/")
         second_response = self.client.get(f"/app/login/{token}/")
 
         self.assertEqual(first_response.status_code, 302)
-        self.assertEqual(second_response.status_code, 400)
-        self.assertIn("already used", second_response.content.decode("utf-8"))
+        self.assertEqual(second_response.status_code, 302)
+        self.assertEqual(second_response.headers["Location"], "/app/")
+
+        other_client = self.client_class()
+        other_response = other_client.get(f"/app/login/{token}/")
+        self.assertEqual(other_response.status_code, 400)
+        self.assertIn("already used", other_response.content.decode("utf-8"))
 
     def test_profile_requires_session(self):
         response = self.client.get("/app/api/profile")
