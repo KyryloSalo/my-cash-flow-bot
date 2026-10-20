@@ -2205,6 +2205,11 @@ class AccountLifecycleRegressionTests(unittest.IsolatedAsyncioTestCase):
             patch.object(bot_main, "_consume_pending_admin_reset_if_needed", new=AsyncMock()),
             patch.object(bot_main, "should_block_for_maintenance", new=AsyncMock(return_value=None)),
             patch.object(bot_main, "_user_ready", new=AsyncMock(return_value=True)),
+            patch.object(
+                bot_main,
+                "_server_issued_browser_login_url",
+                new=AsyncMock(return_value="https://vydno.capital/app/browser-login/server-token/"),
+            ),
         ):
             await bot_main.home_callback(update, context)
 
