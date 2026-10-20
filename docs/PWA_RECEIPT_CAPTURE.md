@@ -1,6 +1,6 @@
 # PWA receipt photo intake
 
-Implementation candidate; not a production release record.
+Deployed to production on **2026-10-20** as release **0.43.0**, exact runtime SHA `7971839dae4260f21a08f2bd19061d07d06b65b8` via approved run `39464505710`. Revision/readiness readback passed at `2026-10-20T17:25:07.548392+00:00`. See `releases/0.43.0-receipt-camera.md` for evidence and acceptance limits. Physical iPhone/Android certification remains outstanding.
 
 ## User flow
 

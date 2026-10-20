@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "version": "0.43.0",
+  "deployed_sha": "7971839dae4260f21a08f2bd19061d07d06b65b8",
+  "production_run_id": 39464505710,
+  "deployment_date": "2026-10-20",
+  "validation_run_id": 39462209936,
+  "readback_at_utc": "2026-10-20T17:25:07.548392+00:00",
+  "readback": "passed",
+  "source_of_truth": "GitHub production deployment artifact; documentation merge is not runtime activation",
+  "semver_rationale": "MINOR: backwards-compatible PWA camera/gallery capture capability",
+  "acceptance_boundary": "Exact-SHA validation `39462209936`, approved production run `39464505710`, encrypted off-host backup and production revision/readiness readback passed at `2026-10-20T17:25:07.548392+00:00`. Receipt unit tests passed 4/4, mounted Chromium/WebKit cases 8/8, and shell tests 16/16. Public production route checks and camera/scan markup checks passed. Mounted tests use session/OCR/editor doubles; physical iPhone/Android native camera, installed PWA, real-device HEIC, provider OCR and authenticated production E2E remain unverified. Previous goals and receipt-quality acceptance gaps are unchanged.",
+  "changes": [
+    {
+      "path": "VERSION",
+      "kind": "replace_once",
+      "old_string": "0.42.0\n",
+      "new_string": "0.43.0\n"
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "kind": "replace_once",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.43.0 - 2026-10-20 (deployed)\n\nEnvironment: production. Deployed SHA `7971839dae4260f21a08f2bd19061d07d06b65b8`, run `39464505710`. MINOR: receipt camera/gallery capture and pending-only scan animation.\n\nPWA photo intake now offers separate rear-camera capture and gallery selection, local preview/replacement with cancellation preservation, and a green scan animation only while recognition is pending. Reduced motion, request locks, HEIC/HEIF and the 10 MiB limit are respected. Recognized data still requires explicit financial confirmation.\n\nExact-SHA validation `39462209936`, approved production run `39464505710`, encrypted off-host backup and production revision/readiness readback passed at `2026-10-20T17:25:07.548392+00:00`. Receipt unit tests passed 4/4, mounted Chromium/WebKit cases 8/8, and shell tests 16/16. Public production route checks and camera/scan markup checks passed. Mounted tests use session/OCR/editor doubles; physical iPhone/Android native camera, installed PWA, real-device HEIC, provider OCR and authenticated production E2E remain unverified. Previous goals and receipt-quality acceptance gaps are unchanged.\n\nDocumentation-only sync; documentation merge SHA is separate from the active runtime.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "## Runtime delivery status — 2026-10-20 (0.42.0)",
+      "new_string": "## Runtime delivery status — 2026-10-20 (0.43.0)\n\nProduction run `39464505710` deployed SHA `7971839dae4260f21a08f2bd19061d07d06b65b8` on **2026-10-20**.\n\nPWA photo intake now offers separate rear-camera capture and gallery selection, local preview/replacement with cancellation preservation, and a green scan animation only while recognition is pending. Reduced motion, request locks, HEIC/HEIF and the 10 MiB limit are respected. Recognized data still requires explicit financial confirmation.\n\nExact-SHA validation `39462209936`, approved production run `39464505710`, encrypted off-host backup and production revision/readiness readback passed at `2026-10-20T17:25:07.548392+00:00`. Receipt unit tests passed 4/4, mounted Chromium/WebKit cases 8/8, and shell tests 16/16. Public production route checks and camera/scan markup checks passed. Mounted tests use session/OCR/editor doubles; physical iPhone/Android native camera, installed PWA, real-device HEIC, provider OCR and authenticated production E2E remain unverified. Previous goals and receipt-quality acceptance gaps are unchanged.\n\n## Previous runtime delivery status — 2026-10-20 (0.42.0)"
+    },
+    {
+      "path": "README.md",
+      "kind": "replace_once",
+      "old_string": "Current production release: **0.42.0**, deployed **2026-10-20** from SHA `7cd6cdd397420478c0fbd14ce9d9d9351a550039` through successful production run `39433327350` after exact-SHA validation `39432251347` and Environment approval. Partner payment reporting adds inclusive Payment.paid_at date filters, daily/weekly/monthly grouping, repeat and renewal payment events, exact currency-separated totals, and durable first-touch registration attribution. The finance-admin report is permission-gated and supports manual partner settlement only; no commissions or automatic payouts are introduced. Verification: exact-SHA validation 39432251347 and approved production deployment 39433327350 succeeded; production revision/readiness readback passed at 2026-10-20T16:14:35.509685+00:00. Feature acceptance used isolated synthetic data (60 regression tests and Chromium browser acceptance); no authenticated production report acceptance or real customer-payment reconciliation is claimed. The historical deferred goals acceptance remains unchanged. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for scope and verification boundaries.",
+      "new_string": "Current production release: **0.43.0**, deployed **2026-10-20** from SHA `7971839dae4260f21a08f2bd19061d07d06b65b8` through successful production run `39464505710` after exact-SHA validation `39462209936` and Environment approval. PWA photo intake now offers separate rear-camera capture and gallery selection, local preview/replacement with cancellation preservation, and a green scan animation only while recognition is pending. Reduced motion, request locks, HEIC/HEIF and the 10 MiB limit are respected. Recognized data still requires explicit financial confirmation. Exact-SHA validation `39462209936`, approved production run `39464505710`, encrypted off-host backup and production revision/readiness readback passed at `2026-10-20T17:25:07.548392+00:00`. Receipt unit tests passed 4/4, mounted Chromium/WebKit cases 8/8, and shell tests 16/16. Public production route checks and camera/scan markup checks passed. Mounted tests use session/OCR/editor doubles; physical iPhone/Android native camera, installed PWA, real-device HEIC, provider OCR and authenticated production E2E remain unverified. Previous goals and receipt-quality acceptance gaps are unchanged. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for scope and verification boundaries.\n\nPrevious release `0.42.0` (historical runtime):\nCurrent production release: **0.42.0**, deployed **2026-10-20** from SHA `7cd6cdd397420478c0fbd14ce9d9d9351a550039` through successful production run `39433327350` after exact-SHA validation `39432251347` and Environment approval. Partner payment reporting adds inclusive Payment.paid_at date filters, daily/weekly/monthly grouping, repeat and renewal payment events, exact currency-separated totals, and durable first-touch registration attribution. The finance-admin report is permission-gated and supports manual partner settlement only; no commissions or automatic payouts are introduced. Verification: exact-SHA validation 39432251347 and approved production deployment 39433327350 succeeded; production revision/readiness readback passed at 2026-10-20T16:14:35.509685+00:00. Feature acceptance used isolated synthetic data (60 regression tests and Chromium browser acceptance); no authenticated production report acceptance or real customer-payment reconciliation is claimed. The historical deferred goals acceptance remains unchanged. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for scope and verification boundaries."
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Current production version: `0.42.0` (deployed 2026-10-20). Semver rationale: MINOR for backwards-compatible partner payment reporting, inclusive payment-date filtering, period grouping, currency-separated totals, and durable referral attribution.",
+      "new_string": "Current production version: `0.43.0` (deployed 2026-10-20). Semver rationale: MINOR for backwards-compatible PWA receipt camera/gallery capture and pending-only scan feedback."
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "- `0.40.1` - current latest production release (artifact activation and readback passed; exact partner acceptance incomplete)",
+      "new_string": "- `0.43.0` - current production artifact (deployment/readback passed; physical-device receipt capture and provider acceptance remain unverified)\n- `0.40.1` - historical artifact; its outstanding exact partner acceptance is unchanged"
+    }
+  ]
+}
