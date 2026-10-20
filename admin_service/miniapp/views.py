@@ -1368,6 +1368,33 @@ def notification_test(request: HttpRequest) -> JsonResponse:
 
 @csrf_exempt
 @require_POST
+def internal_browser_login_link(request: HttpRequest) -> JsonResponse:
+    configured_token = str(
+        getattr(settings, "PUSH_INTERNAL_TOKEN", "")
+        or getattr(settings, "BILLING_INTERNAL_TOKEN", "")
+        or ""
+    )
+    supplied_token = str(request.headers.get("X-Internal-Token") or "")
+    if not configured_token or not supplied_token or not secrets.compare_digest(configured_token, supplied_token):
+        return JsonResponse({"error": {"code": "forbidden", "message": "Invalid internal token."}}, status=403)
+
+    payload = _read_json(request)
+    try:
+        tg_user_id = int(payload.get("tg_user_id"))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": {"code": "invalid_tg_user_id", "message": "Invalid Telegram user ID."}}, status=400)
+    if tg_user_id <= 0:
+        return JsonResponse({"error": {"code": "invalid_tg_user_id", "message": "Invalid Telegram user ID."}}, status=400)
+
+    locale = str(payload.get("locale") or "uk").strip().lower()
+    if locale not in {"uk", "en"}:
+        locale = "uk"
+    token = build_browser_login_token(tg_user_id, locale=locale)
+    return _json_ok({"ok": True, "url": request.build_absolute_uri(f"/app/browser-login/{quote(token, safe='')}/")})
+
+
+@csrf_exempt
+@require_POST
 def internal_notification_event(request: HttpRequest) -> JsonResponse:
     configured_token = str(
         getattr(settings, "PUSH_INTERNAL_TOKEN", "")

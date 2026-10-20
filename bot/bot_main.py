@@ -3125,6 +3125,24 @@ def _miniapp_url() -> str:
     return urlunsplit((parts.scheme, parts.netloc, path, urlencode(query_items), parts.fragment))
 
 
+async def _server_issued_browser_login_url(tg_user_id: int, *, operator: bool = False) -> str:
+    try:
+        from billing_client import create_browser_login_url
+
+        url = await create_browser_login_url(tg_user_id, locale="uk")
+    except Exception:
+        logger.exception("Failed to request server-issued browser login URL")
+        return _miniapp_browser_login_url(tg_user_id, operator=operator)
+    if not url:
+        return ""
+    if operator:
+        parts = urlsplit(url)
+        query = dict(parse_qsl(parts.query, keep_blank_values=True))
+        query["operator"] = "1"
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+    return url
+
+
 def _miniapp_operator_url() -> str:
     url = _miniapp_url()
     if not url:
@@ -3222,9 +3240,10 @@ def _miniapp_launch_markup(
 async def _show_operator_miniapp_entry(message, tg_user_id: int) -> bool:
     if not _is_miniapp_operator(tg_user_id):
         return False
+    browser_login_url = await _server_issued_browser_login_url(tg_user_id, operator=True)
     launch_markup = _miniapp_launch_markup(
         include_home_button=True,
-        browser_login_url=_miniapp_browser_login_url(tg_user_id, operator=True),
+        browser_login_url=browser_login_url,
         app_url=_miniapp_operator_url(),
     )
     if launch_markup is None:
@@ -3276,9 +3295,10 @@ async def _show_miniapp_onboarding_entry(
     await _set_locale_for_user(conn, tg_user_id)
     if await _show_operator_miniapp_entry(message, tg_user_id):
         return True
+    browser_login_url = await _server_issued_browser_login_url(tg_user_id)
     launch_markup = _miniapp_launch_markup(
         include_home_button=True,
-        browser_login_url=_miniapp_browser_login_url(tg_user_id),
+        browser_login_url=browser_login_url,
     )
     if launch_markup is None:
         return False
@@ -3309,7 +3329,7 @@ async def _show_miniapp_entry(
     await _set_locale_for_user(conn, tg_user_id)
     if await _show_operator_miniapp_entry(message, tg_user_id):
         return
-    browser_login_url = _miniapp_browser_login_url(tg_user_id)
+    browser_login_url = await _server_issued_browser_login_url(tg_user_id)
     launch_markup = _miniapp_launch_markup(
         include_home_button=True,
         browser_login_url=browser_login_url,
