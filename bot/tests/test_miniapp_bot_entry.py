@@ -132,6 +132,44 @@ class MiniAppBotEntryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(url, "")
         local_mock.assert_not_called()
 
+    async def test_browser_login_issuance_failure_logs_only_exception_type(self) -> None:
+        sensitive_detail = "synthetic-browser-login-sensitive-detail"
+        with (
+            patch("billing_client.create_browser_login_url", new=AsyncMock(side_effect=RuntimeError(sensitive_detail))),
+            self.assertLogs(bot_main.logger, level="WARNING") as captured,
+        ):
+            url = await bot_main._server_issued_browser_login_url(123)
+
+        self.assertEqual(url, "")
+        rendered = "\n".join(captured.output)
+        self.assertIn("RuntimeError", rendered)
+        self.assertNotIn(sensitive_detail, rendered)
+        self.assertNotIn("Traceback", rendered)
+
+    async def test_login_issuance_failure_is_actionable_in_all_entry_surfaces(self) -> None:
+        for surface in ("cabinet", "onboarding", "operator"):
+            with self.subTest(surface=surface):
+                message = harness.DummyMessage()
+                state = {"access_scope": "personal_full", "billing_state": {"access_mode": "full"}}
+                with (
+                    patch.object(bot_main.config, "MINIAPP_URL", "https://vydno.capital/app/"),
+                    patch.object(bot_main, "_is_miniapp_operator", return_value=surface == "operator"),
+                    patch.object(bot_main, "_server_issued_browser_login_url", new=AsyncMock(return_value="")),
+                    patch.object(bot_main, "_set_locale_for_user", new=AsyncMock()),
+                    patch.object(bot_main, "_get_resolved_access_state", new=AsyncMock(return_value=state)),
+                    patch.object(bot_main, "_maybe_sync_pending_bind_access_state", new=AsyncMock(return_value=(state, None))),
+                ):
+                    if surface == "onboarding":
+                        await bot_main._show_miniapp_onboarding_entry(message, object(), 123)
+                    else:
+                        await bot_main._show_miniapp_entry(message, object(), 123)
+
+                reply = message.replies[-1]
+                self.assertIn("Не вдалося створити посилання", reply["text"])
+                self.assertIn("/cabinet", reply["text"])
+                self.assertNotIn("щойно створене", reply["text"])
+                self.assertIsNotNone(reply["reply_markup"])
+
     async def test_show_miniapp_onboarding_entry_bypasses_paywall_and_launches_app(self) -> None:
         message = harness.DummyMessage()
 

@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
+from urllib.parse import unquote, urlsplit
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -40,9 +41,65 @@ class FakeSession(dict):
         self["_expiry"] = value
 
 
+@override_settings(ALLOWED_HOSTS=["admin", "testserver", "vydno.capital"])
 class InternalRouteSecuritySettingsTests(SimpleTestCase):
     def test_transaction_internal_routes_bypass_https_redirect_for_compose_network_calls(self) -> None:
         self.assertIn(r"^internal/transactions/", settings.SECURE_REDIRECT_EXEMPT)
+
+    @override_settings(SECURE_SSL_REDIRECT=True, BILLING_INTERNAL_TOKEN="test-internal-token")
+    def test_browser_login_issuance_reaches_view_over_internal_http(self) -> None:
+        response = Client().post(
+            "/internal/auth/browser-login-link",
+            data={"tg_user_id": 1001},
+            content_type="application/json",
+            HTTP_HOST="admin:8080",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["error"]["code"], "forbidden")
+
+    @override_settings(
+        SECURE_SSL_REDIRECT=True,
+        BILLING_INTERNAL_TOKEN="test-internal-token",
+        PUSH_INTERNAL_TOKEN="test-internal-token",
+        MINIAPP_BROWSER_LOGIN_SECRET="test-browser-secret",
+    )
+    def test_browser_login_issuance_returns_a_real_verifiable_token(self) -> None:
+        response = Client().post(
+            "/internal/auth/browser-login-link",
+            data={"tg_user_id": 1001, "locale": "en"},
+            content_type="application/json",
+            HTTP_HOST="admin:8080",
+            HTTP_X_INTERNAL_TOKEN="test-internal-token",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        parts = urlsplit(response.json()["url"])
+        token = unquote(parts.path.removeprefix("/app/browser-login/").removesuffix("/"))
+        identity = auth.validate_browser_login_token(token)
+        self.assertEqual(identity.tg_user_id, 1001)
+        self.assertEqual(identity.purpose, auth.ORDINARY_BROWSER_LOGIN_PURPOSE)
+
+    @override_settings(
+        SECURE_SSL_REDIRECT=True,
+        DOMAIN="public-login.example",
+        BILLING_INTERNAL_TOKEN="test-internal-token",
+        PUSH_INTERNAL_TOKEN="test-internal-token",
+        MINIAPP_BROWSER_LOGIN_SECRET="test-browser-secret",
+    )
+    def test_browser_login_issuance_uses_public_https_not_internal_host(self) -> None:
+        response = Client().post(
+            "/internal/auth/browser-login-link",
+            data={"tg_user_id": 1001},
+            content_type="application/json",
+            HTTP_HOST="admin:8080",
+            HTTP_X_INTERNAL_TOKEN="test-internal-token",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        parts = urlsplit(response.json()["url"])
+        self.assertEqual((parts.scheme, parts.netloc), ("https", "public-login.example"))
+        self.assertTrue(parts.path.startswith("/app/browser-login/"))
 
 
 class MiniAppMoneyAggregationUnitTests(SimpleTestCase):
@@ -1839,6 +1896,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
         consume_mock.assert_not_called()
         self.assertEqual(response["Cache-Control"], "no-store, no-cache, must-revalidate, max-age=0, private")
 
+    @override_settings(ALLOWED_HOSTS=["vydno.capital"])
     def test_browser_login_handoff_non_ios_copy_is_chrome_oriented(self) -> None:
         request = self.factory.get(
             "/app/browser-login/raw-token/",
@@ -1855,6 +1913,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
         self.assertIn("package=com.android.chrome", response["Location"])
         self.assertIn("/app/api/browser-login/raw-token/", response["Location"])
 
+    @override_settings(ALLOWED_HOSTS=["vydno.capital"])
     def test_browser_login_handoff_android_telegram_redirects_to_chrome_without_consuming_token(self) -> None:
         request = self.factory.get(
             "/app/browser-login/raw-token/?install=1",

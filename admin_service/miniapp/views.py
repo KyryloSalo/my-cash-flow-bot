@@ -1386,11 +1386,8 @@ def internal_browser_login_link(request: HttpRequest) -> JsonResponse:
     if tg_user_id <= 0:
         return JsonResponse({"error": {"code": "invalid_tg_user_id", "message": "Invalid Telegram user ID."}}, status=400)
 
-    locale = str(payload.get("locale") or "uk").strip().lower()
-    if locale not in {"uk", "en"}:
-        locale = "uk"
-    token = build_browser_login_token(tg_user_id, locale=locale)
-    return _json_ok({"ok": True, "url": request.build_absolute_uri(f"/app/browser-login/{quote(token, safe='')}/")})
+    token = build_browser_login_token(tg_user_id)
+    return _json_ok({"ok": True, "url": f"https://{settings.DOMAIN}/app/browser-login/{quote(token, safe='')}/"})
 
 
 @csrf_exempt
