@@ -151,7 +151,7 @@
     <section class="activation-card" tabindex="-1">
       <div class="activation-icon" aria-hidden="true">🎓</div>
       <p class="eyebrow" id="courseBonusEyebrow">Ваш бонус</p>
-      <h2 id="courseBonusTitle">90 днів безкоштовно</h2>
+      <h2 id="courseBonusTitle">30 днів безкоштовно</h2>
       <p class="activation-lead" id="courseBonusMessage"></p>
       <div class="activation-actions"><button class="primary-action" id="courseBonusPrimary" type="button">Дякую</button></div>
     </section>
@@ -8951,9 +8951,9 @@
         courseBonusDismissalStore = api.createDismissalStore(storage || { getItem: function () { return null; }, setItem: function () {} }, userId);
         courseBonusDismissalStore.consentId = bonus.id;
         if (courseBonusDismissalStore.isDismissed(bonus.id)) return false;
-        setText("courseBonusMessage", api.copy(activeLocale));
+        setText("courseBonusMessage", api.copy(activeLocale, bonus.trial_days));
         setText("courseBonusEyebrow", activeLocale === "en" ? "Your course bonus" : "Ваш бонус від курсу");
-        setText("courseBonusTitle", activeLocale === "en" ? "90 days free" : "90 днів безкоштовно");
+        setText("courseBonusTitle", String(bonus.trial_days) + (activeLocale === "en" ? " days free" : " днів безкоштовно"));
         setText("courseBonusPrimary", activeLocale === "en" ? "Thank you" : "Дякую");
         openAccessibleModal(modal, dismissCourseBonus, "courseBonusPrimary");
         activationModalOpen = true;

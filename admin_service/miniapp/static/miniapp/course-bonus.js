@@ -7,8 +7,8 @@
   "use strict";
 
   const COPY = {
-    uk: 'Дякую, що обрали нас, ось вам 90 днів безкоштовного користування оскільки ви є студентом курсу "Фінансова грамотність" на платформі askills.pro',
-    en: "Thank you for choosing us! We are giving you 90 days of free use because you are a student of the Financial Literacy course on the askills.pro platform."
+    uk: days => 'Дякую, що обрали нас, ось вам ' + days + ' днів безкоштовного користування оскільки ви є студентом курсу "Фінансова грамотність" на платформі askills.pro',
+    en: days => "Thank you for choosing us! We are giving you " + days + " days of free use because you are a student of the Financial Literacy course on the askills.pro platform."
   };
   const PREFIX = "vydno.course-bonus.dismissed.v1.";
   const sessionDismissals = new Map();
@@ -36,5 +36,5 @@
     };
   }
 
-  return Object.freeze({ normalize, createDismissalStore, copy: function (locale) { return COPY[locale === "en" ? "en" : "uk"]; } });
+  return Object.freeze({ normalize, createDismissalStore, copy: function (locale, trialDays = 30) { return COPY[locale === "en" ? "en" : "uk"](trialDays); } });
 });
