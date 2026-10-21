@@ -10,7 +10,7 @@ import uuid
 from datetime import timedelta
 from html import escape
 from pathlib import Path
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, urlencode, urlsplit
 
 from django.conf import settings
 from django.core.cache import cache
@@ -348,11 +348,7 @@ def _install_nudge_state(user: TelegramUser) -> InstallNudgeState:
 
 
 def _install_nudge_browser_url(request: HttpRequest, user: TelegramUser) -> str:
-    try:
-        token = build_browser_login_token(user.tg_user_id)
-    except MiniAppAuthError:
-        return ""
-    path = reverse("miniapp:browser-login-handoff", kwargs={"token": token})
+    path = reverse("miniapp:telegram-browser-login")
     return request.build_absolute_uri(f"{path}?install=1")
 
 
@@ -756,7 +752,7 @@ def _telegram_oidc_error_response(error: TelegramOidcError, *, status: int = 400
 <body data-error-code="{escape(error.code)}">
   <main>
     <h1>Не вдалося увійти через Telegram</h1>
-    <p>Спробуйте ще раз. Якщо проблема повторюється, отримайте одноразове посилання в боті.</p>
+    <p>Спробуйте ще раз і підтвердіть вхід у своєму Telegram.</p>
     <p>Код помилки: <code>{escape(error.code)}</code></p>
     <a href="/app/auth/telegram/start">Спробувати ще раз</a>
     <a href="{escape(BILLING_BOT_URL)}?start=app_login">Увійти через бота</a>
@@ -907,6 +903,26 @@ def browser_login_handoff(request: HttpRequest, token: str) -> HttpResponse:
     # has always bypassed /app/api/*, so this repairs already installed clients
     # without waiting for a Service Worker update.
     login_url = f"/app/api/browser-login/{quote(token, safe='')}/{login_query}"
+    return _browser_login_handoff_response(request, login_url)
+
+
+@never_cache
+@require_GET
+def telegram_browser_login_entry(request: HttpRequest) -> HttpResponse:
+    """Confirm identity through Telegram in the browser, without a magic token."""
+    target = "/app/operator/" if str(request.GET.get("operator") or "") == "1" else "/app/"
+    if str(request.GET.get("install") or "") == "1":
+        target += "?install=1"
+    login_url = "/app/auth/telegram/start"
+    if target != "/app/":
+        login_url += "?" + urlencode({"next": target})
+    return _browser_login_handoff_response(request, login_url, telegram_confirmation=True)
+
+
+def _browser_login_handoff_response(
+    request: HttpRequest, login_url: str, *, telegram_confirmation: bool = False
+) -> HttpResponse:
+    """Create authorization state only after leaving Telegram's embedded browser."""
     user_agent = str(request.META.get("HTTP_USER_AGENT") or "").lower()
     is_android_handoff = "android" in user_agent
     is_telegram_handoff = "telegram" in user_agent
@@ -953,6 +969,7 @@ def browser_login_handoff(request: HttpRequest, token: str) -> HttpResponse:
             "На Android у Telegram відкрий меню ⋮ і вибери Chrome. "
             "Уже в Chrome натисни кнопку входу."
         )
+    action_label = "Увійти через Telegram" if telegram_confirmation else "Увійти у веб-додаток"
     body = f"""<!doctype html>
 <html lang="uk">
 <head>
@@ -993,7 +1010,7 @@ def browser_login_handoff(request: HttpRequest, token: str) -> HttpResponse:
     <h1>Vydno.Capital</h1>
     <p>{handoff_intro}</p>
     <p class="embedded-browser-note">{handoff_note}</p>
-    <a class="browser-login-action" href="{escape(login_url)}">Увійти у веб-додаток</a>
+    <a class="browser-login-action" href="{escape(login_url)}">{action_label}</a>
     <small>{handoff_guidance}</small>
   </main>
   <div class="ios-browser-tip" aria-label="Натисни компас унизу праворуч, щоб відкрити Safari">

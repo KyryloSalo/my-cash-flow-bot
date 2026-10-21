@@ -77,7 +77,7 @@ class MiniAppBotEntryTests(unittest.IsolatedAsyncioTestCase):
             bot=bot,
         )
 
-        with patch.object(bot_main, "_miniapp_browser_login_url", return_value="https://vydno.capital/app/browser-login/token/"):
+        with patch.object(bot_main.config, "MINIAPP_URL", "https://vydno.capital/app/"):
             await bot_main._send_pwa_install_reminders(context)
 
         bot.send_message.assert_awaited_once()
@@ -85,7 +85,7 @@ class MiniAppBotEntryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["chat_id"], 123)
         self.assertIn("головний екран", kwargs["text"])
         button = self._keyboard_rows(kwargs["reply_markup"])[0][0]
-        self.assertEqual(self._button_url(button), "https://vydno.capital/app/browser-login/token/?install=1")
+        self.assertEqual(self._button_url(button), "https://vydno.capital/app/login/?install=1")
         self.assertTrue(any("telegram_reminder_count = telegram_reminder_count + 1" in query for query, _args in conn.executions))
 
     async def test_show_miniapp_entry_returns_launch_button_for_full_access(self) -> None:
@@ -119,7 +119,7 @@ class MiniAppBotEntryTests(unittest.IsolatedAsyncioTestCase):
         first_button = rows[0][0]
         self.assertTrue(self._is_launch_button(first_button))
         browser_login_url = self._button_url(first_button)
-        self.assertIn("/app/browser-login/", browser_login_url)
+        self.assertEqual(browser_login_url, "https://vydno.capital/app/login/")
         self.assertNotIn("tg_user_id=", browser_login_url)
 
     async def test_server_issued_browser_login_does_not_fallback_to_locally_signed_token(self) -> None:
@@ -146,7 +146,7 @@ class MiniAppBotEntryTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(sensitive_detail, rendered)
         self.assertNotIn("Traceback", rendered)
 
-    async def test_login_issuance_failure_is_actionable_in_all_entry_surfaces(self) -> None:
+    async def test_missing_magic_link_issuer_does_not_block_any_entry_surface(self) -> None:
         for surface in ("cabinet", "onboarding", "operator"):
             with self.subTest(surface=surface):
                 message = harness.DummyMessage()
@@ -165,9 +165,9 @@ class MiniAppBotEntryTests(unittest.IsolatedAsyncioTestCase):
                         await bot_main._show_miniapp_entry(message, object(), 123)
 
                 reply = message.replies[-1]
-                self.assertIn("Не вдалося створити посилання", reply["text"])
-                self.assertIn("/cabinet", reply["text"])
-                self.assertNotIn("щойно створене", reply["text"])
+                self.assertNotIn("Не вдалося створити посилання", reply["text"])
+                first_button = self._keyboard_rows(reply["reply_markup"])[0][0]
+                self.assertIn("/app/login/", self._button_url(first_button))
                 self.assertIsNotNone(reply["reply_markup"])
 
     async def test_show_miniapp_onboarding_entry_bypasses_paywall_and_launches_app(self) -> None:
@@ -186,7 +186,7 @@ class MiniAppBotEntryTests(unittest.IsolatedAsyncioTestCase):
         reply_markup = message.replies[-1]["reply_markup"]
         first_button = self._keyboard_rows(reply_markup)[0][0]
         self.assertTrue(self._is_launch_button(first_button))
-        self.assertIn("/app/browser-login/", self._button_url(first_button))
+        self.assertEqual(self._button_url(first_button), "https://vydno.capital/app/login/")
         self.assertIn("актуальне посилання", message.replies[-1]["text"])
 
     async def test_show_miniapp_entry_allows_read_only_grace_access(self) -> None:
@@ -255,7 +255,7 @@ class MiniAppBotEntryTests(unittest.IsolatedAsyncioTestCase):
         debt_only_mock.assert_not_awaited()
         self.assertTrue(message.replies)
         self.assertIn("оплата продовжаться вже у застосунку", message.replies[-1]["text"])
-        self.assertIn("/app/browser-login/", self._button_url(self._keyboard_rows(message.replies[-1]["reply_markup"])[0][0]))
+        self.assertEqual(self._button_url(self._keyboard_rows(message.replies[-1]["reply_markup"])[0][0]), "https://vydno.capital/app/login/")
 
     async def test_home_callback_incomplete_user_refreshes_app_link_instead_of_showing_paywall(self) -> None:
         conn = harness.LedgerConn(
