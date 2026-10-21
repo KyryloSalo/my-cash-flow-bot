@@ -3130,8 +3130,8 @@ async def _server_issued_browser_login_url(tg_user_id: int, *, operator: bool = 
         from billing_client import create_browser_login_url
 
         url = await create_browser_login_url(tg_user_id, locale="uk")
-    except Exception:
-        logger.exception("Failed to request server-issued browser login URL")
+    except Exception as exc:
+        logger.warning("Failed to request server-issued browser login URL (%s)", type(exc).__name__)
         return ""
     if not url:
         return ""
@@ -3237,6 +3237,18 @@ def _miniapp_launch_markup(
     return InlineKeyboardMarkup(rows)
 
 
+def _browser_login_unavailable_text() -> str:
+    return locale_text(
+        "Не вдалося створити посилання для входу в Safari / Chrome. "
+        "Надішліть /cabinet ще раз, щоб отримати нове посилання. "
+        "Дашборд усередині Telegram залишається доступним.",
+        "Could not create a Safari / Chrome sign-in link. "
+        "Send /cabinet again to request a new link. "
+        "The dashboard inside Telegram remains available.",
+        current_ui_locale(),
+    )
+
+
 async def _show_operator_miniapp_entry(message, tg_user_id: int) -> bool:
     if not _is_miniapp_operator(tg_user_id):
         return False
@@ -3251,7 +3263,8 @@ async def _show_operator_miniapp_entry(message, tg_user_id: int) -> bool:
     await message.reply_text(
         "<b>Vydno Admin Hub</b>\n\n"
         "Короткий операційний огляд, пошук користувачів і швидкі переходи до повної CRM. "
-        "Небезпечні дії залишаються тільки у повній адмінці.",
+        "Небезпечні дії залишаються тільки у повній адмінці."
+        + (f"\n\n{_browser_login_unavailable_text()}" if not browser_login_url else ""),
         reply_markup=launch_markup,
     )
     return True
@@ -3306,14 +3319,14 @@ async def _show_miniapp_onboarding_entry(
         locale_text(
             "<b>Продовжіть налаштування у Vydno.Capital.</b>\n\n"
             "Оберіть мову, валюту та додайте перший рахунок у застосунку. "
-            "Кнопка нижче містить щойно створене актуальне посилання.\n\n"
-            "Для окремого вебдодатка відкрийте його через Safari / Chrome. Оплату запропонуємо лише після завершення налаштування.",
+            + ("Кнопка нижче містить щойно створене актуальне посилання.\n\n" if browser_login_url else "Кнопка нижче відкриває застосунок.\n\n")
+            + "Для окремого вебдодатка відкрийте його через Safari / Chrome. Оплату запропонуємо лише після завершення налаштування.",
             "<b>Continue setup in Vydno.Capital.</b>\n\n"
             "Choose the language and currency, then add your first account in the app. "
-            "The button below contains a freshly generated login link.\n\n"
-            "For the standalone web app, continue with Safari / Chrome. Payment is offered only after setup is complete.",
+            + ("The button below contains a freshly generated login link.\n\n" if browser_login_url else "The button below opens the app.\n\n")
+            + "For the standalone web app, continue with Safari / Chrome. Payment is offered only after setup is complete.",
             current_ui_locale(),
-        ),
+        ) + (f"\n\n{_browser_login_unavailable_text()}" if not browser_login_url else ""),
         reply_markup=launch_markup,
     )
     return True
@@ -3383,6 +3396,8 @@ async def _show_miniapp_entry(
                 ),
             ]
         )
+    if not browser_login_url:
+        lines.extend(["", _browser_login_unavailable_text()])
     if not _access_scope_has_full_home(access_scope) and access_mode != "read_only":
         lines.extend(
             [

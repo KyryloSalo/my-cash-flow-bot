@@ -211,7 +211,13 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = False  # nginx supplies the validated Host header directly
 
 SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", not DEBUG)
-SECURE_REDIRECT_EXEMPT = [r"^internal/billing/", r"^internal/push/", r"^internal/transactions/", r"^internal/health/"]
+SECURE_REDIRECT_EXEMPT = [
+    r"^internal/billing/",
+    r"^internal/push/",
+    r"^internal/transactions/",
+    r"^internal/health/",
+    r"^internal/auth/browser-login-link$",
+]
 SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", not DEBUG)
 CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", not DEBUG)
 SECURE_BROWSER_XSS_FILTER = True
