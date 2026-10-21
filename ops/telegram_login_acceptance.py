@@ -228,8 +228,15 @@ def main():
 
         if args.django_tests:
             stage = "django-tests"
-            test_names = ["miniapp.tests_telegram_browser_entry", "miniapp.tests_oidc"]
+            test_names = [
+                "miniapp.tests_telegram_browser_entry",
+                "miniapp.tests_oidc",
+                "miniapp.tests.MiniAppTests.test_install_nudge_tracks_shows_and_stops_after_confirmation",
+            ]
             test_env = dict(env)
+            # Match the HTTP Django test client used by CI. The browser journey
+            # below retains real HTTPS redirects and Secure cookies in env.
+            test_env["SECURE_SSL_REDIRECT"] = "false"
             test_env["DOMAIN"] = HOST
             test_env["TELEGRAM_OIDC_REDIRECT_URI"] = f"https://{HOST}/app/auth/telegram/callback"
             test_result = subprocess.run([sys.executable, "manage.py", "test", *test_names, "--noinput"], cwd=app, env=test_env, capture_output=True, text=True)
@@ -238,7 +245,7 @@ def main():
             summaries = [line.strip() for line in test_result.stderr.splitlines()
                          if line.startswith("Ran ") and " tests in " in line]
             check(test_result.returncode == 0 and bool(summaries), "Django regression suite failed")
-            passed("Django browser-entry and OIDC regression suites: " + summaries[-1])
+            passed("Django browser-entry, OIDC, and install-nudge regressions: " + summaries[-1])
 
         financial_snapshot = (
             "import hashlib,json\nfrom django.apps import apps\n"
