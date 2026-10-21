@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "version": "0.43.2",
+  "deployed_sha": "d0725984911535fb9e792bfda5eaa936d38d8966",
+  "runtime_pr": 69,
+  "production_run_id": 39565936880,
+  "deployment_date": "2026-10-21",
+  "validation_run_id": 39564606056,
+  "pr_sync_validation_run_id": 39563944304,
+  "readback_at_utc": "2026-10-21T08:05:00.394526+00:00",
+  "readback": "passed",
+  "source_of_truth": "GitHub production deployment artifact; documentation merge is not runtime activation",
+  "semver_rationale": "PATCH: backwards-compatible repair to server-issued public browser-login issuance",
+  "acceptance_boundary": "ARTIFACT DEPLOYED; authenticated production Telegram -> native Chrome -> correct-user PWA acceptance remains pending the owner device check. Anonymous production probes and local Chromium are not proof of that native journey. No payment-provider call or financial write was performed by the production probes; production financial-row-count invariance was not independently measured. Prior acceptance gaps are unchanged.",
+  "changes": [
+    {
+      "path": "VERSION",
+      "kind": "replace_once",
+      "old_string": "0.43.1\n",
+      "new_string": "0.43.2\n"
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "kind": "prepend_after_heading",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.43.2 - 2026-10-21 (deployed)\n\nEnvironment: production. Production run `39565936880` deployed SHA `d0725984911535fb9e792bfda5eaa936d38d8966` on **2026-10-21**. PATCH: restore server-issued public HTTPS browser-login links for the Telegram cabinet entry. The internal issuer keeps token authentication and has only an exact-path TLS-redirect exemption; the bot has no local-signing fallback and offers a safe retry on issuance failure.\n\nExact-main validation `39564606056`, PR #69 validation `39563944304`, approved production deployment, verified encrypted off-host backup and server revision/readiness readback passed at `2026-10-21T08:05:00.394526+00:00`. Fresh local isolated PostgreSQL/HTTPS/Chromium login acceptance and 24 bot tests passed. Public production route gates and anonymous Chromium PWA/invalid-link recovery checks passed. The production browser probe followed the no-consume handoff action before asserting invalid-token recovery; it remained unauthenticated.\n\nARTIFACT DEPLOYED; authenticated production Telegram -> native Chrome -> correct-user PWA acceptance remains pending the owner device check. Anonymous production probes and local Chromium are not proof of that native journey. No payment-provider call or financial write was performed by the production probes; production financial-row-count invariance was not independently measured. Prior acceptance gaps are unchanged.\n\nDocumentation-only sync: the docs merge SHA is not the deployed runtime SHA and does not imply another rollout.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "Last updated: 2026-10-20",
+      "new_string": "Last updated: 2026-10-21"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "## Runtime delivery status — 2026-10-20 (0.43.1)",
+      "new_string": "## Runtime delivery status — 2026-10-21 (0.43.2)\n\nProduction run `39565936880` deployed SHA `d0725984911535fb9e792bfda5eaa936d38d8966` on **2026-10-21**. PATCH: restore server-issued public HTTPS browser-login links for the Telegram cabinet entry. The internal issuer keeps token authentication and has only an exact-path TLS-redirect exemption; the bot has no local-signing fallback and offers a safe retry on issuance failure.\n\nExact-main validation `39564606056`, PR #69 validation `39563944304`, approved production deployment, verified encrypted off-host backup and server revision/readiness readback passed at `2026-10-21T08:05:00.394526+00:00`. Fresh local isolated PostgreSQL/HTTPS/Chromium login acceptance and 24 bot tests passed. Public production route gates and anonymous Chromium PWA/invalid-link recovery checks passed. The production browser probe followed the no-consume handoff action before asserting invalid-token recovery; it remained unauthenticated.\n\nARTIFACT DEPLOYED; authenticated production Telegram -> native Chrome -> correct-user PWA acceptance remains pending the owner device check. Anonymous production probes and local Chromium are not proof of that native journey. No payment-provider call or financial write was performed by the production probes; production financial-row-count invariance was not independently measured. Prior acceptance gaps are unchanged.\n\n## Previous runtime delivery status — 2026-10-20 (0.43.1)"
+    },
+    {
+      "path": "README.md",
+      "kind": "replace_once",
+      "old_string": "## Current Mini App Delivery\n\nCurrent production release: **0.43.1**,",
+      "new_string": "## Current Mini App Delivery\n\nCurrent production release: **0.43.2**, deployed **2026-10-21**, runtime SHA `d0725984911535fb9e792bfda5eaa936d38d8966`, production run `39565936880`, validation `39564606056`, revision/readiness readback `2026-10-21T08:05:00.394526+00:00`. Server-issued public HTTPS browser-login links and safe bot retry are deployed. Public route gates, anonymous Chromium recovery, and local isolated HTTPS/Chromium login acceptance passed. **Authenticated production Telegram -> native Chrome -> correct-user PWA acceptance remains pending the owner device check.** No financial write or payment-provider call was performed by the production probes; earlier acceptance gaps remain unchanged. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for exact scope.\n\nPrevious receipt-capture delivery record (historical; original release label retained):\nRecorded prior release: **0.43.1**,"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Last updated: 2026-10-20",
+      "new_string": "Last updated: 2026-10-21"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Current production version: `0.43.1` (deployed 2026-10-20). Semver rationale: MINOR for backwards-compatible PWA receipt camera/gallery capture and pending-only scan feedback.",
+      "new_string": "Current production version: `0.43.2` (deployed 2026-10-21). Semver rationale: PATCH for the backwards-compatible server-issued public HTTPS browser-login repair; no new product surface."
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "- `0.43.1` - current production artifact (PartnerLink UI/behavior correction; authenticated production report reconciliation remains unverified)",
+      "new_string": "- `0.43.2` - current production artifact (browser-login issuance repair; native authenticated production journey remains unverified)\n- `0.43.1` - historical artifact (PartnerLink UI/behavior correction; authenticated production report reconciliation remains unverified)"
+    },
+    {
+      "path": "docs/MINI_APP_BOT_INTEGRATION.md",
+      "kind": "replace_once",
+      "old_string": "Updated: 2026-08-30",
+      "new_string": "Updated: 2026-10-21"
+    },
+    {
+      "path": "docs/MINI_APP_BOT_INTEGRATION.md",
+      "kind": "replace_once",
+      "old_string": "- `/cabinet` remains as a backup command entry point.",
+      "new_string": "- `/cabinet` remains as a backup command entry point.\n- Release `0.43.2` (`2026-10-21`, runtime `d0725984911535fb9e792bfda5eaa936d38d8966`) repairs issuance: the bot uses only the authenticated internal server issuer, which returns a public HTTPS `DOMAIN` link, not its internal request host. There is no bot-local signing fallback. Issuance failure returns actionable retry text without logging sensitive exception detail.\n- Deployment/readiness and anonymous production browser recovery passed; actual Telegram -> native Chrome -> authenticated correct-user PWA remains a separate owner-device acceptance check."
+    }
+  ]
+}
