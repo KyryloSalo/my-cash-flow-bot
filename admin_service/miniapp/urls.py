@@ -15,6 +15,7 @@ urlpatterns = [
     path("family/join/<str:token>/", views.family_join, name="family-join"),
     path("manifest.webmanifest", views.manifest, name="manifest"),
     path("sw.js", views.service_worker, name="service-worker"),
+    path("login/", views.telegram_browser_login_entry, name="telegram-browser-login"),
     path("auth/telegram/start", views.telegram_oidc_start, name="telegram-oidc-start"),
     path("auth/telegram/callback", views.telegram_oidc_callback, name="telegram-oidc-callback"),
     path("api/auth/telegram", views.auth_telegram, name="auth-telegram"),

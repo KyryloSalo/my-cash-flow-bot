@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import json
 from unittest.mock import patch
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 from django.db import connection
 from django.test import Client, TestCase, override_settings
@@ -318,6 +318,7 @@ class MiniAppTests(TestCase):
         self.assertFalse(InstallNudgeState.objects.filter(tg_user_id=self.user.tg_user_id).exists())
         self.assertFalse(InstallNudgeDeviceState.objects.filter(tg_user_id=self.user.tg_user_id).exists())
 
+    @override_settings(MINIAPP_BROWSER_LOGIN_SECRET="")
     def test_install_nudge_tracks_shows_and_stops_after_confirmation(self):
         android_device_id = "00000000-0000-4000-8000-000000000001"
         ios_device_id = "00000000-0000-4000-8000-000000000002"
@@ -359,7 +360,10 @@ class MiniAppTests(TestCase):
         self.assertTrue(status["due"])
         self.assertEqual(status["prompt_count"], 0)
         self.assertEqual(status["max_prompts"], 4)
-        self.assertIn("/app/browser-login/", status["browser_login_url"])
+        login_url = urlsplit(status["browser_login_url"])
+        self.assertEqual(login_url.path, "/app/login/")
+        self.assertEqual(parse_qs(login_url.query, keep_blank_values=True), {"install": ["1"]})
+        self.assertEqual(login_url.fragment, "")
 
         shown_response = self.client.post(
             "/app/api/install-nudge/event",
@@ -421,7 +425,10 @@ class MiniAppTests(TestCase):
         self.assertTrue(second_device["due"])
         self.assertFalse(second_device["installed"])
         self.assertTrue(second_device["installed_anywhere"])
-        self.assertIn("/app/browser-login/", second_device["browser_login_url"])
+        second_device_login_url = urlsplit(second_device["browser_login_url"])
+        self.assertEqual(second_device_login_url.path, "/app/login/")
+        self.assertEqual(parse_qs(second_device_login_url.query, keep_blank_values=True), {"install": ["1"]})
+        self.assertEqual(second_device_login_url.fragment, "")
 
     def test_install_nudge_device_rows_are_capped_per_user(self):
         self._grant_full_access()

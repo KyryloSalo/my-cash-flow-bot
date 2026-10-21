@@ -1381,9 +1381,7 @@ async def _send_pwa_install_reminders(job_context) -> None:
             user_id = int(row["tg_user_id"])
             reminder_count = int(row["telegram_reminder_count"] or 0)
             is_english = str(row["lang"] or "").strip().lower().startswith("en")
-            browser_login_url = _miniapp_browser_login_url(user_id)
-            if browser_login_url:
-                browser_login_url = f"{browser_login_url}?install=1"
+            browser_login_url = _miniapp_telegram_login_url(install=True)
             if reminder_count == 0:
                 text = (
                     "<b>Add Vydno to your Home Screen</b>\n\nOpen the secure link in Safari or Chrome and install the app. Then your finance dashboard is always one tap away."
@@ -3125,6 +3123,19 @@ def _miniapp_url() -> str:
     return urlunsplit((parts.scheme, parts.netloc, path, urlencode(query_items), parts.fragment))
 
 
+def _miniapp_telegram_login_url(*, operator: bool = False, install: bool = False) -> str:
+    """Public browser entry; Telegram confirms identity after the user opens it."""
+    parts = urlsplit(_miniapp_url())
+    if parts.scheme != "https" or not parts.netloc:
+        return ""
+    query = {}
+    if operator:
+        query["operator"] = "1"
+    if install:
+        query["install"] = "1"
+    return urlunsplit((parts.scheme, parts.netloc, "/app/login/", urlencode(query), ""))
+
+
 async def _server_issued_browser_login_url(tg_user_id: int, *, operator: bool = False) -> str:
     try:
         from billing_client import create_browser_login_url
@@ -3252,7 +3263,7 @@ def _browser_login_unavailable_text() -> str:
 async def _show_operator_miniapp_entry(message, tg_user_id: int) -> bool:
     if not _is_miniapp_operator(tg_user_id):
         return False
-    browser_login_url = await _server_issued_browser_login_url(tg_user_id, operator=True)
+    browser_login_url = _miniapp_telegram_login_url(operator=True)
     launch_markup = _miniapp_launch_markup(
         include_home_button=True,
         browser_login_url=browser_login_url,
@@ -3308,7 +3319,7 @@ async def _show_miniapp_onboarding_entry(
     await _set_locale_for_user(conn, tg_user_id)
     if await _show_operator_miniapp_entry(message, tg_user_id):
         return True
-    browser_login_url = await _server_issued_browser_login_url(tg_user_id)
+    browser_login_url = _miniapp_telegram_login_url()
     launch_markup = _miniapp_launch_markup(
         include_home_button=True,
         browser_login_url=browser_login_url,
@@ -3342,7 +3353,7 @@ async def _show_miniapp_entry(
     await _set_locale_for_user(conn, tg_user_id)
     if await _show_operator_miniapp_entry(message, tg_user_id):
         return
-    browser_login_url = await _server_issued_browser_login_url(tg_user_id)
+    browser_login_url = _miniapp_telegram_login_url()
     launch_markup = _miniapp_launch_markup(
         include_home_button=True,
         browser_login_url=browser_login_url,
