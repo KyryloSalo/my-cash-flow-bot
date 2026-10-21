@@ -29,8 +29,10 @@ test("dismissal is scoped to user and consent and survives storage failure", () 
 });
 
 test("copy contains exact Ukrainian and English bonus meaning", () => {
-  assert.equal(bonus.copy("uk"), 'Дякую, що обрали нас, ось вам 90 днів безкоштовного користування оскільки ви є студентом курсу "Фінансова грамотність" на платформі askills.pro');
-  assert.match(bonus.copy("en"), /Thank you for choosing us![\s\S]*90 days[\s\S]*Financial Literacy[\s\S]*askills\.pro/u);
+  assert.equal(bonus.copy("uk", 90), 'Дякую, що обрали нас, ось вам 90 днів безкоштовного користування оскільки ви є студентом курсу "Фінансова грамотність" на платформі askills.pro');
+  assert.match(bonus.copy("en", 90), /Thank you for choosing us![\s\S]*90 days[\s\S]*Financial Literacy[\s\S]*askills\.pro/u);
+  assert.match(bonus.copy("uk"), /30 днів/);
+  assert.match(bonus.copy("en"), /30 days/);
 });
 
 test("production controller shows the settings bonus, dismisses per real user, then continues to install", () => {
