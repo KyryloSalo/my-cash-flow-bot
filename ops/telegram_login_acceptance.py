@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import gzip
 import hashlib
 import json
 import os
@@ -76,9 +77,10 @@ class OidcProvider:
                 pass
 
             def send_json(self, status, payload):
-                body = json.dumps(payload).encode()
+                body = gzip.compress(json.dumps(payload).encode())
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Encoding", "gzip")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)

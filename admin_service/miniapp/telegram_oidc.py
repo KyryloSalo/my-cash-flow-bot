@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import hashlib
 import json
+import logging
 import secrets
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener, urlopen
 
 import jwt
 from django.conf import settings
@@ -23,12 +25,48 @@ from users.models import UserOidcAuthorizationFlow, UserOidcTokenUse
 OIDC_FLOW_SESSION_KEY = "miniapp_oidc_flow"
 TELEGRAM_OIDC_AUTH_MODE = "telegram_oidc"
 DEFAULT_RETURN_PATH = "/app/"
+logger = logging.getLogger(__name__)
 
 
 class TelegramOidcError(Exception):
     def __init__(self, message: str, *, code: str = "telegram_oidc_failed") -> None:
         super().__init__(message)
         self.code = code
+
+
+def _provider_json(response):
+    payload = response.read()
+    encoding = str(getattr(response, "headers", {}).get("Content-Encoding", "")).lower()
+    if encoding == "gzip" or payload.startswith(b"\x1f\x8b"):
+        payload = gzip.decompress(payload)
+    return json.loads(payload)
+
+
+class _NoJwksRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+class TelegramJwkClient(PyJWKClient):
+    """Decode Telegram's gzip JSON while retaining PyJWT key validation/cache."""
+
+    def fetch_data(self):
+        handlers = [_NoJwksRedirect()]
+        if self.ssl_context is not None:
+            handlers.append(HTTPSHandler(context=self.ssl_context))
+        try:
+            with build_opener(*handlers).open(
+                Request(self.uri, headers=self.headers), timeout=self.timeout,
+            ) as response:
+                payload = _provider_json(response)
+        except (OSError, EOFError, ValueError) as exc:
+            raise PyJWKClientError("Telegram signing keys could not be loaded.") from exc
+        if not isinstance(payload, dict):
+            raise PyJWKClientError("Telegram signing keys must be a JSON object.")
+        if self.jwk_set_cache is not None:
+            self.jwk_set_cache.put(payload)
+        self._last_successful_fetch = time.monotonic()
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,8 +257,8 @@ def exchange_authorization_code(*, code: str, code_verifier: str) -> str:
     timeout = max(1, int(getattr(settings, "TELEGRAM_OIDC_HTTP_TIMEOUT_SECONDS", 10) or 10))
     try:
         with urlopen(token_request, timeout=timeout) as response:  # nosec B310 - fixed provider endpoint
-            payload = json.loads(response.read().decode("utf-8"))
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            payload = _provider_json(response)
+    except (OSError, EOFError, ValueError) as exc:
         raise TelegramOidcError("Telegram token exchange failed.", code="telegram_oidc_exchange_failed") from exc
 
     id_token = str(payload.get("id_token") or "") if isinstance(payload, dict) else ""
@@ -252,7 +290,7 @@ def verify_id_token(
         header = jwt.get_unverified_header(raw_token)
         if str(header.get("alg") or "") not in allowed_algorithms:
             raise TelegramOidcError("Telegram ID token algorithm is not allowed.", code="telegram_oidc_token_invalid")
-        keys = jwks_client or PyJWKClient(
+        keys = jwks_client or TelegramJwkClient(
             str(
                 getattr(settings, "TELEGRAM_OIDC_JWKS_URI", "https://oauth.telegram.org/.well-known/jwks.json")
                 or "https://oauth.telegram.org/.well-known/jwks.json"
@@ -273,6 +311,7 @@ def verify_id_token(
     except TelegramOidcError:
         raise
     except (InvalidTokenError, PyJWKClientError, TypeError, ValueError) as exc:
+        logger.warning("Telegram OIDC verification rejected exception=%s", type(exc).__name__)
         raise TelegramOidcError("Telegram ID token is invalid.", code="telegram_oidc_token_invalid") from exc
 
     token_nonce = str(claims.get("nonce") or "")
