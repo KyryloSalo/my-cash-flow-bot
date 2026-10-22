@@ -15,6 +15,7 @@ from users.models import TelegramUser
 
 
 @override_settings(BILLING_INTERNAL_TOKEN="synthetic-internal", ADMIN_NOTIFICATIONS_ENABLED=True,
+                   SECURE_SSL_REDIRECT=True,
                    ADMIN_TELEGRAM_IDS=[99001], TELEGRAM_BOT_TOKEN="synthetic-only")
 class TelegramPhotoHTTPContractTests(LiveServerTestCase):
     def test_bot_client_upload_complete_and_admin_original_over_http(self):
@@ -31,6 +32,12 @@ class TelegramPhotoHTTPContractTests(LiveServerTestCase):
             client = module.RecognitionCaptureClient(retries=0)
             capture_id = await client.create(user_id=9007531, attempt_id="tg-wire-1", image_bytes=original, mime_type="image/jpeg")
             completed_id = await client.complete(user_id=9007531, attempt_id="tg-wire-1", outcome="failed", error_code="vision_invalid_response")
+            async with module.httpx.AsyncClient(follow_redirects=False) as transport:
+                public = await transport.get(self.live_server_url + "/login/")
+                self.assertEqual(public.status_code, 301)
+                self.assertTrue(public.headers["location"].startswith("https://"))
+                denied = await transport.post(self.live_server_url + "/internal/recognition/photo")
+                self.assertIn(denied.status_code, (401, 403))
             return capture_id, completed_id
 
         with TemporaryDirectory(dir=os.environ.get("TMPDIR")) as storage, override_settings(
