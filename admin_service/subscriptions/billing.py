@@ -18,6 +18,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from common.telegram import send_telegram_message
+from miniapp.auth import CHECKOUT_RETURN_BROWSER_LOGIN_PURPOSE, build_browser_login_token
 from miniapp.push import emit_notification
 from miniapp.models import PartnerTrialClaim
 from miniapp.partner_offers import pending_partner_trial_days
@@ -167,16 +168,18 @@ def build_bind_return_token(*, user_id: int, flow: str = "bind", lang: str | Non
     normalized_flow = str(flow or "").strip().lower() or "bind"
     if normalized_flow not in RETURN_TOKEN_FLOWS:
         raise ValueError(f"Unsupported billing return flow: {normalized_flow}")
-    return signing.dumps(
-        {
-            "telegram_user_id": int(user_id),
-            "flow": normalized_flow,
-            "lang": _normalize_ui_lang(lang),
-            "ts": int(timezone.now().timestamp()),
-        },
-        salt=RETURN_TOKEN_SALT,
-        compress=True,
-    )
+    payload = {
+        "telegram_user_id": int(user_id),
+        "flow": normalized_flow,
+        "lang": _normalize_ui_lang(lang),
+        "ts": int(timezone.now().timestamp()),
+    }
+    if str(getattr(settings, "MINIAPP_BROWSER_LOGIN_SECRET", "") or "").strip():
+        # Issue once at checkout creation, never refresh authentication on a return-page GET.
+        payload["app_login_token"] = build_browser_login_token(
+            user_id, purpose=CHECKOUT_RETURN_BROWSER_LOGIN_PURPOSE,
+        )
+    return signing.dumps(payload, salt=RETURN_TOKEN_SALT, compress=True)
 
 
 def parse_bind_return_token(token: str, *, max_age: int = RETURN_TOKEN_MAX_AGE_SECONDS) -> dict[str, Any]:
