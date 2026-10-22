@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "version": "0.44.0",
+  "deployed_sha": "9163a883822ce9def5acd884d653f948c56d5f91",
+  "runtime_pr": 75,
+  "production_run_id": 39742966975,
+  "deployment_date": "2026-10-22",
+  "validation_run_id": 39741869385,
+  "readback_at_utc": "2026-10-22T07:52:17.853142+00:00",
+  "readback": "passed",
+  "source_of_truth": "GitHub production deployment artifact; documentation merge is not runtime activation",
+  "semver_rationale": "MINOR: new backwards-compatible purpose-bound paid-checkout authentication flow and POST handoff surface",
+  "acceptance_boundary": "The artifact is deployed and revision/readiness readback passed. A real paid Monobank checkout -> authenticated production PWA journey was not exercised. The authenticated checkout scenarios were verified in isolated local Chromium, not against the live bank. Production probes were anonymous route/PWA guards; no provider call or financial write was requested, and production financial-row-count invariance was not independently measured. The earlier Telegram -> native Chrome owner-device acceptance gap remains open.",
+  "older_pending_docs_pr": 74,
+  "changes": [
+    {
+      "path": "VERSION",
+      "kind": "replace_once",
+      "old_string": "0.43.2\n",
+      "new_string": "0.44.0\n"
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "kind": "prepend_after_heading",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.44.0 - 2026-10-22 (deployed)\n\nProduction run `39742966975` deployed runtime SHA `9163a883822ce9def5acd884d653f948c56d5f91` on **2026-10-22**, with exact-main validation `39741869385` and normal production Environment approval. Readback passed at `2026-10-22T07:52:17.853142+00:00`. MINOR: a new backwards-compatible, purpose-bound paid-checkout browser-to-PWA authentication flow and POST `/billing/mono/open-app` public surface.\n\nThe paid bind/recovery return page offers **Відкрити застосунок / Open app** and, on explicit CSRF-protected submission, authenticates the checkout owner and redirects to exact `/app/`. The capability is signed, user/purpose-bound, expiring and single-use; the exact Monobank checkout must be PAID. GET does not authenticate; same-user replay is idempotent; an existing other-user session is never switched. Invalid, unpaid, failed, expired and used-token fresh-browser requests do not authenticate. Isolated local Chromium checkout acceptance and 244 regression tests passed for the unchanged runtime source. GitHub exact-main validation, built image artifact, deployment revision/readiness and verified encrypted off-host backup passed. Fresh production Chromium passed eight anonymous PWA/route guards; `python ops/readiness_smoke.py` exited 0.\n\n**Acceptance boundary:** The artifact is deployed and revision/readiness readback passed. A real paid Monobank checkout -> authenticated production PWA journey was not exercised. The authenticated checkout scenarios were verified in isolated local Chromium, not against the live bank. Production probes were anonymous route/PWA guards; no provider call or financial write was requested, and production financial-row-count invariance was not independently measured. The earlier Telegram -> native Chrome owner-device acceptance gap remains open.\n\nDocumentation merge SHA is not the runtime SHA; this docs-only sync does not redeploy production. Older release-docs PR #74 is left untouched; this release does not claim that PR was merged.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "Last updated: 2026-10-21",
+      "new_string": "Last updated: 2026-10-22"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "## Runtime delivery status — 2026-10-21 (0.43.2)",
+      "new_string": "## Runtime delivery status — 2026-10-22 (0.44.0)\n\nProduction run `39742966975` deployed runtime SHA `9163a883822ce9def5acd884d653f948c56d5f91` on **2026-10-22**, with exact-main validation `39741869385` and normal production Environment approval. Readback passed at `2026-10-22T07:52:17.853142+00:00`. MINOR: a new backwards-compatible, purpose-bound paid-checkout browser-to-PWA authentication flow and POST `/billing/mono/open-app` public surface.\n\nThe paid bind/recovery return page offers **Відкрити застосунок / Open app** and, on explicit CSRF-protected submission, authenticates the checkout owner and redirects to exact `/app/`. The capability is signed, user/purpose-bound, expiring and single-use; the exact Monobank checkout must be PAID. GET does not authenticate; same-user replay is idempotent; an existing other-user session is never switched. Invalid, unpaid, failed, expired and used-token fresh-browser requests do not authenticate. Isolated local Chromium checkout acceptance and 244 regression tests passed for the unchanged runtime source. GitHub exact-main validation, built image artifact, deployment revision/readiness and verified encrypted off-host backup passed. Fresh production Chromium passed eight anonymous PWA/route guards; `python ops/readiness_smoke.py` exited 0.\n\n**Acceptance boundary:** The artifact is deployed and revision/readiness readback passed. A real paid Monobank checkout -> authenticated production PWA journey was not exercised. The authenticated checkout scenarios were verified in isolated local Chromium, not against the live bank. Production probes were anonymous route/PWA guards; no provider call or financial write was requested, and production financial-row-count invariance was not independently measured. The earlier Telegram -> native Chrome owner-device acceptance gap remains open.\n\nDocumentation merge SHA is not the runtime SHA; this docs-only sync does not redeploy production. Older release-docs PR #74 is left untouched; this release does not claim that PR was merged.\n\n## Previous runtime delivery status — 2026-10-21 (0.43.2)"
+    },
+    {
+      "path": "README.md",
+      "kind": "replace_once",
+      "old_string": "Current production release: **0.43.2**, deployed **2026-10-21**, runtime SHA `d0725984911535fb9e792bfda5eaa936d38d8966`, production run `39565936880`, validation `39564606056`, revision/readiness readback `2026-10-21T08:05:00.394526+00:00`. Server-issued public HTTPS browser-login links and safe bot retry are deployed. Public route gates, anonymous Chromium recovery, and local isolated HTTPS/Chromium login acceptance passed. **Authenticated production Telegram -> native Chrome -> correct-user PWA acceptance remains pending the owner device check.** No financial write or payment-provider call was performed by the production probes; earlier acceptance gaps remain unchanged. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for exact scope.",
+      "new_string": "Current production release: **0.44.0**, deployed **2026-10-22**, runtime SHA `9163a883822ce9def5acd884d653f948c56d5f91`, production run `39742966975`, validation `39741869385`, revision/readiness readback `2026-10-22T07:52:17.853142+00:00`. Paid Monobank bind/recovery return can open the authenticated PWA through an explicit CSRF-protected action. Local Chromium checkout acceptance, 244 regression tests, exact-main CI, encrypted off-host backup and anonymous production PWA/route guards passed. **Real paid production checkout -> authenticated PWA acceptance was not exercised.** No provider call or financial write was requested by production probes; financial-row-count invariance was not measured. Earlier native owner-device acceptance gaps remain open. See `docs/CURRENT_STATE.md`, `docs/RELEASE_NOTES.md` and `code/docs/CHECKOUT_PWA_RETURN.md`.\n\nHistorical prior delivery record (not current activation):\nRecorded prior release: **0.43.2**, deployed **2026-10-21**, runtime SHA `d0725984911535fb9e792bfda5eaa936d38d8966`, production run `39565936880`, validation `39564606056`, revision/readiness readback `2026-10-21T08:05:00.394526+00:00`. Server-issued public HTTPS browser-login links and safe bot retry are deployed. Public route gates, anonymous Chromium recovery, and local isolated HTTPS/Chromium login acceptance passed. **Authenticated production Telegram -> native Chrome -> correct-user PWA acceptance remains pending the owner device check.** No financial write or payment-provider call was performed by the production probes; earlier acceptance gaps remain unchanged. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for exact scope."
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Last updated: 2026-10-21",
+      "new_string": "Last updated: 2026-10-22"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Current production version: `0.43.2` (deployed 2026-10-21). Semver rationale: PATCH for the backwards-compatible server-issued public HTTPS browser-login repair; no new product surface.",
+      "new_string": "Current production version: `0.44.0` (deployed 2026-10-22). Semver rationale: MINOR for the new backwards-compatible paid-checkout browser-to-PWA authentication flow and POST handoff public surface; no existing contract is removed."
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "- `0.43.2` - current production artifact (browser-login issuance repair; native authenticated production journey remains unverified)",
+      "new_string": "- `0.44.0` - current production artifact (paid-checkout PWA handoff; real paid authenticated production acceptance remains unverified)\n- `0.43.2` - historical artifact (browser-login issuance repair; native authenticated production journey remains unverified)"
+    },
+    {
+      "path": "docs/MINI_APP_BOT_INTEGRATION.md",
+      "kind": "replace_once",
+      "old_string": "Updated: 2026-10-21",
+      "new_string": "Updated: 2026-10-22"
+    },
+    {
+      "path": "docs/MINI_APP_BOT_INTEGRATION.md",
+      "kind": "replace_once",
+      "old_string": "- `/cabinet` remains as a backup command entry point.",
+      "new_string": "- `/cabinet` remains as a backup command entry point.\n- Release `0.44.0` (`2026-10-22`, runtime `9163a883822ce9def5acd884d653f948c56d5f91`) adds a paid Monobank bind/recovery return action **Відкрити застосунок / Open app**. An explicit CSRF-protected POST to `/billing/mono/open-app` validates the exact PAID checkout and a signed, expiring, single-use purpose-bound capability, then enters the owner's authenticated `/app/`. GET does not authenticate and another existing user session is never switched. Legacy/ineligible returns keep their safe fallback.\n- Local paid-checkout Chromium acceptance and deployment/readiness/anonymous production PWA guards passed. A real paid checkout -> authenticated production PWA journey remains unverified; no live bank call or financial write was requested by those production probes. See `code/docs/CHECKOUT_PWA_RETURN.md`."
+    }
+  ]
+}
