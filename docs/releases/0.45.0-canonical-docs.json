@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "version": "0.45.0",
+  "deployed_sha": "ff56d579f8c6c87823b3d168edc41146fd4569f4",
+  "runtime_pr": 79,
+  "production_run_id": 39856350519,
+  "deployment_date": "2026-10-22",
+  "validation_run_id": 39855084011,
+  "readback_at_utc": "2026-10-22T21:25:38.536968+00:00",
+  "readback": "passed",
+  "activation_run_id": 39857647888,
+  "activation_readback": "passed",
+  "acceptance_boundary": "Authenticated production smoke on 2026-10-23 used PWA, Telegram image-document and Telegram photo inputs. The administrator notification log showed three `recognition_photo` rows with `Sent` status and sent-at UI times `00:52`, `01:09` and `01:31`. These are application-recorded Telegram `sendDocument` acknowledgements, not recipient-side downloads or byte-hash verification. Recognition failed for the synthetic smoke image; no financial confirmation was clicked. Provider accuracy, production financial-row-count invariance and private analyst retrieval were not established. Earlier receipt-quality, real-device, browser-login and course/partner acceptance gaps remain unchanged. Formal delivery readiness remains INCOMPLETE; the named local/synthetic route has no production-target evidence. Production retention/deletion/retry fault-injection remains unexecuted.",
+  "canonical_baseline": "Current canonical docs remain at 0.43.2; apply only these exact replacements, preserving historical acceptance gaps.",
+  "canonical_sha256": {
+    "VERSION": "3212832dec513e56549f003c43d5c5994f190cc7a10ef31d53d2dc1f43505194",
+    "docs/VERSIONING.md": "002157db6d45716a2b510fdb2b7aea3148d5de5c9df3e7852c119847dfa9d7ed",
+    "docs/RELEASE_NOTES.md": "86a55f11cd63b033bc845a7e901a817c6e2227b262a10a398e8d0784c8484bd6",
+    "docs/CURRENT_STATE.md": "f29fd3f14d8cd3f18eb94c6b363eb5042169f16a36cb6be0b375cd6ad0f9ea2d",
+    "README.md": "b3fa62587b8f0d6ea0d5341f79f128469a9a9ddb37b53c3aa197422b9d6909c2"
+  },
+  "changes": [
+    {
+      "path": "VERSION",
+      "kind": "replace_once",
+      "old_string": "0.43.2\n",
+      "new_string": "0.45.0\n"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Last updated: 2026-10-21",
+      "new_string": "Last updated: 2026-10-23"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Current production version: `0.43.2` (deployed 2026-10-21). Semver rationale: PATCH for the backwards-compatible server-issued public HTTPS browser-login repair; no new product surface.",
+      "new_string": "Current production version: `0.45.0` (deployed 2026-10-22 UTC; activated, three-input original-file transport smoke observed 2026-10-23 UTC+03:00). Semver rationale: MINOR for backwards-compatible all-user receipt-photo capture and administrator original-document notifications. Formal delivery readiness remains INCOMPLETE; see the release record for acceptance limits."
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "kind": "prepend_after_heading",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.45.0 - 2026-10-22 (deployed and activated)\n\nPR #79 merged. Production run `39856350519` deployed runtime SHA `ff56d579f8c6c87823b3d168edc41146fd4569f4` after main validation `39855084011`; readback passed at `2026-10-22T21:25:38.536968+00:00` (2026-10-23 00:25 UTC+03:00). Approved activation `39857647888` and separate status readback passed: `enabled=true`, `all_images_enabled=true`, six readiness flags true.\n\nAdds all-user private capture from PWA photos, Telegram photos and image documents before recognition gates, and original administrator Telegram documents with user ID, status and a bounded result. Private 1 GiB quota, 10 MiB file bound, at-most-seven-day retention, durable paused outbox, bounded retries, direct-PostgreSQL session mutex and account-deletion cleanup are active. Delivery is at-least-once, not exactly-once; delivered Telegram copies are not automatically retracted. Financial confirmation remains required.\n\nAuthenticated production smoke on 2026-10-23 used PWA, Telegram image-document and Telegram photo inputs. The administrator notification log showed three `recognition_photo` rows with `Sent` status and sent-at UI times `00:52`, `01:09` and `01:31`. These are application-recorded Telegram `sendDocument` acknowledgements, not recipient-side downloads or byte-hash verification. Recognition failed for the synthetic smoke image; no financial confirmation was clicked. Provider accuracy, production financial-row-count invariance and private analyst retrieval were not established. Earlier receipt-quality, real-device, browser-login and course/partner acceptance gaps remain unchanged.\n\nFormal delivery CLI readiness remains `INCOMPLETE`: the original named `python ops/recognition_quality_browser_acceptance.py --server` route is local/synthetic and has no production-target evidence. Production retention/deletion/retry fault-injection was not performed. Documentation-only sync does not change the active runtime SHA or imply another rollout.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "Last updated: 2026-10-21",
+      "new_string": "Last updated: 2026-10-23"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "## Runtime delivery status — 2026-10-21 (0.43.2)",
+      "new_string": "## Runtime delivery status — 2026-10-22 UTC / 2026-10-23 UTC+03:00 (0.45.0)\n\nPR #79 merged. Production run `39856350519` deployed runtime SHA `ff56d579f8c6c87823b3d168edc41146fd4569f4` after main validation `39855084011`; readback passed at `2026-10-22T21:25:38.536968+00:00` (2026-10-23 00:25 UTC+03:00). Approved activation `39857647888` and separate status readback passed: `enabled=true`, `all_images_enabled=true`, six readiness flags true.\n\nAdds all-user private capture from PWA photos, Telegram photos and image documents before recognition gates, and original administrator Telegram documents with user ID, status and a bounded result. Private 1 GiB quota, 10 MiB file bound, at-most-seven-day retention, durable paused outbox, bounded retries, direct-PostgreSQL session mutex and account-deletion cleanup are active. Delivery is at-least-once, not exactly-once; delivered Telegram copies are not automatically retracted. Financial confirmation remains required.\n\nAuthenticated production smoke on 2026-10-23 used PWA, Telegram image-document and Telegram photo inputs. The administrator notification log showed three `recognition_photo` rows with `Sent` status and sent-at UI times `00:52`, `01:09` and `01:31`. These are application-recorded Telegram `sendDocument` acknowledgements, not recipient-side downloads or byte-hash verification. Recognition failed for the synthetic smoke image; no financial confirmation was clicked. Provider accuracy, production financial-row-count invariance and private analyst retrieval were not established. Earlier receipt-quality, real-device, browser-login and course/partner acceptance gaps remain unchanged.\n\nFormal delivery CLI readiness remains `INCOMPLETE`: the original named `python ops/recognition_quality_browser_acceptance.py --server` route is local/synthetic and has no production-target evidence. Production retention/deletion/retry fault-injection was not performed. Documentation-only sync does not change the active runtime SHA or imply another rollout.\n\n## Previous runtime delivery status — 2026-10-21 (0.43.2)"
+    },
+    {
+      "path": "README.md",
+      "kind": "replace_once",
+      "old_string": "Current production release: **0.43.2**, deployed **2026-10-21**, runtime SHA `d0725984911535fb9e792bfda5eaa936d38d8966`, production run `39565936880`, validation `39564606056`, revision/readiness readback `2026-10-21T08:05:00.394526+00:00`. Server-issued public HTTPS browser-login links and safe bot retry are deployed. Public route gates, anonymous Chromium recovery, and local isolated HTTPS/Chromium login acceptance passed. **Authenticated production Telegram -> native Chrome -> correct-user PWA acceptance remains pending the owner device check.** No financial write or payment-provider call was performed by the production probes; earlier acceptance gaps remain unchanged. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for exact scope.",
+      "new_string": "Current production release: **0.45.0**, runtime SHA `ff56d579f8c6c87823b3d168edc41146fd4569f4`, production run `39856350519`, validation `39855084011`, readback `2026-10-22T21:25:38.536968+00:00` (2026-10-23 UTC+03:00). Activation `39857647888` and separate status readback passed. PWA, Telegram photo and image-document smoke produced three administrator photo outbox `Sent` records despite failed recognition. This is Telegram API acknowledgement, not recipient-side hash or OCR-accuracy acceptance. Private quota/retention, bounded retry and confirmation gates remain. Formal delivery receipt remains incomplete; prior acceptance gaps are unchanged. See `docs/CURRENT_STATE.md`, `docs/RELEASE_NOTES.md` and `code/docs/releases/0.45.0-all-photo-capture.md`.\n\nPrevious 0.43.2 delivery record (historical; unresolved acceptance retained):\nCurrent production release: **0.43.2**, deployed **2026-10-21**, runtime SHA `d0725984911535fb9e792bfda5eaa936d38d8966`, production run `39565936880`, validation `39564606056`, revision/readiness readback `2026-10-21T08:05:00.394526+00:00`. Server-issued public HTTPS browser-login links and safe bot retry are deployed. Public route gates, anonymous Chromium recovery, and local isolated HTTPS/Chromium login acceptance passed. **Authenticated production Telegram -> native Chrome -> correct-user PWA acceptance remains pending the owner device check.** No financial write or payment-provider call was performed by the production probes; earlier acceptance gaps remain unchanged. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for exact scope."
+    }
+  ]
+}
