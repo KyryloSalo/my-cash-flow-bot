@@ -2457,9 +2457,12 @@ def ai_image_parse(request: HttpRequest) -> JsonResponse:
             {"error": {"code": "invalid_payload", "message": "Use a JPG, PNG, WEBP, GIF, HEIC, or HEIF screenshot."}},
             status=400,
         )
+    attempt_id = str(uuid.uuid4())
+    _recognition_capture(user, attempt_id=attempt_id, source="image", raw_bytes=original_image_bytes, mime_type=original_mime_type or "", provider="image")
     try:
         image_bytes, mime_type = normalize_ai_image_upload(image_bytes, mime_type)
     except MiniAppImageUploadError:
+        _recognition_update(user, attempt_id, "failed", error_code="image_preprocessing_failed")
         return JsonResponse(
             {
                 "error": {
@@ -2470,8 +2473,6 @@ def ai_image_parse(request: HttpRequest) -> JsonResponse:
             status=400,
         )
 
-    attempt_id = str(uuid.uuid4())
-    _recognition_capture(user, attempt_id=attempt_id, source="image", raw_bytes=original_image_bytes, mime_type=original_mime_type or "", provider="image")
     try:
         parsed = request_ai_image_parse(
             image_bytes=image_bytes,
@@ -2491,6 +2492,7 @@ def ai_image_parse(request: HttpRequest) -> JsonResponse:
         code = "invalid_payload" if exc.status == 400 else "ai_image_unavailable"
         return JsonResponse({"error": {"code": code, "message": str(exc)}}, status=exc.status)
     except MiniAppTransactionError as exc:
+        _recognition_update(user, attempt_id, "failed", error_code="invalid_suggestion")
         return _transaction_error_response(exc)
     _recognition_update(user, attempt_id, "redirect" if suggestion.get("mode") == "redirect" else "parsed", provider_result=parsed, normalized_result=suggestion)
     return _json_ok({"ok": True, "suggestion": suggestion, "recognition_attempt_id": attempt_id})

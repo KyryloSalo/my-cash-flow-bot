@@ -42,7 +42,11 @@ def capture_attempt(*, user_id, source, raw_text='', raw_bytes=None, mime_type='
             cfg = _locked_config()
             now = timezone.now()
             cohort = {int(x) for x in (cfg.cohort_ids or [])} if cfg else set()
-            if not cfg or not cfg.enabled or (cfg.expires_at and cfg.expires_at <= now) or int(user_id) not in cohort: return None
+            if not cfg or not cfg.enabled:
+                return None
+            all_images = source == 'image' and cfg.all_images_enabled
+            if not all_images and ((cfg.expires_at and cfg.expires_at <= now) or int(user_id) not in cohort):
+                return None
             if len(raw_bytes) > min(cfg.max_bytes_per_file, MAX_MEDIA_BYTES): return None
             if raw_bytes:
                 root = _private_root()
@@ -53,11 +57,22 @@ def capture_attempt(*, user_id, source, raw_text='', raw_bytes=None, mime_type='
                     return None
                 key = _write_media(root, raw_bytes)
                 _storage_alert(cfg, used=used + len(raw_bytes), quota=quota)
-            return RecognitionCapture.objects.create(
+            row = RecognitionCapture.objects.create(
                 attempt_id=attempt_id or uuid.uuid4().hex, user_id=int(user_id), source=source,
                 raw_text=(raw_text or '')[:20000], raw_media=key, raw_media_size=len(raw_bytes),
                 mime_type=mime_type[:80], provider=provider[:80], provider_result=provider_result or {},
                 normalized_result=normalized_result or {})
+            if source == 'image' and key and settings.ADMIN_NOTIFICATIONS_ENABLED:
+                from admin_notifications.models import AdminNotificationLog
+                for recipient in set(settings.ADMIN_TELEGRAM_IDS):
+                    AdminNotificationLog.objects.create(
+                        event_type='recognition_photo', telegram_chat_id=int(recipient),
+                        payload={'capture_id': row.pk},
+                    )
+                from miniapp.recognition_photo_notifications import enqueue_photo_delivery
+
+                enqueue_photo_delivery(row.pk)
+            return row
     except Exception:
         if root and key:
             _unlink_media(root, key)
@@ -77,6 +92,10 @@ def update_capture(*, user_id, attempt_id, outcome, correction=None, provider_re
             if error_code is not None: row.error_code = str(error_code)[:128]
             row.reviewed_at = timezone.now()
             row.save(update_fields=['outcome', 'correction', 'provider_result', 'normalized_result', 'error_code', 'reviewed_at'])
+            if row.source == 'image' and row.raw_media:
+                from miniapp.recognition_photo_notifications import enqueue_photo_delivery
+
+                enqueue_photo_delivery(row.pk)
             return row
     except Exception: return None
 
@@ -127,7 +146,10 @@ def purge_expired(*, now=None):
         cutoff = now - timedelta(days=min(cfg.retention_days, 7))
         expired = Q(created_at__lte=cutoff)
         if cfg.expires_at and cfg.expires_at <= now:
-            expired |= Q(created_at__lte=cfg.expires_at)
+            cohort_expired = Q(created_at__lte=cfg.expires_at)
+            if cfg.all_images_enabled:
+                cohort_expired &= ~Q(source='image')
+            expired |= cohort_expired
         deleted = RecognitionCapture.objects.filter(expired).delete()[0]
         # Crash/rollback orphans still consume quota until this sweep removes them.
         if getattr(settings, 'RECOGNITION_QUALITY_STORAGE_ROOT', ''):

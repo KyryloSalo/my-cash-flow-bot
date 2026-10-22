@@ -9,6 +9,11 @@ from miniapp.recognition_storage import _private_root, _unlink_media, invalidate
 
 @receiver(post_delete, sender=RecognitionCapture, dispatch_uid='recognition-private-media-delete')
 def delete_private_media(sender, instance, using, **kwargs):
+    from admin_notifications.models import AdminNotificationLog
+
+    AdminNotificationLog.objects.using(using).filter(
+        event_type='recognition_photo', payload__capture_id=instance.pk,
+    ).delete()
     transaction.on_commit(invalidate_private_exports, using=using)
     if not instance.raw_media:
         return

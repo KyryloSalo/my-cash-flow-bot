@@ -287,6 +287,11 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute="*/5"),
         "options": {"expires": 5 * 60},
     },
+    "miniapp-recognition-photo-retry": {
+        "task": "miniapp.deliver_recognition_photos",
+        "schedule": 60.0,
+        "options": {"expires": 60},
+    },
     "miniapp-billing-lifecycle-pushes": {
         "task": "miniapp.emit_billing_lifecycle_pushes",
         "schedule": crontab(minute=15),

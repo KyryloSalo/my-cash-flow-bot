@@ -49,6 +49,7 @@ class RecognitionQualityOperatorRuntimeTests(TestCase):
             result = self.run_operator('activate')
             send.assert_called_once()
         self.assertTrue(result['enabled'])
+        self.assertTrue(result['all_images_enabled'])
         cfg = RecognitionCaptureConfig.objects.get(enabled=True)
         self.assertEqual(cfg.cohort_ids, self.initial_cohort)
         self.assertEqual(cfg.max_total_bytes, 1073741824)
