@@ -62,7 +62,7 @@ def capture_attempt(*, user_id, source, raw_text='', raw_bytes=None, mime_type='
                 raw_text=(raw_text or '')[:20000], raw_media=key, raw_media_size=len(raw_bytes),
                 mime_type=mime_type[:80], provider=provider[:80], provider_result=provider_result or {},
                 normalized_result=normalized_result or {})
-            if source == 'image' and key and settings.ADMIN_NOTIFICATIONS_ENABLED:
+            if source == 'image' and key:
                 from admin_notifications.models import AdminNotificationLog
                 for recipient in set(settings.ADMIN_TELEGRAM_IDS):
                     AdminNotificationLog.objects.create(

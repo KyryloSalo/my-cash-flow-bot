@@ -322,6 +322,7 @@ from vision_tx import (
     analyze_screenshot,
     is_screenshot_currency_explicit,
 )
+from recognition_capture_client import RecognitionCaptureClient, RecognitionCaptureError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("mcf-bot")
@@ -17156,6 +17157,22 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             parsed_result={"mime_type": image.mime_type, "file_size": image.file_size},
         )
 
+    if image.file_size and image.file_size > AI_SCREENSHOT_MAX_BYTES:
+        await message.reply_text("Скріншот завеликий. Надішліть файл до 10 МБ.")
+        return
+    telegram_file = await (message.document.get_file() if getattr(message, "document", None) else message.photo[-1].get_file())
+    image_bytes = bytes(await telegram_file.download_as_bytearray())
+    if len(image_bytes) > AI_SCREENSHOT_MAX_BYTES:
+        await message.reply_text("Скріншот завеликий. Надішліть файл до 10 МБ.")
+        return
+    capture_client = RecognitionCaptureClient()
+    attempt_id = f"tg-{message.message_id}"
+    capture_id = None
+    try:
+        capture_id = await capture_client.create(user_id=user.id, attempt_id=attempt_id, image_bytes=image_bytes, mime_type=image.mime_type)
+    except RecognitionCaptureError:
+        logger.warning("recognition_photo_capture_unavailable")
+
     if _onboarding_active(context):
         await _sync_onboarding_debug(
             context,
@@ -17226,15 +17243,15 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 return
 
     if not config.OPENAI_API_KEY:
+        if capture_id is not None:
+            try:
+                await capture_client.complete(user_id=user.id, attempt_id=attempt_id, outcome="failed", error_code="vision_config")
+            except RecognitionCaptureError:
+                logger.warning("recognition_photo_completion_unavailable")
         await message.reply_text("Розпізнавання скріншотів зараз недоступне. Додайте операцію текстом або через меню.")
         return
 
     await message.chat.send_action(ChatAction.TYPING)
-    telegram_file = await (message.document.get_file() if getattr(message, "document", None) else message.photo[-1].get_file())
-    image_bytes = bytes(await telegram_file.download_as_bytearray())
-    if len(image_bytes) > AI_SCREENSHOT_MAX_BYTES:
-        await message.reply_text("Скріншот завеликий. Надішліть файл до 10 МБ.")
-        return
 
     default_currency = normalize_currency(str((user_row or {}).get("base_currency") or "UAH")) or "UAH"
     try:
@@ -17248,9 +17265,20 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             income_categories=_vision_category_options("income", catalog["income_full"]),
         )
     except OpenAIVisionConfigError as exc:
+        if capture_id is not None:
+            try:
+                await capture_client.complete(user_id=user.id, attempt_id=attempt_id, outcome="failed", error_code="vision_config")
+            except RecognitionCaptureError:
+                logger.warning("recognition_photo_completion_unavailable")
         await message.reply_text("Не вдалося розпізнати скріншот. Спробуйте інший скріншот або додайте операцію текстом.")
         return
     except (OpenAIVisionError, OpenAIVisionInvalidResponseError) as exc:
+        if capture_id is not None:
+            try:
+                code = "vision_invalid_response" if isinstance(exc, OpenAIVisionInvalidResponseError) else "vision_error"
+                await capture_client.complete(user_id=user.id, attempt_id=attempt_id, outcome="failed", error_code=code)
+            except RecognitionCaptureError:
+                logger.warning("recognition_photo_completion_unavailable")
         async with _pool(context).acquire() as conn:
             await log_bot_event(
                 conn,
@@ -17266,6 +17294,15 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             format_error_notification(event_type="bot_error", tg_user_id=user.id, error_message=str(exc)),
         )
         return
+
+    if capture_id is not None:
+        result = {"currency": analysis.currency, "item_count": len(analysis.statement_items) if analysis.mode == "statement_expenses" else 1}
+        if analysis.amount is not None:
+            result["amount"] = str(analysis.amount)
+        try:
+            await capture_client.complete(user_id=user.id, attempt_id=attempt_id, outcome="parsed", normalized_result=result)
+        except RecognitionCaptureError:
+            logger.warning("recognition_photo_completion_unavailable")
 
     currency_explicit = _screenshot_currency_is_explicit(analysis)
     accounts_full = catalog.get("accounts_full") or []

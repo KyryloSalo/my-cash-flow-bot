@@ -108,7 +108,12 @@ def verify_photo_delivery(capture, original, *, fail_first=False):
                     assert result['failed'] == 1, result
                     outbox.refresh_from_db()
                     assert outbox.status == 'failed'
-                result = deliver_recognition_photos_task.run([outbox.pk])
+                    assert deliver_recognition_photos_task.run([outbox.pk])['failed'] == 0
+                    assert not SyntheticTelegram.documents
+                    with patch('miniapp.recognition_photo_notifications.timezone.now', return_value=outbox.next_retry_at):
+                        result = deliver_recognition_photos_task.run([outbox.pk])
+                else:
+                    result = deliver_recognition_photos_task.run([outbox.pk])
                 assert result['sent'] == 1, result
                 assert deliver_recognition_photos_task.run([outbox.pk])['sent'] == 0
         outbox.refresh_from_db()
