@@ -321,11 +321,12 @@
 }
 
 .achievement-mascot-picker button {
-  min-height: 176px;
+  min-height: 188px;
   display: grid;
+  grid-template-rows: 144px auto;
   place-items: center;
   align-content: center;
-  gap: 4px;
+  gap: 6px;
   border: 1px solid var(--border);
   border-radius: 20px;
   color: var(--text);
@@ -334,9 +335,15 @@
 }
 
 .achievement-mascot-picker img {
-  width: 132px;
-  height: 132px;
+  display: block;
+  width: 144px;
+  height: 144px;
   object-fit: contain;
+  object-position: center;
+}
+
+.achievement-mascot-picker strong {
+  color: #ffffff;
 }
 
 body.achievement-notification-open {
