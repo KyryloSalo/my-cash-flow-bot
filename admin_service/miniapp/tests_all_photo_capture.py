@@ -43,12 +43,42 @@ class AllPhotoCaptureTests(TestCase):
         self.assertEqual(queued.get().telegram_chat_id, 99001)
         self.assertEqual(queued.get().payload, {'capture_id': photo.pk})
 
+    @override_settings(ADMIN_NOTIFICATIONS_ENABLED=False, ADMIN_TELEGRAM_IDS=[99001])
+    def test_original_photo_outbox_is_created_when_delivery_is_paused(self):
+        RecognitionCaptureConfig.objects.create(enabled=True, all_images_enabled=True)
+        photo = capture_attempt(user_id=9007001, source='image', raw_bytes=b'synthetic-original', mime_type='image/png')
+        queued = AdminNotificationLog.objects.filter(event_type='recognition_photo')
+        self.assertEqual(queued.count(), 1, 'Paused delivery must still queue every original photo')
+        self.assertEqual(queued.get().telegram_chat_id, 99001)
+        self.assertEqual(queued.get().payload, {'capture_id': photo.pk})
+
     @override_settings(ADMIN_NOTIFICATIONS_ENABLED=True, ADMIN_TELEGRAM_IDS=[99001])
     def test_deleting_capture_removes_pending_notification_reference(self):
         RecognitionCaptureConfig.objects.create(enabled=True, all_images_enabled=True)
         photo = capture_attempt(user_id=9007001, source='image', raw_bytes=b'synthetic-original')
         photo.delete()
         self.assertFalse(AdminNotificationLog.objects.filter(event_type='recognition_photo').exists())
+
+    @override_settings(ADMIN_NOTIFICATIONS_ENABLED=False, ADMIN_TELEGRAM_IDS=[99001])
+    def test_retention_removes_expired_photo_outbox_and_preserves_recent_photo(self):
+        RecognitionCaptureConfig.objects.create(enabled=True, all_images_enabled=True, retention_days=1)
+        expired = capture_attempt(user_id=9007001, source='image', raw_bytes=b'expired-original')
+        recent = capture_attempt(user_id=9007001, source='image', raw_bytes=b'recent-original')
+        RecognitionCapture.objects.filter(pk=expired.pk).update(created_at=timezone.now() - timedelta(days=2))
+        for status in ('failed', 'processing'):
+            AdminNotificationLog.objects.create(
+                event_type='recognition_photo', telegram_chat_id=99001,
+                payload={'capture_id': expired.pk}, status=status,
+            )
+        self.assertEqual(AdminNotificationLog.objects.filter(payload__capture_id=expired.pk).count(), 3)
+        with self.captureOnCommitCallbacks(execute=True):
+            purge_expired()
+        self.assertFalse(RecognitionCapture.objects.filter(pk=expired.pk).exists())
+        self.assertFalse(AdminNotificationLog.objects.filter(payload__capture_id=expired.pk).exists())
+        self.assertFalse((Path(self.directory.name) / expired.raw_media).exists())
+        self.assertTrue(RecognitionCapture.objects.filter(pk=recent.pk).exists())
+        self.assertTrue(AdminNotificationLog.objects.filter(payload__capture_id=recent.pk).exists())
+        self.assertTrue((Path(self.directory.name) / recent.raw_media).exists())
 
     def test_expired_text_cohort_does_not_purge_recent_all_photo_samples(self):
         RecognitionCaptureConfig.objects.create(enabled=True, all_images_enabled=True,

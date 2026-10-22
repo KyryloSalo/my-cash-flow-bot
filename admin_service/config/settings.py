@@ -217,6 +217,7 @@ SECURE_REDIRECT_EXEMPT = [
     r"^internal/transactions/",
     r"^internal/health/",
     r"^internal/auth/browser-login-link$",
+    r"^internal/recognition/photo$",
 ]
 SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", not DEBUG)
 CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", not DEBUG)

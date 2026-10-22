@@ -1614,12 +1614,9 @@ def hard_delete_user(
                     [user.tg_user_id],
                 )
                 recognition_media_keys = [row[0] for row in cursor.fetchall() if row[0]]
-            stats.deleted_recognition_captures = _delete_rows(
-                table_name="miniapp_recognition_captures",
-                where_sql="user_id = %s",
-                params=[user.tg_user_id],
-                existing_tables=existing_tables,
-            )
+            # ORM deletion also revokes photo outbox references through post_delete.
+            from miniapp.recognition_quality import delete_user_captures
+            stats.deleted_recognition_captures = delete_user_captures(user.tg_user_id)
             if stats.deleted_recognition_captures:
                 from miniapp.recognition_storage import invalidate_private_exports
                 transaction.on_commit(invalidate_private_exports)

@@ -7,6 +7,7 @@ from uuid import uuid4
 from django.db import connection, connections, transaction
 from django.test import TransactionTestCase, override_settings
 
+from admin_notifications.models import AdminNotificationLog
 from miniapp.models import RecognitionCapture, RecognitionCaptureConfig
 from miniapp.recognition_quality import capture_attempt
 from miniapp.recognition_storage import _locked_config
@@ -111,6 +112,12 @@ class RecognitionAccountDeletionTests(TransactionTestCase):
                 raw_media=media_key,
                 raw_media_size=22,
             )
+            for status in ('queued', 'failed', 'processing'):
+                AdminNotificationLog.objects.create(
+                    event_type='recognition_photo', telegram_chat_id=99001,
+                    payload={'capture_id': capture.pk}, status=status,
+                )
+            self.assertEqual(AdminNotificationLog.objects.filter(payload__capture_id=capture.pk).count(), 3)
             with override_settings(RECOGNITION_QUALITY_STORAGE_ROOT=str(root)):
                 result = hard_delete_user(
                     user.tg_user_id,
@@ -124,5 +131,6 @@ class RecognitionAccountDeletionTests(TransactionTestCase):
 
             self.assertEqual(result["cleanup"]["deleted_recognition_captures"], 1)
             self.assertFalse(RecognitionCapture.objects.filter(pk=capture.pk).exists())
+            self.assertFalse(AdminNotificationLog.objects.filter(payload__capture_id=capture.pk).exists())
             self.assertFalse((root / media_key).exists())
             self.assertFalse(TelegramUser.objects.filter(pk=user.pk).exists())

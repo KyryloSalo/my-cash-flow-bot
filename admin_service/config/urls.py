@@ -2,6 +2,7 @@ from django.urls import include, path
 
 from common.admin_site import admin_site
 from common.readiness import ready, live
+from miniapp.recognition_internal import internal_recognition_photo
 from subscriptions.views import (
     monobank_cancel_autorenew,
     monobank_init_bind,
@@ -34,6 +35,7 @@ urlpatterns = [
     path("internal/billing/mono/retry-renew", monobank_retry_renew, name="billing-mono-retry-renew"),
     path("internal/billing/mono/sync-bind-status", monobank_sync_bind_status, name="billing-mono-sync-bind-status"),
     path("internal/push/event", internal_notification_event, name="push-internal-event"),
+    path("internal/recognition/photo", internal_recognition_photo, name="recognition-photo-internal"),
     path("internal/auth/browser-login-link", internal_browser_login_link, name="browser-login-link-internal"),
     path("internal/transactions/recent", internal_transactions_recent, name="transactions-internal-recent"),
     path("internal/transactions/void/draft", internal_transaction_void_draft, name="transactions-internal-void-draft"),

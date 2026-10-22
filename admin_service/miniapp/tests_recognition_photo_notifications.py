@@ -110,6 +110,7 @@ class PhotoNotificationTests(TestCase):
         self.assertEqual(AdminNotificationLog.objects.get(pk=log.pk).status, "failed")
         self.assertNotIn("provider", AdminNotificationLog.objects.get(pk=log.pk).error_message)
 
+        AdminNotificationLog.objects.filter(pk=log.pk).update(next_retry_at=timezone.now() - timedelta(seconds=1))
         with override_settings(RECOGNITION_QUALITY_STORAGE_ROOT=str(self.root)):
             with patch("miniapp.recognition_photo_notifications.send_telegram_document") as send:
                 from miniapp.recognition_photo_notifications import deliver_photo_notifications
