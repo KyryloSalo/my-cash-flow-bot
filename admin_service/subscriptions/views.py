@@ -4,10 +4,22 @@ import json
 
 from django.core import signing
 from django.conf import settings
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.cache import never_cache
+
+from miniapp.auth import (
+    BROWSER_AUTH_MODE,
+    CHECKOUT_RETURN_BROWSER_LOGIN_PURPOSE,
+    MiniAppAuthError,
+    browser_session_age_seconds,
+    consume_browser_login_token_with_identity,
+    get_session_user,
+    login_session,
+    validate_browser_login_token,
+)
 
 from subscriptions.billing import (
     BILLING_BOT_URL,
@@ -83,8 +95,8 @@ def _localized_return_text(lang: str, text: str) -> str:
         "Посилання на сторінку оплати вже неактуальне або пошкоджене. Відкрийте бота, щоб перевірити доступ і продовжити налаштування.": "This payment page link is no longer valid or is damaged. Open the bot to check access and continue.",
         "Платіж знайти не вдалося. Відкрийте бота, щоб перевірити доступ або повторити оплату.": "We couldn't find the payment. Open the bot to check access or retry the payment.",
         "Платіж знайти не вдалося. Відкрийте бота, щоб перевірити доступ або повторити прив'язку картки.": "We couldn't find the payment. Open the bot to check access or retry the card binding.",
-        "Оплату підтверджено. Відкрийте бота, щоб продовжити роботу.": "Payment confirmed. Open the bot to continue.",
-        "Оплату підтверджено. Відкрийте бота, щоб завершити базове налаштування і перейти до кабінету.": "Payment confirmed. Open the bot to finish the basic setup and continue to the dashboard.",
+        "Оплату підтверджено. Відкрийте застосунок, щоб продовжити роботу.": "Payment confirmed. Open the app to continue.",
+        "Оплату підтверджено. Відкрийте застосунок, щоб завершити базове налаштування і перейти до кабінету.": "Payment confirmed. Open the app to finish the basic setup and continue to the dashboard.",
         "Monobank ще не підтвердив успішну оплату. Поверніться в бота, щоб перевірити статус або спробувати ще раз.": "Monobank hasn't confirmed the payment yet. Return to the bot to check the status or try again.",
         "Monobank ще не підтвердив успішну прив'язку картки. Поверніться в бота, щоб перевірити статус або спробувати ще раз.": "Monobank hasn't confirmed the card binding yet. Return to the bot to check the status or try again.",
         "Ми вже перевіряємо оплату. Зазвичай підтвердження з'являється протягом 1-2 хвилин. Відкрийте бота, щоб побачити статус або продовжити після відновлення доступу.": "We're already checking the payment. Confirmation usually appears within 1-2 minutes. Open the bot to view the status or continue after access is restored.",
@@ -115,8 +127,10 @@ def _render_return_page(
     title: str,
     message: str,
     eyebrow: str = "Vydno.Capital",
+    app_return_token: str = "",
 ) -> HttpResponse:
     resolved_lang = _resolve_return_lang(request, lang)
+    opens_app = tone == "success"
     return render(
         request,
         "subscriptions/mono_return.html",
@@ -125,10 +139,11 @@ def _render_return_page(
             "eyebrow": eyebrow,
             "title": _localized_return_text(resolved_lang, title),
             "message": _localized_return_text(resolved_lang, message),
-            "bot_url": BILLING_BOT_URL,
+            "action_url": "/app/" if opens_app else BILLING_BOT_URL,
+            "app_return_token": app_return_token,
             "html_lang": _normalize_return_lang(resolved_lang),
-            "open_bot_label": _return_copy(resolved_lang, "Відкрити бота", "Open bot"),
-            "open_bot_hint": _return_copy(
+            "action_label": _return_copy(resolved_lang, "Відкрити застосунок", "Open app") if opens_app else _return_copy(resolved_lang, "Відкрити бота", "Open bot"),
+            "action_hint": _return_copy(resolved_lang, "Продовжуйте роботу у вебзастосунку.", "Continue in the web app.") if opens_app else _return_copy(
                 resolved_lang,
                 "Якщо бот уже відкритий, просто поверніться в Telegram і дочекайтеся оновлення статусу.",
                 "If the bot is already open, return to Telegram and wait for the status to refresh.",
@@ -186,7 +201,70 @@ def monobank_webhook(request: HttpRequest) -> JsonResponse:
     )
 
 
+def _checkout_return_payment(payload: dict, token: str) -> Payment | None:
+    recovery = payload.get("flow") == "recovery"
+    context = "recovery_context" if recovery else "bind_context"
+    return Payment.objects.filter(
+        user_id=payload["telegram_user_id"],
+        provider="monobank",
+        kind=Payment.Kind.RETRY if recovery else Payment.Kind.BIND,
+        **{f"raw_payload__{context}__return_token": token},
+    ).select_related("user").order_by("-created_at", "-id").first()
+
+
+def _checkout_login_identity(payload: dict):
+    identity = validate_browser_login_token(payload.get("app_login_token", ""))
+    if (
+        identity.purpose != CHECKOUT_RETURN_BROWSER_LOGIN_PURPOSE
+        or identity.tg_user_id != payload["telegram_user_id"]
+    ):
+        raise MiniAppAuthError("Payment return identity invalid.")
+    return identity
+
+
+def _can_offer_app_login(payload: dict, token: str) -> bool:
+    try:
+        _checkout_login_identity(payload)
+    except MiniAppAuthError:
+        return False
+    payment = _checkout_return_payment(payload, token)
+    return payment is not None and payment.status == Payment.Status.PAID
+
+
+@require_POST
+@never_cache
+def monobank_open_app(request: HttpRequest) -> HttpResponse:
+    token = str(request.POST.get("return_token") or "").strip()
+    try:
+        payload = parse_bind_return_token(token)
+    except (signing.BadSignature, TypeError, ValueError):
+        return HttpResponse("Payment return cannot authorize this browser.", status=403)
+    payment = _checkout_return_payment(payload, token)
+    if payment is None or payment.status != Payment.Status.PAID:
+        return HttpResponse("Payment return cannot authorize this browser.", status=403)
+
+    try:
+        current_user = get_session_user(request)
+    except MiniAppAuthError:
+        current_user = None
+    if current_user is not None:
+        if current_user.pk != payment.user_id:
+            return HttpResponse("A different account is already signed in.", status=403)
+        return redirect("/app/")
+
+    try:
+        _checkout_login_identity(payload)
+        user, _identity = consume_browser_login_token_with_identity(
+            payload.get("app_login_token", ""), expected_purpose=CHECKOUT_RETURN_BROWSER_LOGIN_PURPOSE,
+        )
+    except MiniAppAuthError:
+        return HttpResponse("This app sign-in link has expired or was already used. Open /app/ to sign in.", status=403)
+    login_session(request, user, auth_mode=BROWSER_AUTH_MODE, session_age_seconds=browser_session_age_seconds())
+    return redirect("/app/")
+
+
 @require_GET
+@never_cache
 def monobank_return(request: HttpRequest) -> HttpResponse:
     token = str(request.GET.get("return_token") or "").strip()
     if not token:
@@ -209,22 +287,29 @@ def monobank_return(request: HttpRequest) -> HttpResponse:
     telegram_user_id = int(payload["telegram_user_id"])
     flow = str(payload.get("flow") or "bind")
     sync_result: dict | None = None
+    bound_return = bool(payload.get("app_login_token"))
     if flow == "recovery":
-        payment = get_latest_recovery_payment(user_id=telegram_user_id)
-        if payment is not None and payment.status == Payment.Status.PENDING:
+        latest_payment = get_latest_recovery_payment(user_id=telegram_user_id)
+        payment = _checkout_return_payment(payload, token) if bound_return else latest_payment
+        if payment is not None and payment.status == Payment.Status.PENDING and latest_payment is not None and payment.pk == latest_payment.pk:
             try:
                 sync_result = sync_pending_charge_status(user_id=telegram_user_id)
             except (ValueError, MonobankAPIError):
                 sync_result = None
             payment = _charge_payment_from_sync_result(sync_result, get_latest_recovery_payment(user_id=telegram_user_id))
     else:
-        payment = get_latest_bind_payment(user_id=telegram_user_id)
-        if payment is not None and payment.status == Payment.Status.PENDING:
+        latest_payment = get_latest_bind_payment(user_id=telegram_user_id)
+        payment = _checkout_return_payment(payload, token) if bound_return else latest_payment
+        if payment is not None and payment.status == Payment.Status.PENDING and latest_payment is not None and payment.pk == latest_payment.pk:
             try:
                 sync_result = sync_pending_bind_status(user_id=telegram_user_id)
             except (ValueError, MonobankAPIError):
                 sync_result = None
             payment = _bind_payment_from_sync_result(sync_result, get_latest_bind_payment(user_id=telegram_user_id))
+
+    if payload.get("app_login_token"):
+        # A new handoff is tied to the exact invoice, never the user's latest checkout.
+        payment = _checkout_return_payment(payload, token)
 
     if payment is None:
         return _render_return_page(
@@ -245,10 +330,11 @@ def monobank_return(request: HttpRequest) -> HttpResponse:
             request,
             tone="success",
             title="Доступ відновлено" if flow == "recovery" else "Доступ активовано",
+            app_return_token=token if _can_offer_app_login(payload, token) else "",
             message=(
-                "Оплату підтверджено. Відкрийте бота, щоб продовжити роботу."
+                "Оплату підтверджено. Відкрийте застосунок, щоб продовжити роботу."
                 if flow == "recovery"
-                else "Оплату підтверджено. Відкрийте бота, щоб завершити базове налаштування і перейти до кабінету."
+                else "Оплату підтверджено. Відкрийте застосунок, щоб завершити базове налаштування і перейти до кабінету."
             ),
         )
 

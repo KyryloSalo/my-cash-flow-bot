@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="{% if app_return_token %}strict-origin{% else %}no-referrer{% endif %}">
     <title>{{ title }}</title>
     <style>
       :root {
@@ -85,6 +86,9 @@
         text-decoration: none;
         font-size: 18px;
         font-weight: 700;
+        border: 0;
+        cursor: pointer;
+        font-family: inherit;
       }
 
       .hint {
@@ -100,9 +104,17 @@
       <h1>{{ title }}</h1>
       <p class="message">{{ message|linebreaksbr }}</p>
       <div class="actions">
-        <a class="button" href="{{ bot_url }}" target="_blank" rel="noopener noreferrer">{{ open_bot_label|default:"Відкрити бота" }}</a>
+        {% if app_return_token %}
+        <form method="post" action="{% url 'billing-mono-open-app' %}">
+          {% csrf_token %}
+          <input type="hidden" name="return_token" value="{{ app_return_token }}">
+          <button class="button" type="submit">{{ action_label }}</button>
+        </form>
+        {% else %}
+        <a class="button" href="{{ action_url }}">{{ action_label }}</a>
+        {% endif %}
       </div>
-      <p class="hint">{{ open_bot_hint|default:"Якщо бот уже відкритий, просто поверніться в Telegram і дочекайтеся оновлення статусу." }}</p>
+      <p class="hint">{{ action_hint }}</p>
     </main>
   </body>
 </html>
