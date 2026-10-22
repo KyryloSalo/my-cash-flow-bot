@@ -8,5 +8,5 @@ COPY admin_service/requirements.lock .
 RUN pip install --no-cache-dir --require-hashes --no-build-isolation -r requirements.lock && pip check
 COPY admin_service/ .
 COPY runtime_schema /app/runtime_schema
-COPY bot/trial_recovery.py bot/admin_integrations.py /bot/
+COPY bot/trial_recovery.py bot/admin_integrations.py bot/recognition_capture_client.py /bot/
 CMD ["gunicorn", "-c", "gunicorn.conf.py", "config.wsgi:application"]
