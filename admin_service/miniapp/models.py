@@ -655,6 +655,7 @@ class FunnelEvent(models.Model):
 
 class RecognitionCaptureConfig(models.Model):
     enabled = models.BooleanField(default=False)
+    all_images_enabled = models.BooleanField(default=False)
     cohort_ids = models.JSONField(default=list)
     expires_at = models.DateTimeField(null=True, blank=True)
     max_bytes_per_file = models.PositiveIntegerField(default=10 * 1024 * 1024)

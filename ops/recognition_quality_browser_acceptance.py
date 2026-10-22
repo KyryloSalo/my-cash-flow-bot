@@ -9,6 +9,8 @@ from __future__ import annotations
 import argparse
 import base64
 from datetime import timedelta
+from email.parser import BytesParser
+from email.policy import default as email_policy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -19,6 +21,8 @@ import threading
 import tempfile
 import time
 import uuid
+from unittest.mock import patch
+from urllib.request import Request, urlopen
 
 from playwright.sync_api import sync_playwright, expect
 from goals_browser_acceptance import APP, ROOT, USER_ID, free_port, seed as seed_finance, wait_for_server
@@ -33,7 +37,9 @@ class SyntheticProvider(BaseHTTPRequestHandler):
     def do_POST(self):
         request = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
         type(self).calls += 1
-        status = 503 if request.get('text') == 'synthetic provider failure' else 200
+        image = base64.b64decode(request.get('image_base64', ''))
+        failed = request.get('text') == 'synthetic provider failure' or image.endswith(b'synthetic provider failure')
+        status = 503 if failed else 200
         parsed = {'intent': 'expense', 'is_candidate_tx': True, 'amount': '125.00',
                   'currency': 'UAH', 'currency_explicit': True, 'category_slug': 'food',
                   'comment': 'Synthetic coffee', 'confidence': 0.95}
@@ -50,6 +56,76 @@ class SyntheticProvider(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+class SyntheticTelegram(BaseHTTPRequestHandler):
+    documents = []
+    fail_next = False
+
+    def log_message(self, *args):
+        pass
+
+    def do_POST(self):
+        assert self.path == '/botSYNTHETIC-LOCAL-ONLY/sendDocument'
+        raw = self.rfile.read(int(self.headers['Content-Length']))
+        message = BytesParser(policy=email_policy).parsebytes(
+            b'Content-Type: ' + self.headers['Content-Type'].encode() + bytes([13, 10, 13, 10]) + raw)
+        fields = {part.get_param('name', header='content-disposition'): part.get_payload(decode=True)
+                  for part in message.iter_parts()}
+        failed = type(self).fail_next
+        type(self).fail_next = False
+        if not failed:
+            type(self).documents.append(fields)
+        body = json.dumps({'ok': not failed, 'result': {'message_id': len(type(self).documents)}}).encode()
+        self.send_response(503 if failed else 200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+def verify_photo_delivery(capture, original, *, fail_first=False):
+    """Real task + multipart HTTP; only the external Telegram endpoint is synthetic."""
+    from admin_notifications.models import AdminNotificationLog
+    from django.test import override_settings
+    from miniapp.tasks import deliver_recognition_photos_task
+    outbox = AdminNotificationLog.objects.get(event_type='recognition_photo', payload__capture_id=capture.pk)
+    endpoint = ThreadingHTTPServer(('127.0.0.1', 0), SyntheticTelegram)
+    threading.Thread(target=endpoint.serve_forever, daemon=True).start()
+    SyntheticTelegram.documents = []
+    SyntheticTelegram.fail_next = fail_first
+
+    def local_transport(request, *args, **kwargs):
+        assert request.full_url == 'https://api.telegram.org/botSYNTHETIC-LOCAL-ONLY/sendDocument'
+        local = Request(f'http://127.0.0.1:{endpoint.server_port}/botSYNTHETIC-LOCAL-ONLY/sendDocument',
+                        data=request.data, headers=dict(request.header_items()), method='POST')
+        return urlopen(local, *args, **kwargs)
+
+    try:
+        with override_settings(ADMIN_NOTIFICATIONS_ENABLED=True, ADMIN_TELEGRAM_IDS=[900001],
+                               TELEGRAM_BOT_TOKEN='SYNTHETIC-LOCAL-ONLY'):
+            with patch('common.telegram_upload.request.urlopen', side_effect=local_transport):
+                if fail_first:
+                    result = deliver_recognition_photos_task.run([outbox.pk])
+                    assert result['failed'] == 1, result
+                    outbox.refresh_from_db()
+                    assert outbox.status == 'failed'
+                result = deliver_recognition_photos_task.run([outbox.pk])
+                assert result['sent'] == 1, result
+                assert deliver_recognition_photos_task.run([outbox.pk])['sent'] == 0
+        outbox.refresh_from_db()
+        assert outbox.status == 'sent' and outbox.sent_at
+        assert len(SyntheticTelegram.documents) == 1
+        fields = SyntheticTelegram.documents[0]
+        assert fields['document'] == original
+        assert fields['chat_id'] == b'900001'
+        caption = fields['caption'].decode()
+        assert f'tg_user_id={USER_ID}' in caption and capture.outcome in caption, caption
+        if capture.outcome == 'parsed':
+            assert '125' in caption and 'UAH' in caption, caption
+    finally:
+        endpoint.shutdown()
+        endpoint.server_close()
+
+
 def seed():
     seed_finance()
     from accounts.models import Account
@@ -58,7 +134,8 @@ def seed():
     from miniapp.models import RecognitionCaptureConfig
     Account.objects.filter(tg_user_id=USER_ID, account_type='savings').update(is_active=False)
     Category.objects.filter(tg_user_id=USER_ID, kind='expense').update(slug='food')
-    RecognitionCaptureConfig.objects.create(enabled=True, cohort_ids=[USER_ID], expires_at=timezone.now() + timedelta(days=7))
+    RecognitionCaptureConfig.objects.create(enabled=True, all_images_enabled=True, cohort_ids=[USER_ID],
+                                            expires_at=timezone.now() + timedelta(days=7))
 
 
 def scenarios(base, evidence, channel):
@@ -134,6 +211,7 @@ def scenarios(base, evidence, channel):
             print('PASS provider failure captured without ledger write')
 
             # Real image upload through PWA -> provider fixture -> private file.
+            RecognitionCaptureConfig.objects.update(cohort_ids=[])
             page.locator('#aiImageLaunchBtn').click()
             png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aA1cAAAAASUVORK5CYII=')
             page.locator('#aiImageInput').set_input_files({'name': 'synthetic.png', 'mimeType': 'image/png', 'buffer': png})
@@ -145,12 +223,27 @@ def scenarios(base, evidence, channel):
             assert image.source == 'image' and image.provider_result and image.normalized_result
             assert (Path(os.environ['RECOGNITION_QUALITY_STORAGE_ROOT']) / image.raw_media).read_bytes() == png
             assert Transaction.objects.filter(tg_user_id=USER_ID).count() == before + 1
+            verify_photo_delivery(image, png)
             with page.expect_response(lambda r: r.url.endswith('/transactions/cancel')) as pending:
                 page.locator('#txCancelBtn').click()
             assert pending.value.ok
             image.refresh_from_db()
             assert image.outcome == 'cancelled'
-            print('PASS real PWA image upload -> private original bytes -> linked cancellation; no ledger write')
+            print('PASS PWA photo outside cohort -> private original -> Telegram multipart task -> one delivery; no pre-confirm ledger write')
+
+            page.locator('#aiImageLaunchBtn').click()
+            failed_png = png + b'synthetic provider failure'
+            page.locator('#aiImageInput').set_input_files({'name': 'synthetic-failed.png', 'mimeType': 'image/png', 'buffer': failed_png})
+            with page.expect_response(lambda r: r.url.endswith('/ai-image/parse')) as pending:
+                page.locator('#aiImageParseBtn').click()
+            assert pending.value.status == 503, pending.value.status
+            failed_image = captures().latest('id')
+            assert failed_image.source == 'image' and failed_image.outcome == 'failed'
+            assert (Path(os.environ['RECOGNITION_QUALITY_STORAGE_ROOT']) / failed_image.raw_media).read_bytes() == failed_png
+            verify_photo_delivery(failed_image, failed_png, fail_first=True)
+            assert Transaction.objects.filter(tg_user_id=USER_ID).count() == before + 1
+            RecognitionCaptureConfig.objects.update(cohort_ids=[USER_ID])
+            print('PASS failed PWA photo outside cohort -> original retained -> transient Telegram error -> successful retry, no duplicate')
 
             voice_button = page.locator('#aiVoiceRecordBtn')
             voice_button.click()
@@ -177,7 +270,7 @@ def scenarios(base, evidence, channel):
             response = recognize('Synthetic disabled collection')
             assert response.ok
             assert captures().count() == count
-            assert SyntheticProvider.calls == 6, SyntheticProvider.calls
+            assert SyntheticProvider.calls == 7, SyntheticProvider.calls
             assert not errors, errors
             page.screenshot(path=str(evidence / 'recognition-quality-pwa.png'))
             print('PASS kill switch stops capture; exactly one provider call per attempt; no JS errors')
@@ -200,6 +293,7 @@ def main():
     args.evidence_dir.mkdir(parents=True, exist_ok=True)
     run_id = uuid.uuid4().hex[:12]
     container = 'vydno-recognition-browser-' + run_id
+    redis_container = container + '-redis'
     storage = tempfile.TemporaryDirectory(prefix='recognition-browser-', dir=os.environ['TMPDIR'])
     server = None
     provider = ThreadingHTTPServer(('127.0.0.1', 0), SyntheticProvider)
@@ -209,6 +303,8 @@ def main():
         if key.endswith('_FILE') and key.startswith(('DJANGO_', 'DATABASE_', 'BOT_')):
             env.pop(key)
     env.update(DJANGO_SETTINGS_MODULE='config.settings', DJANGO_DEBUG='true',
+               OPS_SYNTHETIC_TESTS='1', ADMIN_NOTIFICATIONS_ENABLED='true',
+               ADMIN_TELEGRAM_IDS='900001', TELEGRAM_BOT_TOKEN='SYNTHETIC-LOCAL-ONLY',
                RECOGNITION_QUALITY_STORAGE_ROOT=storage.name,
                DJANGO_SECRET_KEY='synthetic-recognition-browser-' + run_id,
                DJANGO_ALLOWED_HOSTS='127.0.0.1,localhost,testserver', MINIAPP_DEV_TG_USER_ID=str(USER_ID),
@@ -216,6 +312,10 @@ def main():
                REDIS_URL='redis://127.0.0.1:63999/0', BILLING_INTERNAL_TOKEN='synthetic-local-only',
                MINIAPP_BOT_INTERNAL_BASE_URL=f'http://127.0.0.1:{provider.server_port}')
     try:
+        subprocess.run(['docker', 'run', '-d', '--rm', '--name', redis_container, '-p', '127.0.0.1::6379',
+                        'redis:7-bookworm'], check=True, capture_output=True)
+        redis_port = subprocess.check_output(['docker', 'port', redis_container, '6379/tcp'], text=True).strip().rsplit(':', 1)[-1]
+        env['REDIS_URL'] = f'redis://127.0.0.1:{redis_port}/0'
         subprocess.run(['docker', 'run', '-d', '--rm', '--name', container, '-e', 'POSTGRES_HOST_AUTH_METHOD=trust', '-e', 'POSTGRES_DB=recognition_browser', '-p', '127.0.0.1::5432', 'postgres:16-alpine'], check=True, capture_output=True)
         port = subprocess.check_output(['docker', 'port', container, '5432/tcp'], text=True).strip().rsplit(':', 1)[-1]
         env['DATABASE_URL'] = f'postgresql://postgres@127.0.0.1:{port}/recognition_browser'
@@ -245,6 +345,7 @@ def main():
         provider.shutdown()
         provider.server_close()
         subprocess.run(['docker', 'rm', '-f', container], capture_output=True, check=False)
+        subprocess.run(['docker', 'rm', '-f', redis_container], capture_output=True, check=False)
         storage.cleanup()
 
 

@@ -48,7 +48,8 @@ class Command(BaseCommand):
         cfg = RecognitionCaptureConfig.objects.order_by('-pk').first()
         return {
             'action': action,
-            'enabled': bool(cfg and cfg.enabled and cfg.expires_at and cfg.expires_at > timezone.now()),
+            'enabled': bool(cfg and cfg.enabled and (cfg.all_images_enabled or (cfg.expires_at and cfg.expires_at > timezone.now()))),
+            'all_images_enabled': bool(cfg and cfg.enabled and cfg.all_images_enabled),
             'cohort_size': len(cfg.cohort_ids or []) if cfg else 0,
             'expires_at': cfg.expires_at.isoformat() if cfg and cfg.expires_at else None,
             'captures': RecognitionCapture.objects.count(),
@@ -61,8 +62,8 @@ class Command(BaseCommand):
             raise CommandError('recognition_operator_not_ready')
         with transaction.atomic():
             cfg = _locked_config()
-            if cfg and cfg.enabled and cfg.expires_at and cfg.expires_at > timezone.now():
-                return  # Never extend expiry or enlarge an active frozen cohort.
+            if cfg and cfg.enabled and cfg.all_images_enabled:
+                return  # Idempotent; never extend the text/voice cohort or expiry.
             root = _private_root()
             used = _disk_usage(root)
             probe_bytes = b'synthetic recognition operator probe'
@@ -81,7 +82,7 @@ class Command(BaseCommand):
                     text='Перевірка готовності приватного збору якості розпізнавання: канал сповіщень доступний.',
                     parse_mode=None,
                 )
-            call_command('enable_recognition_quality', '--apply', '--days', '7', stdout=StringIO())
+            call_command('enable_recognition_quality', '--apply', '--all-photos', '--days', '7', stdout=StringIO())
 
     def handle(self, *args, **options):
         action = options['action']

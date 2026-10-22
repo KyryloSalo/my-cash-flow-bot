@@ -8,13 +8,14 @@ from miniapp.models import RecognitionCaptureConfig
 from miniapp.recognition_storage import _locked_config, _private_root
 
 class Command(BaseCommand):
-    help = 'Dry-run or enable recognition capture for the current consenting Telegram users only.'
+    help = 'Enable the frozen recognition cohort, optionally collecting all user photos until disabled.'
     def add_arguments(self, p):
         group = p.add_mutually_exclusive_group()
         group.add_argument('--apply', action='store_true')
         group.add_argument('--disable', action='store_true')
         group.add_argument('--status', action='store_true')
         p.add_argument('--days', type=int, default=7)
+        p.add_argument('--all-photos', action='store_true')
     def handle(self, *args, **opts):
         if opts['disable']:
             with transaction.atomic():
@@ -24,7 +25,7 @@ class Command(BaseCommand):
             return
         if opts['status']:
             cfg = RecognitionCaptureConfig.objects.order_by('-pk').first()
-            enabled = bool(cfg and cfg.enabled and cfg.expires_at and cfg.expires_at > timezone.now())
+            enabled = bool(cfg and cfg.enabled and (cfg.all_images_enabled or (cfg.expires_at and cfg.expires_at > timezone.now())))
             self.stdout.write(f'STATUS enabled={str(enabled).lower()} cohort_count={len(cfg.cohort_ids or []) if cfg else 0}')
             return
         if opts['days'] != 7: raise CommandError('--days must be exactly 7')
@@ -40,10 +41,15 @@ class Command(BaseCommand):
         if opts['apply']:
             with transaction.atomic():
                 existing = _locked_config()
+                if existing and opts['all_photos'] and existing.enabled:
+                    existing.all_images_enabled = True
+                    existing.save(update_fields=['all_images_enabled'])
+                    self.stdout.write(f'APPLIED config={existing.pk} all_images_enabled=true')
+                    return
                 if existing and existing.enabled and existing.expires_at and existing.expires_at > timezone.now():
                     raise CommandError('An active frozen cohort already exists; disable before replacing')
                 RecognitionCaptureConfig.objects.update(enabled=False)
-                cfg = RecognitionCaptureConfig.objects.create(enabled=True, cohort_ids=[int(x) for x in ids], expires_at=expires)
+                cfg = RecognitionCaptureConfig.objects.create(enabled=True, all_images_enabled=opts['all_photos'], cohort_ids=[int(x) for x in ids], expires_at=expires)
             self.stdout.write(f'APPLIED config={cfg.pk} cohort_count={len(ids)} expires_at={expires.isoformat()}')
         else:
             self.stdout.write(f'DRY-RUN cohort_count={len(ids)} expires_at={expires.isoformat()} apply_with=--apply')

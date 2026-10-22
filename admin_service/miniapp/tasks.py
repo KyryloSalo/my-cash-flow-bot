@@ -36,6 +36,13 @@ def deliver_recognition_storage_alerts_task(log_ids=None) -> dict[str, int]:
     return deliver_storage_alerts(log_ids)
 
 
+@shared_task(name="miniapp.deliver_recognition_photos")
+def deliver_recognition_photos_task(log_ids=None) -> dict[str, int]:
+    from miniapp.recognition_photo_notifications import deliver_photo_notifications
+
+    return deliver_photo_notifications(log_ids)
+
+
 @shared_task(name="miniapp.dispatch_pending_pushes")
 def dispatch_pending_pushes() -> dict[str, int]:
     delivered = 0
