@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "version": "0.45.1",
+  "deployed_sha": "b3e22861ec827bbfa885832b22189063317dbfcb",
+  "runtime_pr": 81,
+  "production_run_id": 39954037678,
+  "validation_run_id": 39951518916,
+  "deployment_date": "2026-10-23",
+  "readback_at_utc": "2026-10-23T12:37:02.622959+00:00",
+  "readback": "passed",
+  "acceptance_boundary": "Required PR/main CI and independent exact-commit review passed. Local targeted evidence: 47 backend tests, 68 bot tests and two real Chromium/PostgreSQL scenarios; Telegram identity/transport was synthetic. Production artifact/revision/readiness are verified, but real new-user production registration and recipient-side Telegram delivery are not. The task receipt is COMPLETE — LOCAL, not production end-to-end acceptance. No durable registration outbox/retry or concurrent bot `/start` uniqueness guarantee was added. Prior release acceptance gaps remain unchanged.",
+  "canonical_baseline": "Outer canonical files are at 0.45.0. Apply these exact guarded replacements only after this docs PR is reviewed and merged. Preserve all historical acceptance gaps.",
+  "canonical_sha256": {
+    "VERSION": "fd0ffde4149bd15f8b246e0625bad7ae9dee486ce63e9b87632f1457bae2c781",
+    "docs/VERSIONING.md": "2f771323f756a81ccf81ee3f3a5c945943f2555871f3c0ea6d48f352ef8392f0",
+    "docs/RELEASE_NOTES.md": "8ed619116564659dbe032360e2f861825ae578300a0663b6ede32819fb89c6d6",
+    "docs/CURRENT_STATE.md": "9d2cd6358fbf56abe48126d8a5ec2e3b187523a114d175ee5883f3426e116d75",
+    "README.md": "00f20150f6008a0e69c0f9624c1cdaf8a64e48cac296e0bf55a496f50e8c48bb"
+  },
+  "changes": [
+    {
+      "path": "VERSION",
+      "kind": "replace_once",
+      "old_string": "0.45.0\n",
+      "new_string": "0.45.1\n"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Current production version: `0.45.0` (deployed 2026-10-22 UTC; activated, three-input original-file transport smoke observed 2026-10-23 UTC+03:00). Semver rationale: MINOR for backwards-compatible all-user receipt-photo capture and administrator original-document notifications. Formal delivery readiness remains INCOMPLETE; see the release record for acceptance limits.",
+      "new_string": "Current production version: `0.45.1` (deployed 2026-10-23; runtime SHA `b3e22861ec827bbfa885832b22189063317dbfcb`, production run `39954037678`, readback passed). Semver rationale: PATCH restoring existing registration administrator notifications without a new public API. Production registration/recipient delivery acceptance remains unverified; previous acceptance gaps remain unchanged."
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "kind": "prepend_after_heading",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.45.1 - 2026-10-23 (deployed)\n\nPR #81 merged. Production run `39954037678` deployed runtime SHA `b3e22861ec827bbfa885832b22189063317dbfcb` after exact-main validate/publish `39951518916`. Protected production Environment approval, encrypted off-host backup, deployment/readiness and release promotion passed. Exact revision readback: `2026-10-23T12:37:02.622959+00:00` (2026-10-23 15:37 UTC+03:00). A separate read-only public route smoke passed.\n\nPATCH: restore administrator Telegram notifications after successful new PWA registration, with durable first-partner name, code, public URL, source and direct-entry fallback. Ordinary repeat authentication does not enqueue another notification. Bot new-user `/start` notification precedes the partner early return and includes source/payload. No ledger semantics or financial confirmation gates changed.\n\nRequired PR/main CI and independent exact-commit review passed. Local targeted evidence: 47 backend tests, 68 bot tests and two real Chromium/PostgreSQL scenarios; Telegram identity/transport was synthetic. Production artifact/revision/readiness are verified, but real new-user production registration and recipient-side Telegram delivery are not. The task receipt is COMPLETE — LOCAL, not production end-to-end acceptance. No durable registration outbox/retry or concurrent bot `/start` uniqueness guarantee was added. Prior release acceptance gaps remain unchanged.\n\nSee `code/docs/releases/0.45.1-registration-admin-notifications.md`. Documentation-only sync does not change the deployed runtime SHA or imply another rollout.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "## Runtime delivery status — 2026-10-22 UTC / 2026-10-23 UTC+03:00 (0.45.0)",
+      "new_string": "## Runtime delivery status — 2026-10-23 (0.45.1)\n\nPR #81 merged. Production run `39954037678` deployed runtime SHA `b3e22861ec827bbfa885832b22189063317dbfcb` after exact-main validate/publish `39951518916`. Protected production Environment approval, encrypted off-host backup, deployment/readiness and release promotion passed. Exact revision readback: `2026-10-23T12:37:02.622959+00:00` (2026-10-23 15:37 UTC+03:00). A separate read-only public route smoke passed.\n\nPATCH: restore administrator Telegram notifications after successful new PWA registration, with durable first-partner name, code, public URL, source and direct-entry fallback. Ordinary repeat authentication does not enqueue another notification. Bot new-user `/start` notification precedes the partner early return and includes source/payload. No ledger semantics or financial confirmation gates changed.\n\nRequired PR/main CI and independent exact-commit review passed. Local targeted evidence: 47 backend tests, 68 bot tests and two real Chromium/PostgreSQL scenarios; Telegram identity/transport was synthetic. Production artifact/revision/readiness are verified, but real new-user production registration and recipient-side Telegram delivery are not. The task receipt is COMPLETE — LOCAL, not production end-to-end acceptance. No durable registration outbox/retry or concurrent bot `/start` uniqueness guarantee was added. Prior release acceptance gaps remain unchanged.\n\nSee `code/docs/releases/0.45.1-registration-admin-notifications.md`. Documentation-only sync does not change the deployed runtime SHA or imply another rollout.\n\n## Previous runtime delivery status — 2026-10-22 UTC / 2026-10-23 UTC+03:00 (0.45.0)"
+    },
+    {
+      "path": "README.md",
+      "kind": "replace_once",
+      "old_string": "Current production release: **0.45.0**, runtime SHA `ff56d579f8c6c87823b3d168edc41146fd4569f4`, production run `39856350519`, validation `39855084011`, readback `2026-10-22T21:25:38.536968+00:00` (2026-10-23 UTC+03:00). Activation `39857647888` and separate status readback passed. PWA, Telegram photo and image-document smoke produced three administrator photo outbox `Sent` records despite failed recognition. This is Telegram API acknowledgement, not recipient-side hash or OCR-accuracy acceptance. Private quota/retention, bounded retry and confirmation gates remain. Formal delivery receipt remains incomplete; prior acceptance gaps are unchanged. See `docs/CURRENT_STATE.md`, `docs/RELEASE_NOTES.md` and `code/docs/releases/0.45.0-all-photo-capture.md`.",
+      "new_string": "Current production release: **0.45.1**, deployed **2026-10-23**, runtime SHA `b3e22861ec827bbfa885832b22189063317dbfcb`, production run `39954037678`, validation `39951518916`, revision/readiness readback `2026-10-23T12:37:02.622959+00:00`. Registration administrator notifications now include source/partner attribution and suppress ordinary repeat-authentication enqueue. Backup, rollout, promotion and public smoke passed. **Real new-user production registration and recipient-side Telegram delivery remain unverified.** The task receipt remains COMPLETE — LOCAL; prior acceptance gaps are unchanged. See `docs/CURRENT_STATE.md`, `docs/RELEASE_NOTES.md` and `code/docs/releases/0.45.1-registration-admin-notifications.md`.\n\nPrevious 0.45.0 delivery record (historical; unresolved acceptance retained):\nCurrent production release: **0.45.0**, runtime SHA `ff56d579f8c6c87823b3d168edc41146fd4569f4`, production run `39856350519`, validation `39855084011`, readback `2026-10-22T21:25:38.536968+00:00` (2026-10-23 UTC+03:00). Activation `39857647888` and separate status readback passed. PWA, Telegram photo and image-document smoke produced three administrator photo outbox `Sent` records despite failed recognition. This is Telegram API acknowledgement, not recipient-side hash or OCR-accuracy acceptance. Private quota/retention, bounded retry and confirmation gates remain. Formal delivery receipt remains incomplete; prior acceptance gaps are unchanged. See `docs/CURRENT_STATE.md`, `docs/RELEASE_NOTES.md` and `code/docs/releases/0.45.0-all-photo-capture.md`."
+    }
+  ]
+}

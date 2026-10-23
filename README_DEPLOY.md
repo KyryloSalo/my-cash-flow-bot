@@ -72,10 +72,16 @@ Use manual server access only for an explicitly approved incident. Any emergency
 
 ## Current verified release
 
-As of October 15, 2026:
+As of October 23, 2026:
 
-- version: `0.37.7`;
-- deployed SHA: `f9a684b94619cb9e03f92011697d736ca67db5bf`;
-- validation run: `38758313559`;
-- production run: `38761953079`;
-- deployment readback: `passed`.
+- version: `0.45.1` (registration administrator-notification PATCH);
+- deployed runtime SHA: `b3e22861ec827bbfa885832b22189063317dbfcb`;
+- exact-main validation run: `39951518916`;
+- approved production run: `39954037678`;
+- deployment readback: `passed` at `2026-10-23T12:37:02.622959+00:00`;
+- release promotion and separate public readiness smoke: passed.
+
+See `docs/releases/0.45.1-registration-admin-notifications.md` for scope and
+acceptance limits. Real new-user production registration and recipient-side
+Telegram delivery have not been verified. This documentation sync does not
+change the deployed runtime SHA or require another production rollout.
