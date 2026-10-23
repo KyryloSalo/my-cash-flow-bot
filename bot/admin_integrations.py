@@ -508,14 +508,17 @@ async def notify_admins(
             logger.warning("Admin notification failed for %s: %s", admin_id, exc)
 
 
-def format_new_user_notification(*, tg_user_id: int, username: str | None, first_name: str | None) -> str:
+def format_new_user_notification(
+    *, tg_user_id: int, username: str | None, first_name: str | None, source: str = "Telegram /start",
+) -> str:
     username_text = f"@{username}" if username else "-"
     return (
         "Новий користувач\n\n"
         f"telegram_id: {tg_user_id}\n"
         f"username: {username_text}\n"
         f"name: {first_name or '-'}\n"
-        f"time: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        f"time: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+        f"Джерело: {source[:128]}"
     )
 
 
