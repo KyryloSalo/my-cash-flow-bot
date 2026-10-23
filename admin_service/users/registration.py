@@ -167,4 +167,11 @@ def bootstrap_telegram_identity(
             "last_authenticated_at": timestamp,
         },
     )
+    if created:
+        from admin_notifications.registration import notify_new_registration
+
+        def notify_after_commit():
+            notify_new_registration(tg_user_id=tg_user_id, source=source)
+
+        transaction.on_commit(notify_after_commit, robust=True)
     return RegistrationBootstrapResult(user=user, identity=auth_identity, created=created)

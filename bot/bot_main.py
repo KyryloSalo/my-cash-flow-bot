@@ -6098,6 +6098,18 @@ async def start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         ready = await _user_ready(conn, user.id)
         access_state = await _get_resolved_access_state(conn, user.id)
 
+    if is_new_user and registration_open and not maintenance_message:
+        await notify_admins(
+            context.application.bot,
+            format_new_user_notification(
+                tg_user_id=user.id,
+                username=user.username,
+                first_name=user.first_name,
+                source=f"Telegram /start {start_payload}" if marketing_start_state else "Telegram /start",
+            ),
+            parse_mode=None,
+        )
+
     if maintenance_message:
         await update.message.reply_text(maintenance_message)
         return ConversationHandler.END
@@ -6147,16 +6159,6 @@ async def start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
                 ),
             )
         return ConversationHandler.END
-
-    if is_new_user:
-        await notify_admins(
-            context.application.bot,
-            format_new_user_notification(
-                tg_user_id=user.id,
-                username=user.username,
-                first_name=user.first_name,
-            ),
-        )
 
     if not force_onboarding:
         async with _pool(context).acquire() as conn:

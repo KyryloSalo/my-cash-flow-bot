@@ -1914,6 +1914,40 @@ class AccountLifecycleRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("499 грн/міс — лише після 90 днів.", message.replies[-1]["text"])
         self.assertIn("Активувати пробний період", self._button_labels(message.replies[-1]["reply_markup"]))
 
+    async def test_new_marketing_start_notifies_before_payload_handler_returns(self) -> None:
+        conn = LedgerConn(tg_user_id=123, accounts=[])
+        context = SimpleNamespace(
+            application=SimpleNamespace(bot=object(), bot_data={}),
+            user_data={}, args=["promo_PARTNER90"],
+        )
+        update = SimpleNamespace(
+            effective_user=SimpleNamespace(
+                id=123, username="tester", first_name="Tester", last_name=None, language_code="uk",
+            ),
+            message=DummyMessage(text="/start promo_PARTNER90"),
+        )
+        with (
+            patch.object(bot_main, "_pool", return_value=DummyPool(conn)),
+            patch.object(conn, "fetchval", new=AsyncMock(return_value=None)),
+            patch.object(bot_main, "_consume_pending_admin_reset_if_needed", new=AsyncMock()),
+            patch.object(bot_main, "is_user_banned", new=AsyncMock(return_value=False)),
+            patch.object(bot_main, "should_block_for_maintenance", new=AsyncMock(return_value=None)),
+            patch.object(bot_main, "is_registration_open", new=AsyncMock(return_value=True)),
+            patch.object(bot_main, "_activate_locale", new=AsyncMock()),
+            patch.object(bot_main, "log_bot_event", new=AsyncMock()),
+            patch.object(bot_main, "_sync_access_scope_state", new=AsyncMock()),
+            patch.object(bot_main, "_user_ready", new=AsyncMock(return_value=False)),
+            patch.object(bot_main, "_get_resolved_access_state", new=AsyncMock(
+                return_value={"pending_start_payload": "promo_PARTNER90"},
+            )),
+            patch.object(bot_main, "_maybe_resume_pending_start_payload", new=AsyncMock(return_value=True)),
+            patch.object(bot_main, "notify_admins", new=AsyncMock()) as notify,
+            patch.object(bot_main.ConversationHandler, "END", -1, create=True),
+        ):
+            self.assertEqual(await bot_main.start_entry(update, context), -1)
+        notify.assert_awaited_once()
+        self.assertIn("promo_PARTNER90", notify.await_args.args[1])
+
     async def test_start_entry_routes_existing_debt_only_user_to_scoped_surface(self) -> None:
         conn = LedgerConn(
             tg_user_id=123,
