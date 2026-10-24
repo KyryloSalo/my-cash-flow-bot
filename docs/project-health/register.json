@@ -1,0 +1,822 @@
+{
+  "schema_version": 1,
+  "status": "pr_candidate_snapshot",
+  "audit_date": "2026-10-19",
+  "source_sha": "f2e53b659cee68da7d1cfb6ebabd89384fe180e2",
+  "scope": "Evidence-backed stabilization plan; user authorized documentation-only PR publication. Runtime changes, production writes, automatic merge, protection changes and agent-service setup remain outside scope. Source evidence stays pinned to source_sha, not the later publication base.",
+  "runtime": {
+    "deployed_sha": "f2e53b659cee68da7d1cfb6ebabd89384fe180e2",
+    "validation_run": 39158010613,
+    "production_run": 39158608725,
+    "production_run_created_at_utc": "2026-10-18T19:24:16Z",
+    "availability": [
+      {
+        "route": "/healthz",
+        "http_status": 200
+      },
+      {
+        "route": "/readyz",
+        "http_status": 200
+      },
+      {
+        "route": "/app/",
+        "http_status": 200
+      }
+    ],
+    "acceptance": "Health and deployment evidence only; no authenticated financial/provider acceptance in this audit."
+  },
+  "counts": {
+    "configuration_names": 103,
+    "django_route_fragments": 133,
+    "telegram_handler_registrations": 52,
+    "task_decorators": 17
+  },
+  "invariants": [
+    {
+      "id": "INV-CONFIRM",
+      "rule": "Жодного фінансового запису до явного підтвердження користувачем.",
+      "basis": "project contract / proposed explicit domain contract"
+    },
+    {
+      "id": "INV-ONCE",
+      "rule": "Retry/replay/подвійне підтвердження не створюють другого фінансового ефекту.",
+      "basis": "project contract / proposed explicit domain contract"
+    },
+    {
+      "id": "INV-ATOMIC",
+      "rule": "Фінансова mutation і баланс узгоджені; невдача не залишає часткового переказу.",
+      "basis": "project contract / proposed explicit domain contract"
+    },
+    {
+      "id": "INV-FX",
+      "rule": "Cross-currency transfer потребує введеного курсу з явним напрямком та округленням.",
+      "basis": "project contract / proposed explicit domain contract"
+    },
+    {
+      "id": "INV-TRANSFER",
+      "rule": "Переказ не є витратою чи доходом.",
+      "basis": "project contract / proposed explicit domain contract"
+    },
+    {
+      "id": "INV-SCOPE",
+      "rule": "Personal/family доступ і право зміни перевіряються на сервері.",
+      "basis": "project contract / proposed explicit domain contract"
+    },
+    {
+      "id": "INV-ACCESS",
+      "rule": "Entitlement визначається погодженим контрактом, не рекламним текстом; невизначені правила не вигадуються.",
+      "basis": "project contract / proposed explicit domain contract"
+    },
+    {
+      "id": "INV-PWA",
+      "rule": "PWA — основний інтерфейс; Telegram capabilities потребують явного support policy.",
+      "basis": "project contract / proposed explicit domain contract"
+    },
+    {
+      "id": "INV-RELEASE",
+      "rule": "Merged, deployed, runtime-verified, functionally-accepted та owner-accepted — різні твердження.",
+      "basis": "project contract / proposed explicit domain contract"
+    }
+  ],
+  "flows": [
+    {
+      "id": "FLOW-AUTH",
+      "title": "Вхід і повернення після Telegram login",
+      "evidence": [
+        "admin_service/miniapp/urls.py:11"
+      ],
+      "invariant_ids": [
+        "INV-SCOPE",
+        "INV-PWA"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Новий/існуючий користувач; протермінований/replayed login; правильний return route."
+    },
+    {
+      "id": "FLOW-ONBOARD",
+      "title": "Онбординг, категорії та початкові залишки",
+      "evidence": [
+        "admin_service/miniapp/onboarding.py:175"
+      ],
+      "invariant_ids": [
+        "INV-CONFIRM",
+        "INV-SCOPE"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Draft/cancel/confirm, дата навколо midnight; повторний confirm; категорії обов’язкові."
+    },
+    {
+      "id": "FLOW-ACCESS",
+      "title": "Доступ, trial, partner і картка",
+      "evidence": [
+        "admin_service/miniapp/services.py:556"
+      ],
+      "invariant_ids": [
+        "INV-ACCESS",
+        "INV-PWA"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Organic/course/partner, cardless/pending/confirmed, existing/paid/family; очікування trial/card потребує рішення."
+    },
+    {
+      "id": "FLOW-TX",
+      "title": "Звичайна витрата/дохід",
+      "evidence": [
+        "admin_service/miniapp/services.py:1592"
+      ],
+      "invariant_ids": [
+        "INV-CONFIRM",
+        "INV-ONCE",
+        "INV-ATOMIC",
+        "INV-SCOPE"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "PWA draft→confirm→balance/history/report, cancel/replay; зіставити з bot writer."
+    },
+    {
+      "id": "FLOW-ACCOUNT",
+      "title": "Створення/зміна рахунку",
+      "evidence": [
+        "admin_service/miniapp/services.py:1962"
+      ],
+      "invariant_ids": [
+        "INV-CONFIRM",
+        "INV-ONCE",
+        "INV-SCOPE"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Draft/confirm/cancel, початковий баланс, повтор і доступ до чужого scope."
+    },
+    {
+      "id": "FLOW-TRANSFER",
+      "title": "Переказ і валютний курс",
+      "evidence": [
+        "admin_service/miniapp/services.py:2245"
+      ],
+      "invariant_ids": [
+        "INV-CONFIRM",
+        "INV-ONCE",
+        "INV-ATOMIC",
+        "INV-FX",
+        "INV-TRANSFER"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Same/cross-currency, напрямок/rounding, atomic rollback, replay, report exclusion."
+    },
+    {
+      "id": "FLOW-DEBT",
+      "title": "Борг і погашення",
+      "evidence": [
+        "admin_service/miniapp/services.py:2530"
+      ],
+      "invariant_ids": [
+        "INV-CONFIRM",
+        "INV-ONCE",
+        "INV-ATOMIC",
+        "INV-SCOPE"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Видача/отримання/погашення, часткова сума, cancel/replay, фінансові side effects."
+    },
+    {
+      "id": "FLOW-HISTORY",
+      "title": "Історія, редагування та скасування",
+      "evidence": [
+        "admin_service/miniapp/history.py:507"
+      ],
+      "invariant_ids": [
+        "INV-CONFIRM",
+        "INV-ONCE",
+        "INV-ATOMIC",
+        "INV-SCOPE"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Edit/void, баланс і звіт після виправлення, member/owner, double submit."
+    },
+    {
+      "id": "FLOW-FAMILY",
+      "title": "Сім’я та межі доступу",
+      "evidence": [
+        "admin_service/miniapp/urls.py:74"
+      ],
+      "invariant_ids": [
+        "INV-SCOPE",
+        "INV-ACCESS"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Owner/member × personal/family × read/create/edit/void; invite/leave/revoke."
+    },
+    {
+      "id": "FLOW-REPORT",
+      "title": "Звіти й агрегати",
+      "evidence": [
+        "admin_service/miniapp/urls.py:117"
+      ],
+      "invariant_ids": [
+        "INV-TRANSFER",
+        "INV-SCOPE"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Правильні періоди/валюта, transfer exclusion, edit/void, personal/family, timezone."
+    },
+    {
+      "id": "FLOW-TEXT",
+      "title": "Розпізнавання тексту",
+      "evidence": [
+        "admin_service/miniapp/urls.py:83"
+      ],
+      "invariant_ids": [
+        "INV-CONFIRM",
+        "INV-ONCE"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Parse→editable draft→confirm; provider failure не пише DB; ручний fallback."
+    },
+    {
+      "id": "FLOW-PHOTO",
+      "title": "Фото/чек, review і batch",
+      "evidence": [
+        "admin_service/miniapp/urls.py:85"
+      ],
+      "invariant_ids": [
+        "INV-CONFIRM",
+        "INV-ONCE"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Upload→recognize→review/edit→confirm→DB; batch/cancel/retry/низька якість."
+    },
+    {
+      "id": "FLOW-VOICE",
+      "title": "Голос і транскрипція",
+      "evidence": [
+        "admin_service/miniapp/urls.py:84"
+      ],
+      "invariant_ids": [
+        "INV-CONFIRM",
+        "INV-ONCE"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Permission/upload→STT→draft→confirm; timeout/неоднозначна сума/cancel."
+    },
+    {
+      "id": "FLOW-SAVING",
+      "title": "Накопичення та saving tasks",
+      "evidence": [
+        "admin_service/miniapp/savings_tasks.py:222"
+      ],
+      "invariant_ids": [
+        "INV-CONFIRM",
+        "INV-ONCE",
+        "INV-SCOPE"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Draft/confirm/cancel; scope; узгодити financial vs planning effects."
+    },
+    {
+      "id": "FLOW-CAPTURE",
+      "title": "Автозахоплення з пристрою",
+      "evidence": [
+        "admin_service/miniapp/urls.py:51"
+      ],
+      "invariant_ids": [
+        "INV-CONFIRM",
+        "INV-ONCE",
+        "INV-SCOPE"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Pair→physical purchase→inbox→review→confirm; offline/lock/restart/revoke. Device acceptance не виконаний."
+    },
+    {
+      "id": "FLOW-BILLING",
+      "title": "Підписка, callback та поновлення",
+      "evidence": [
+        "admin_service/miniapp/urls.py:70"
+      ],
+      "invariant_ids": [
+        "INV-ACCESS",
+        "INV-ONCE"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Provider callback replay/decline/pending, bind/cancel/renew, відсутність downgrade; real PSP окремо."
+    },
+    {
+      "id": "FLOW-NOTIFY",
+      "title": "Сповіщення й фонові задачі",
+      "evidence": [
+        "admin_service/miniapp/urls.py:60"
+      ],
+      "invariant_ids": [
+        "INV-SCOPE",
+        "INV-ACCESS"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Права/consent, доставка/retry/revoke, worker/beat; не дублювати фінансовий ефект."
+    },
+    {
+      "id": "FLOW-DELETE",
+      "title": "Видалення облікового запису",
+      "evidence": [
+        "admin_service/miniapp/urls.py:41"
+      ],
+      "invariant_ids": [
+        "INV-CONFIRM",
+        "INV-SCOPE"
+      ],
+      "acceptance_status": "unverified",
+      "next_acceptance": "Preflight→explicit confirm; особисті/сімейні наслідки; не виконувати на справжніх даних."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F01",
+      "confidence": "high",
+      "classification": "confirmed-risk",
+      "title": "Два фінансові writer-и: Django та asyncpg",
+      "evidence": [
+        "bot/transaction_service.py:83"
+      ],
+      "detail": "Однакові інваріанти мають окремі реалізації; конкретна розбіжність DB-результату цим аудитом не доведена."
+    },
+    {
+      "id": "F02",
+      "confidence": "high",
+      "classification": "confirmed-gap",
+      "title": "Browser smoke не є фінансовим end-to-end",
+      "evidence": [
+        "docs/BROWSER_ACCEPTANCE.md:16"
+      ],
+      "detail": "Наявний маршрут навмисно не перевіряє draft/confirm/payment/Telegram/provider. Не називати його feature acceptance."
+    },
+    {
+      "id": "F03",
+      "confidence": "high",
+      "classification": "confirmed-gap",
+      "title": "Receipt не пов’язаний наскрізно з вимогою й релізом",
+      "evidence": [
+        "ops/delivery.py:190"
+      ],
+      "detail": "Локальний candidate-bound delivery уже сильний; потрібні посилання на backlog/scenario/PR/release, а не другий engine."
+    },
+    {
+      "id": "F04",
+      "confidence": "high",
+      "classification": "confirmed-drift",
+      "title": "Джерела вимог і current state розділені між outer workspace і Git",
+      "evidence": [
+        "docs/releases/0.40.3-canonical-docs.json:1"
+      ],
+      "detail": "Main містить runtime і release metadata; частина чинних людських вимог/стану лишається зовні. Міграція лише після звірки."
+    },
+    {
+      "id": "F05",
+      "confidence": "high",
+      "classification": "confirmed-configuration",
+      "title": "Review потрібен правилами, але branch protection дозволяє 0 approvals",
+      "evidence": [
+        "baseline.json:17"
+      ],
+      "detail": "Required validate та admin enforcement є; machine enforcement незалежного review потребує узгодженого рішення."
+    },
+    {
+      "id": "F06",
+      "confidence": "medium",
+      "classification": "unreproduced-risk",
+      "title": "Onboarding використовує host date, інші гілки — application date",
+      "evidence": [
+        "admin_service/miniapp/onboarding.py:179"
+      ],
+      "detail": "Різні API підтверджені статично. Невірну дату у runtime/production тут не відтворено; спочатку timezone-boundary RED."
+    },
+    {
+      "id": "F07",
+      "confidence": "high",
+      "classification": "confirmed-complexity",
+      "title": "Великі orchestration-модулі збільшують blast radius",
+      "evidence": [
+        "bot/bot_main.py:1"
+      ],
+      "detail": "Розмір — сигнал концентрації, не доказ дефекту. Першими змінювати seams після characterization, не wholesale rewrite."
+    },
+    {
+      "id": "F08",
+      "confidence": "high",
+      "classification": "confirmed-policy-conflict",
+      "title": "Partner trial/card очікування не можна виводити лише з одного документа",
+      "evidence": [
+        "admin_service/miniapp/partner_offers.py:50"
+      ],
+      "detail": "Canonical main partner_offers.py:50–51 резервує claim, доступ після card binding. Натомість recovery checkout code/docs/PARTNER_TRIAL_OFFERS.md:14–15 обіцяє grant без картки/renewal. Це конфлікт різних revision/source layers, не доказ суперечності всередині одного deployed SHA. Спершу рішення власника."
+    },
+    {
+      "id": "F09",
+      "confidence": "high",
+      "classification": "confirmed-gap",
+      "title": "Докази acceptance можуть пережити строк зберігання CI artifacts",
+      "evidence": [
+        ".github/workflows/deploy.yml:81"
+      ],
+      "detail": "Browser logs 14 днів, bundle 30 днів у перевіреному workflow; summary/hash/status прив’язувати до вимоги."
+    },
+    {
+      "id": "F10",
+      "confidence": "high",
+      "classification": "coverage-risk",
+      "title": "Family та photo/text/voice потребують наскрізних sibling-сценаріїв",
+      "evidence": [
+        "admin_service/miniapp/tests_mini_confirmation_integrity.py:47"
+      ],
+      "detail": "Частина suite використовує patched commit і synthetic ledger. Це корисний orchestration guard, але не DB/provider acceptance."
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-01",
+      "owner": "Product owner",
+      "question": "Коли partner trial резервується/активується і що дозволено без картки?",
+      "status": "open",
+      "needed_by": [
+        "HEALTH-02"
+      ],
+      "recommendation": "Зберегти чинну card-bound поведінку на час стабілізації; cardless recovery не переносити. Бізнес-вибір лишається відкритим; подробиці DECISIONS.md."
+    },
+    {
+      "id": "DEC-02",
+      "owner": "Product owner",
+      "question": "Які Telegram фінансові flow підтримуємо, а які переводимо у PWA?",
+      "status": "direction_agreed_details_open",
+      "needed_by": [
+        "HEALTH-03"
+      ],
+      "recommendation": "PWA primary вже чинне правило; нові UI-сценарії — PWA. Legacy спочатку інвентаризувати: supported/redirect/deprecated; зараз нічого не вимикати."
+    },
+    {
+      "id": "DEC-03",
+      "owner": "Product owner",
+      "question": "Публікуємо актуальні контракти й цей dashboard у code/docs через PR, з pointer-ами зі старих outer docs?",
+      "status": "authorized_for_pr",
+      "needed_by": [
+        "HEALTH-00"
+      ],
+      "recommendation": "Поточний scope дозволяє docs-only PR у Git docs/project-health. Один live GitHub backlog; outer-doc міграція тематична, не wholesale; чинність після merge."
+    },
+    {
+      "id": "DEC-04",
+      "owner": "Release owner + product owner",
+      "question": "Який незалежний review gate реально працює для solo-owner без блокування merge?",
+      "status": "open",
+      "needed_by": [
+        "HEALTH-13"
+      ],
+      "recommendation": "Незалежне candidate-bound рев’ю цього PR; validate/production approval незмінні. Machine review receipt gate — окрема пропозиція HEALTH-13, protection не змінювати."
+    }
+  ],
+  "backlog": [
+    {
+      "id": "HEALTH-00",
+      "priority": "P0",
+      "status": "in_progress",
+      "title": "Опублікувати audit baseline і одну стартову сторінку",
+      "owner_role": "Integrator",
+      "depends_on": [],
+      "flow_ids": [
+        "FLOW-AUTH"
+      ],
+      "exit_criteria": "Звичайний docs-only PR, validate та незалежний огляд; без product redeploy.",
+      "blocker_or_note": "Поточне доручення дозволяє docs-only commit/push/PR. Живий статус — у GitHub; цей snapshot не стверджує merge чи production release.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-01",
+      "priority": "P0",
+      "status": "planned",
+      "title": "Зв’язати вимогу, delivery receipt, PR, SHA й acceptance",
+      "owner_role": "Integrator",
+      "depends_on": [
+        "HEALTH-00"
+      ],
+      "flow_ids": [
+        "FLOW-TX",
+        "FLOW-ACCESS"
+      ],
+      "exit_criteria": "Одна пілотна вимога має backlog ID, scenario, candidate, check, release та явний owner status; немає другого трекера.",
+      "blocker_or_note": "Почати з посилань; зміни delivery CLI тільки окремим погодженим PR.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-02",
+      "priority": "P0",
+      "status": "needs_decision",
+      "title": "Узгодити partner trial/card контракт",
+      "owner_role": "Product owner",
+      "depends_on": [],
+      "flow_ids": [
+        "FLOW-ACCESS",
+        "FLOW-BILLING"
+      ],
+      "exit_criteria": "Один затверджений контракт cardless/pending/confirmed/new/existing/family; код і тексти не суперечать рішенню.",
+      "blocker_or_note": "DEC-01: reserve vs activate trial, card requirement та renewal.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-03",
+      "priority": "P0",
+      "status": "needs_decision",
+      "title": "Визначити підтримувані Telegram capabilities",
+      "owner_role": "Product owner",
+      "depends_on": [],
+      "flow_ids": [
+        "FLOW-TX",
+        "FLOW-TRANSFER",
+        "FLOW-DEBT"
+      ],
+      "exit_criteria": "Кожен legacy flow має supported/redirect-to-PWA/deprecated і критерій безпечного переходу.",
+      "blocker_or_note": "DEC-02: нічого не відключати до погодження.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-04",
+      "priority": "P1",
+      "status": "planned",
+      "title": "Доповнити flow/config/process inventory власниками та impact links",
+      "owner_role": "Domain analyst",
+      "depends_on": [
+        "HEALTH-00"
+      ],
+      "flow_ids": [
+        "FLOW-NOTIFY",
+        "FLOW-AUTH"
+      ],
+      "exit_criteria": "Static candidates перевірені: FLOW/owner, входи/jobs/tables/config names/default policy; список dynamic unknown видимий.",
+      "blocker_or_note": "AST inventory — стартовий snapshot, не повне runtime discovery.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-05",
+      "priority": "P0",
+      "status": "planned",
+      "title": "Захистити normal transaction вертикальним acceptance",
+      "owner_role": "QA + implementer",
+      "depends_on": [
+        "HEALTH-00"
+      ],
+      "flow_ids": [
+        "FLOW-TX",
+        "FLOW-HISTORY",
+        "FLOW-REPORT"
+      ],
+      "exit_criteria": "Disposable PostgreSQL + реальний PWA browser: no write before confirm, correct balance/report, replay/cancel/void; зіставити підтримуваний bot шлях.",
+      "blocker_or_note": "Наявні тести спочатку characterization; не створювати production записи.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-06",
+      "priority": "P1",
+      "status": "planned",
+      "title": "Захистити transfer/FX та звітний sibling",
+      "owner_role": "QA + domain analyst",
+      "depends_on": [
+        "HEALTH-05"
+      ],
+      "flow_ids": [
+        "FLOW-TRANSFER",
+        "FLOW-REPORT"
+      ],
+      "exit_criteria": "Same/cross currency, manual FX, direction/rounding, rollback/concurrent replay та exclusion з доходів/витрат.",
+      "blocker_or_note": "Повторно використовувати наявні Postgres tests, не AST-only доказ.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-07",
+      "priority": "P1",
+      "status": "planned",
+      "title": "Перевірити family authorization matrix",
+      "owner_role": "QA + domain analyst",
+      "depends_on": [
+        "HEALTH-05"
+      ],
+      "flow_ids": [
+        "FLOW-FAMILY",
+        "FLOW-HISTORY",
+        "FLOW-REPORT",
+        "FLOW-DEBT"
+      ],
+      "exit_criteria": "Owner/member × personal/family на read/create/edit/void; wrong-scope не читає/не мутує дані.",
+      "blocker_or_note": "Явного exploit цим аудитом не доведено.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-08",
+      "priority": "P1",
+      "status": "planned",
+      "title": "Пройти photo/text/voice до фактичного фінансового результату",
+      "owner_role": "QA + UX",
+      "depends_on": [
+        "HEALTH-05"
+      ],
+      "flow_ids": [
+        "FLOW-PHOTO",
+        "FLOW-TEXT",
+        "FLOW-VOICE"
+      ],
+      "exit_criteria": "Кожна modality: input→editable draft→confirm→DB/balance; failure/cancel/retry; provider boundary й real-provider статус окремо.",
+      "blocker_or_note": "Врахувати відкриті photo PR #29/#31, не змішувати їх wholesale.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-09",
+      "priority": "P1",
+      "status": "planned",
+      "title": "Вибрати й виділити один financial domain seam",
+      "owner_role": "Domain analyst + implementer",
+      "depends_on": [
+        "HEALTH-03",
+        "HEALTH-05",
+        "HEALTH-06",
+        "HEALTH-07"
+      ],
+      "flow_ids": [
+        "FLOW-TX",
+        "FLOW-TRANSFER",
+        "FLOW-DEBT",
+        "FLOW-HISTORY"
+      ],
+      "exit_criteria": "Characterization + ADR pure policy vs internal API; мінімальний diff з незмінними результатами; sibling matrix green.",
+      "blocker_or_note": "Не автоматично вимагати новий сервіс або повний rewrite.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-10",
+      "priority": "P1",
+      "status": "needs_decision",
+      "title": "Закрити відомий partner/capture acceptance debt",
+      "owner_role": "QA + product owner",
+      "depends_on": [
+        "HEALTH-02"
+      ],
+      "flow_ids": [
+        "FLOW-ACCESS",
+        "FLOW-CAPTURE"
+      ],
+      "exit_criteria": "PARTNER-01: усі CTA/custom hash/7889/інше число/auth return/exact days/manual check; CAPTURE-01: physical/offline/restart/revoke/no write before confirm.",
+      "blocker_or_note": "Потрібні дозволені identity/provider/device маршрути; synthetic не замінює їх.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-11",
+      "priority": "P2",
+      "status": "planned",
+      "title": "Декомпозувати hotspots після доменних захистів",
+      "owner_role": "Implementer",
+      "depends_on": [
+        "HEALTH-09"
+      ],
+      "flow_ids": [
+        "FLOW-TX",
+        "FLOW-PHOTO",
+        "FLOW-VOICE"
+      ],
+      "exit_criteria": "Одна responsibility за PR, без зміни бізнес-семантики; немає дублюючого старого writer без support рішення.",
+      "blocker_or_note": "Розмір файлу сам по собі не acceptance criterion.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-12",
+      "priority": "P2",
+      "status": "planned",
+      "title": "Прибрати непотрібні config/process/legacy шляхи доказово",
+      "owner_role": "Implementer",
+      "depends_on": [
+        "HEALTH-03",
+        "HEALTH-04"
+      ],
+      "flow_ids": [
+        "FLOW-NOTIFY",
+        "FLOW-CAPTURE"
+      ],
+      "exit_criteria": "Usage/routes/jobs звірені; owner approved retirement; потрібні guards лишилися.",
+      "blocker_or_note": "Не читати .env/ключі й не зупиняти невідомі процеси.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-13",
+      "priority": "P1",
+      "status": "needs_decision",
+      "title": "Узгодити review enforcement та retention доказів",
+      "owner_role": "Release owner",
+      "depends_on": [
+        "HEALTH-00"
+      ],
+      "flow_ids": [
+        "FLOW-AUTH"
+      ],
+      "exit_criteria": "Визначений незалежний reviewer/gate для solo-owner; summary/hash зберігається до закриття acceptance; raw logs мають строк.",
+      "blocker_or_note": "DEC-04: не змінювати GitHub protection без погодження.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-14",
+      "priority": "P2",
+      "status": "planned",
+      "title": "Відтворити timezone-boundary для onboarding",
+      "owner_role": "Implementer",
+      "depends_on": [],
+      "flow_ids": [
+        "FLOW-ONBOARD",
+        "FLOW-REPORT"
+      ],
+      "exit_criteria": "Точний RED на host/app timezone mismatch; якщо repro є — вузький fix та regression; якщо немає — risk closed з доказом.",
+      "blocker_or_note": "Статичну відмінність не називати доведеним production incident.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    },
+    {
+      "id": "HEALTH-15",
+      "priority": "P2",
+      "status": "planned",
+      "title": "Кореляція user journey, task і production evidence",
+      "owner_role": "Integrator",
+      "depends_on": [
+        "HEALTH-01"
+      ],
+      "flow_ids": [
+        "FLOW-PHOTO",
+        "FLOW-BILLING",
+        "FLOW-NOTIFY"
+      ],
+      "exit_criteria": "Одна пілотна подія трасується від UI до request/event/receipt без PII/секретів; використано TEST-01.",
+      "blocker_or_note": "Не будувати нову observability платформу без потреби.",
+      "issue": null,
+      "pr": null,
+      "candidate": null,
+      "evidence": [],
+      "release_status": "not_started"
+    }
+  ],
+  "limitations": [
+    "Audit is a dated snapshot; it is not a live GitHub Project.",
+    "Static inventory is partial and requires dynamic/config/process curation.",
+    "No full product test suite or financial/provider browser journeys executed for this audit.",
+    "No proven claim that every legacy path is supported, broken or unused.",
+    "Local documentation completion is not GitHub publication or production activation.",
+    "Separate delivery-verification skill/executable was not found in this profile; local delivery.py remains available."
+  ]
+}
