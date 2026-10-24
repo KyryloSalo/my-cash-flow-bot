@@ -61,6 +61,10 @@ class OpenAIVisionInvalidResponseError(OpenAIVisionError):
     pass
 
 
+class PhotoEvidenceReviewRequired(OpenAIVisionInvalidResponseError):
+    """Expected safety rejection, not a provider or response-format failure."""
+
+
 @dataclass(frozen=True)
 class AccountOption:
     id: int
@@ -922,9 +926,9 @@ async def analyze_screenshot(
         )
         # Rejected bank transactions never become expense suggestions.
         if not evidence.accepted and not evidence.statement_review_rows and not merchant_review:
-            raise OpenAIVisionInvalidResponseError("Photo evidence requires review")
+            raise PhotoEvidenceReviewRequired("Photo evidence requires review")
         if not evidence.statement_items and not evidence.statement_review_rows and (evidence.amount is None or evidence.currency is None):
-            raise OpenAIVisionInvalidResponseError("Photo evidence requires review")
+            raise PhotoEvidenceReviewRequired("Photo evidence requires review")
         if evidence.statement_items:
             items = tuple(StatementItemAnalysis(transaction_date=row["transaction_date"], type="expense", amount=row["amount"],
                 currency=row["currency"], category_hint=row.get("category_hint"), comment=row.get("comment"), confidence=row.get("confidence", 0.0))
