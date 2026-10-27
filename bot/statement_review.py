@@ -54,6 +54,11 @@ def align_review_rows(observations: list[tuple[str, list[dict]]]) -> tuple[dict,
     keys: list[tuple] = []
     for source, incoming in observations:
         incoming_keys = [_identity(row, source, index) for index, row in enumerate(incoming)]
+        if rows and len(rows) == len(incoming) and all(
+                _same_inventory_position(a, b) for a, b in zip(rows, incoming)):
+            rows = [_merge_observation(a, b) for a, b in zip(rows, incoming)]
+            keys = [_identity(row, source, index) for index, row in enumerate(rows)]
+            continue
         combined_rows, combined_keys = [], []
         for tag, i, j, m, n in SequenceMatcher(None, keys, incoming_keys, autojunk=False).get_opcodes():
             if tag == 'equal':
@@ -67,3 +72,21 @@ def align_review_rows(observations: list[tuple[str, list[dict]]]) -> tuple[dict,
                 combined_keys.extend(incoming_keys[m:n])
         rows, keys = combined_rows, combined_keys
     return tuple(rows)
+
+
+def _same_inventory_position(first: dict, second: dict) -> bool:
+    """A complete identical ordered inventory may differ in missing metadata."""
+    for field in ('amount', 'currency', 'direction'):
+        if first.get(field) != second.get(field):
+            return False
+    if first.get('amount') is None or not first.get('currency'):
+        return False
+    raw_first, raw_second = first.get('raw_row') or {}, second.get('raw_row') or {}
+    if not raw_first.get('raw_amount') or not raw_second.get('raw_amount'):
+        return False
+    date_first, date_second = first.get('transaction_date'), second.get('transaction_date')
+    if date_first and date_second:
+        return date_first == date_second
+    literal_first = ' '.join(str(raw_first.get('raw_date') or '').casefold().split())
+    literal_second = ' '.join(str(raw_second.get('raw_date') or '').casefold().split())
+    return not literal_first or not literal_second or literal_first == literal_second

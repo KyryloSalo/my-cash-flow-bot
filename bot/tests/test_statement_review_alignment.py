@@ -69,6 +69,21 @@ class StatementReviewAlignmentTests(unittest.TestCase):
         parsed = _parse_pass('full-a', json.dumps({'mode': 'statement_expenses', 'statement_items': [row]}))
         self.assertEqual(parsed.raw_evidence['statement_review_rows'], [])
 
+    def test_same_ordered_inventory_is_not_duplicated_when_one_pass_omits_dates(self):
+        first = [{'transaction_date': None, 'raw_date': '', 'raw_amount': amount + ' UAH',
+                  'raw_currency': 'UAH', 'type': 'unknown', 'status': 'unknown',
+                  'classification': 'ambiguous'}
+                 for amount in ['-20000.00', '-1700.00', '-2000.00', '-2000.00',
+                                '-11900.00', '-112000.00', '149500.00', '-18880.00', '18880.00']]
+        second = [{**row, 'raw_date': '28 вересня'} for row in first]
+        passes = tuple(_parse_pass(source, json.dumps({'mode': 'statement_expenses', 'statement_items': body}))
+                       for source, body in [('full-a', first), ('full-b', second)])
+        result = self.reconcile(passes)
+        self.assertEqual(len(result.statement_review_rows), 9)
+        self.assertEqual(sum(row['amount'] == Decimal('2000.00') for row in result.statement_review_rows), 2)
+        self.assertTrue(all(row['transaction_date'] is None for row in result.statement_review_rows))
+        self.assertEqual(result.statement_review_rows[0]['alternative_raw_rows'][0]['raw_date'], '28 вересня')
+
     def test_balance_named_merchant_is_not_discarded(self):
         row = {'transaction_date': None, 'type': 'unknown', 'status': 'unknown',
                'raw_amount': '-10 EUR', 'raw_date': '2 вересня', 'raw_currency': 'EUR',

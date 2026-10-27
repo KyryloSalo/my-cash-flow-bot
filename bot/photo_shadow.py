@@ -541,7 +541,7 @@ async def analyze_photo(image_bytes: bytes, *, mime_type: str, model: str, detai
             variants = _preprocess_variants(canvas)
             canonical = variants[0]
     except (OSError, ValueError) as exc: raise ValueError("Malformed or unsupported image") from exc
-    key = build_cache_key(image_bytes, config=PipelineConfig(), model=model, detail=detail).as_string() + ":active:statement-row-v4:" + today.isoformat()
+    key = build_cache_key(image_bytes, config=PipelineConfig(), model=model, detail=detail).as_string() + ":active:statement-row-v5:" + today.isoformat()
     durable = _load_durable(key)
     if durable is not None:
         _CACHE[key] = (time.monotonic(), durable)
