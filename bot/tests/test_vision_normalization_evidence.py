@@ -15,6 +15,27 @@ from vision_tx import _normalize_amount, _parse_response, serialize_miniapp_scre
 
 
 class EvidenceNormalizationTests(unittest.TestCase):
+    def test_literal_en_dash_debit_is_a_magnitude_not_an_unknown_amount(self):
+        for evidence, expected in (("–899.93", "899.93"), ("–3 299.95", "3299.95")):
+            with self.subTest(evidence=evidence):
+                self.assertEqual(vision_tx._normalize_amount(evidence), Decimal(expected))
+
+    def test_complete_literal_local_dates_preserve_supported_date_only(self):
+        for evidence in ("25 жовтня 2026, 22:17:36", "25.10.2026, 11:44"):
+            with self.subTest(evidence=evidence):
+                _, supported_date, findings = vision_tx._verified_fields(
+                    {"amount": 12, "amount_text": "12,00", "date_text": evidence,
+                     "transaction_date": "2026-10-25"}, today=date(2026, 10, 27))
+                self.assertEqual(supported_date, date(2026, 10, 25))
+                self.assertNotIn("transaction_date_unknown", findings)
+        for evidence in ("25 жовтня", "25.10", "25.10.2026, 25:01", "31 лютого 2026"):
+            with self.subTest(evidence=evidence):
+                _, supported_date, findings = vision_tx._verified_fields(
+                    {"amount": 12, "amount_text": "12,00", "date_text": evidence,
+                     "transaction_date": "2026-10-25"}, today=date(2026, 10, 27))
+                self.assertIsNone(supported_date)
+                self.assertIn("transaction_date_unknown", findings)
+
     def test_nonexpense_description_is_not_weakened_by_unknown_status(self):
         for comment in ("Недостатньо коштів", "На свою картку"):
             with self.subTest(comment=comment):

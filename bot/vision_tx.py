@@ -236,7 +236,7 @@ def _normalize_currency_evidence_kind(value: Any) -> str | None:
 def _normalize_amount(value: Any) -> Decimal | None:
     if value is None or isinstance(value, bool):
         return None
-    text = str(value).strip().replace("−", "-").replace("\u00a0", " ").replace("\u202f", " ")
+    text = str(value).strip().replace("−", "-").replace("–", "-").replace("\u00a0", " ").replace("\u202f", " ")
     text = text.removeprefix("+").removeprefix("-")
     # Never silently round, truncate, accept exponents or ambiguous separators.
     if not re.fullmatch(r"[0-9][0-9 .,]*", text):
@@ -290,6 +290,8 @@ def _verified_fields(data: dict[str, Any], *, today: date) -> tuple[Decimal | No
                 observed_date = datetime.fromisoformat(evidence).date()
             except ValueError:
                 pass
+        if observed_date is None:
+            observed_date = _normalize_local_date_evidence(evidence)
         if observed_date is None or tx_date != observed_date:
             findings.append("transaction_date_conflict" if observed_date is not None and tx_date is not None else "transaction_date_unknown")
             tx_date = None
@@ -419,6 +421,26 @@ def _normalize_date(value: Any, *, today: date) -> date | None:
         return None
     try:
         return date.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def _normalize_local_date_evidence(text: str) -> date | None:
+    """Parse complete literal dates without supplying a missing year or time."""
+    match = re.fullmatch(
+        r"(?P<day>\d{1,2})(?:\.(?P<month>\d{1,2})\.|\s+(?P<month_name>[а-яіїєґ]+)\s+)"
+        r"(?P<year>\d{4})(?:,?\s+(?P<hour>\d{2}):(?P<minute>\d{2})(?::(?P<second>\d{2}))?)?",
+        text.strip().lower(),
+    )
+    if match is None:
+        return None
+    months = ("січня", "лютого", "березня", "квітня", "травня", "червня",
+              "липня", "серпня", "вересня", "жовтня", "листопада", "грудня")
+    try:
+        month = int(match["month"]) if match["month"] else months.index(match["month_name"]) + 1
+        return datetime(int(match["year"]), month, int(match["day"]),
+                        int(match["hour"] or 0), int(match["minute"] or 0),
+                        int(match["second"] or 0)).date()
     except ValueError:
         return None
 
