@@ -45,6 +45,18 @@ class ReceiptProviderTests(unittest.TestCase):
         self.assertEqual(set(schema["properties"]), set(schema["required"]))
         self.assertIn("receipt_items", schema["properties"])
 
+    def test_visible_category_hint_is_retained_only_when_full_passes_agree(self):
+        self.assertIn('category_hint', _schema()['properties'])
+        payload = json.loads(self.response())
+        payload['category_hint'] = 'Food'
+        first = _parse_pass('full-a', json.dumps(payload))
+        second = _parse_pass('full-b', json.dumps(payload))
+        result = reconcile_extractions((first, second))
+        self.assertEqual(result.trace['field_candidates']['category_hint'], 'Food')
+        payload['category_hint'] = 'Transport'
+        conflict = reconcile_extractions((first, _parse_pass('full-b', json.dumps(payload))))
+        self.assertNotIn('category_hint', conflict.trace['field_candidates'])
+
     def test_provider_receipt_fields_survive_reconciliation(self):
         passes = tuple(_parse_pass(source, self.response()) for source in ("full-a", "full-b"))
         result = reconcile_extractions(passes)

@@ -99,7 +99,7 @@ def main() -> int:
         subprocess.run([sys.executable, "manage.py", "migrate", "--noinput"], cwd=app_root, env=env, check=True)
         server = subprocess.Popen(
             [sys.executable, "manage.py", "runserver", f"127.0.0.1:{port}", "--noreload"],
-            cwd=app_root, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            cwd=app_root, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True,
         )
         base_url = f"http://127.0.0.1:{port}/app"
         wait_for(base_url + "/", server)

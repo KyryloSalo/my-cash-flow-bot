@@ -1034,6 +1034,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
             patch.object(views, "build_ai_image_catalog", return_value={"accounts": []}) as catalog_builder,
             patch.object(views, "request_ai_image_parse", return_value=parsed) as parser_client,
             patch.object(views, "build_ai_image_suggestion", return_value=suggestion) as builder,
+            patch.object(views, "_identity_scope_binding", return_value={"actor_user_id": 1001, "scope_type": "personal", "family_id": None}),
         ):
             response = views.ai_image_parse(request)
 
@@ -1061,6 +1062,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
             patch.object(views, "build_ai_image_catalog", return_value={"accounts": []}),
             patch.object(views, "request_ai_image_parse", return_value=parsed) as parser_client,
             patch.object(views, "build_ai_image_suggestion", return_value=suggestion),
+            patch.object(views, "_identity_scope_binding", return_value={"actor_user_id": 1001, "scope_type": "personal", "family_id": None}),
         ):
             response = views.ai_image_parse(request)
 
@@ -1158,6 +1160,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
             patch.object(views, "build_ai_image_catalog", return_value={"accounts": []}),
             patch.object(views, "request_ai_image_parse", return_value=parsed),
             patch.object(views, "build_ai_image_batch", return_value=batch) as builder,
+            patch.object(views, "_identity_scope_binding", return_value={"actor_user_id": 1001, "scope_type": "personal", "family_id": None}),
         ):
             response = views.ai_image_parse(request)
 

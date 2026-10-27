@@ -6,7 +6,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -77,7 +77,7 @@ class CategoryOption:
 
 @dataclass(frozen=True)
 class ScreenshotAnalysis:
-    transaction_date: date
+    transaction_date: date | None
     type: str | None
     amount: Decimal | None
     currency: str
@@ -100,6 +100,7 @@ class ScreenshotAnalysis:
     currency_evidence_text: str | None = None
     currency_context_text: str | None = None
     currency_resolution: str | None = None
+    currency_candidates: tuple[str, ...] = ()
     receipt_items: tuple["ReceiptItemAnalysis", ...] = ()
     receipt_date: date | None = None
     receipt_merchant: str | None = None
@@ -108,17 +109,22 @@ class ScreenshotAnalysis:
     needs_review: bool = False
     arithmetic_warnings: tuple[str, ...] = ()
     source: str = "screenshot"
+    field_evidence: dict[str, str | None] | None = None
 
 
 @dataclass(frozen=True)
 class StatementItemAnalysis:
-    transaction_date: date
+    transaction_date: date | None
     type: str | None
     amount: Decimal | None
     currency: str
     category_hint: str | None
     comment: str | None
     confidence: float
+    field_findings: tuple[str, ...] = ()
+    needs_review: bool = False
+    currency_explicit: bool = False
+    field_evidence: dict[str, str | None] | None = None
 
 
 @dataclass(frozen=True)
@@ -152,11 +158,16 @@ def serialize_miniapp_screenshot_analysis(analysis: ScreenshotAnalysis) -> dict[
             "category_hint": item.category_hint,
             "comment": item.comment,
             "confidence": float(item.confidence),
+            "field_findings": list(item.field_findings),
+            "needs_review": bool(item.needs_review),
+            "currency_explicit": bool(item.currency_explicit),
+            "field_evidence": dict(item.field_evidence or {}),
         }
 
     return {
         "mode": analysis.mode,
         "source": analysis.source,
+        "field_evidence": dict(analysis.field_evidence or {}),
         "transaction_date": analysis.transaction_date.isoformat() if analysis.transaction_date else None,
         "type": analysis.type,
         "amount": f"{analysis.amount:.2f}" if analysis.amount is not None else None,
@@ -191,6 +202,8 @@ def serialize_miniapp_screenshot_analysis(analysis: ScreenshotAnalysis) -> dict[
         "field_findings": list(analysis.field_findings),
         "needs_review": bool(analysis.needs_review),
         "arithmetic_warnings": list(analysis.arithmetic_warnings),
+        "currency_candidates": list(analysis.currency_candidates),
+        "field_candidates": dict((analysis.raw_response or {}).get("field_candidates") or {}),
     }
 
 
@@ -221,14 +234,86 @@ def _normalize_currency_evidence_kind(value: Any) -> str | None:
 
 
 def _normalize_amount(value: Any) -> Decimal | None:
-    if value is None or value == "":
+    if value is None or isinstance(value, bool):
         return None
+    text = str(value).strip().replace("−", "-").replace("\u00a0", " ").replace("\u202f", " ")
+    text = text.removeprefix("+").removeprefix("-")
+    # Never silently round, truncate, accept exponents or ambiguous separators.
+    if not re.fullmatch(r"[0-9][0-9 .,]*", text):
+        return None
+    if "," in text and "." in text:
+        decimal_sep = "," if text.rfind(",") > text.rfind(".") else "."
+        group_sep = "." if decimal_sep == "," else ","
+        if not re.fullmatch(rf"[0-9]{{1,3}}(?:{re.escape(group_sep)}[0-9]{{3}})+{re.escape(decimal_sep)}[0-9]{{2}}", text):
+            return None
+        text = text.replace(group_sep, "").replace(decimal_sep, ".")
+    else:
+        if " " in text:
+            if not re.fullmatch(r"[0-9]{1,3}(?: [0-9]{3})+(?:[.,][0-9]{1,2})?", text):
+                return None
+            text = text.replace(" ", "")
+        if not re.fullmatch(r"[0-9]+(?:[.,][0-9]{1,2})?", text):
+            return None
+        text = text.replace(",", ".")
     try:
-        # Statement screenshots often render expenses with a leading minus sign.
-        amount = quantize_money(abs(Decimal(str(value))))
+        amount = quantize_money(Decimal(text))
     except (InvalidOperation, ValueError):
         return None
     return amount if amount > 0 else None
+
+
+def _verified_fields(data: dict[str, Any], *, today: date) -> tuple[Decimal | None, date | None, tuple[str, ...]]:
+    amount = _normalize_amount(data.get("amount"))
+    tx_date = _normalize_date(data.get("transaction_date"), today=today)
+    findings: list[str] = []
+    if "amount_text" in data:
+        observed = _normalize_amount(data.get("amount_text"))
+        if observed is None or amount != observed:
+            findings.append("amount_conflict" if observed is not None and amount is not None else "amount_unknown")
+            amount = None
+    if "date_text" in data:
+        evidence = str(data.get("date_text") or "").strip()
+        observed_date = None
+        for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                observed_date = datetime.strptime(evidence, fmt).date()
+                break
+            except ValueError:
+                continue
+        if observed_date is None and re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?",
+            evidence,
+        ):
+            try:
+                # Preserve the calendar date printed in the evidence, not a
+                # timezone-converted date; invalid timestamps remain unknown.
+                observed_date = datetime.fromisoformat(evidence).date()
+            except ValueError:
+                pass
+        if observed_date is None or tx_date != observed_date:
+            findings.append("transaction_date_conflict" if observed_date is not None and tx_date is not None else "transaction_date_unknown")
+            tx_date = None
+    return amount, tx_date, tuple(findings)
+
+
+def _field_evidence(data: dict[str, Any]) -> dict[str, str | None]:
+    return {key: _normalize_text(data.get(key), limit=120)
+            for key in ("amount_text", "date_text", "currency_text", "status", "operation_kind")
+            if key in data}
+
+
+def _operation_finding(data: dict[str, Any]) -> str | None:
+    kind = str(data.get("operation_kind") or "").strip().lower()
+    if kind and kind not in {"expense", "income"}:
+        return kind if kind in {"transfer", "refund"} else "type_conflict"
+    if kind and kind != _normalize_type(data.get("type")):
+        return "type_conflict"
+    status = str(data.get("status") or "").strip().lower()
+    if status == "unknown":
+        return "status_unknown"
+    if status and status not in {"posted", "completed", "success", "successful"}:
+        return status if status in {"declined", "pending"} else "status_conflict"
+    return None
 
 
 def _normalize_currency_value(value: Any, *, default: str = "") -> str:
@@ -251,6 +336,17 @@ def _infer_currency_from_context_text(*values: Any) -> str:
             if re.search(pattern, combined, flags=re.IGNORECASE):
                 return currency
     return ""
+
+
+def _verified_currency(data: dict[str, Any]) -> tuple[str, tuple[str, ...], str | None]:
+    declared = _normalize_currency_value(data.get("currency"))
+    evidence = _normalize_currency_value(data.get("currency_text"))
+    candidates = tuple(sorted({c for c in (declared, evidence) if c}))
+    if not evidence:
+        return "", candidates, "currency_unknown"
+    if not declared or evidence != declared:
+        return "", candidates, "currency_conflict" if declared else "currency_unknown"
+    return declared, candidates, None
 
 
 def _infer_statement_currency(raw_items: Any) -> str:
@@ -342,15 +438,26 @@ def _fallback_detail(detail: str) -> str:
     return detail
 
 
+def _evidence_schema() -> dict[str, Any]:
+    return {
+        "amount_text": {"type": ["string", "null"]},
+        "date_text": {"type": ["string", "null"]},
+        "currency_text": {"type": ["string", "null"]},
+        "status": {"type": "string", "enum": ["posted", "declined", "pending", "unknown"]},
+        "operation_kind": {"type": "string", "enum": ["expense", "income", "transfer", "refund", "unknown"]},
+    }
+
+
 def _statement_item_schema() -> dict[str, Any]:
     return {
         "type": "object",
         "additionalProperties": False,
         "properties": {
             "transaction_date": {"type": "string", "description": "ISO date YYYY-MM-DD, or empty string if unknown."},
-            "type": {"type": "string", "enum": ["expense", ""], "description": "Expense or empty string."},
-            "amount": {"type": ["number", "null"], "description": "Positive expense amount or null."},
-            "currency": {"type": "string", "description": "ISO currency code, or empty string if not visible."},
+            **_evidence_schema(),
+            "type": {"type": "string", "enum": ["expense", "income", ""], "description": "Candidate classification for this visible row; not permission to book."},
+            "amount": {"type": ["number", "null"], "description": "Positive magnitude of this row's booked amount, regardless of operation kind, or null when not legible."},
+            "currency": {"type": "string", "description": "ISO currency code for this same row amount, or empty string if not visible."},
             "category_hint": {
                 "type": "string",
                 "description": "Short category hint based on the merchant or payment purpose, or empty string.",
@@ -369,6 +476,7 @@ def _statement_item_schema() -> dict[str, Any]:
             "category_hint",
             "comment",
             "confidence",
+            *_evidence_schema(),
         ],
     }
 
@@ -391,6 +499,7 @@ def _schema() -> dict[str, Any]:
                 "enum": ["single_tx", "statement_expenses", "unsupported", ""],
                 "description": "Best-effort classification of the screenshot.",
             },
+            **_evidence_schema(),
             "transaction_date": {"type": "string", "description": "ISO date YYYY-MM-DD, or empty string if unknown."},
             "type": {"type": "string", "enum": ["expense", "income", ""], "description": "Expense, income, or empty string."},
             "amount": {"type": ["number", "null"], "description": "Positive transaction amount or null."},
@@ -427,11 +536,11 @@ def _schema() -> dict[str, Any]:
             "skipped_rows_count": {
                 "type": "integer",
                 "minimum": 0,
-                "description": "How many rows were skipped because they were income, transfer, balance, refund, service rows, or unclear.",
+                "description": "How many visible non-transaction rows (for example balances, headers, totals, exchange rates, or service rows) were omitted after exhaustive transcription; income, transfer, refund, pending, and declined operations are not skipped.",
             },
             "items": {
                 "type": "array",
-                "description": "Expense rows extracted from a statement/history screenshot.",
+                "description": "Every visible transaction row transcribed from a statement/history screenshot before deterministic filtering, including expense, income, transfer, refund, pending, and declined operations.",
                 "items": _statement_item_schema(),
             },
             "receipt_date": {"type": "string"}, "receipt_merchant": {"type": "string"},
@@ -442,6 +551,7 @@ def _schema() -> dict[str, Any]:
         },
         "required": [
             "mode_candidate",
+            *_evidence_schema(),
             "transaction_date",
             "type",
             "amount",
@@ -479,14 +589,17 @@ def _prompt(
         "First decide whether the screenshot shows a single transaction, an expense statement/history list, or is unsupported.\n"
         "Set mode_candidate to single_tx, statement_expenses, or unsupported.\n"
         "For single_tx, fill the top-level transaction fields for one transaction.\n"
-        "For statement_expenses, return only expense rows in items.\n"
+        "For statement_expenses, transcribe every visible transaction row in items before deterministic filtering, including declined, pending, income, refunds and own-account transfers; classification is not permission to book.\n"
         "Bank history screens with multiple debit rows are supported and should usually be statement_expenses.\n"
-        "Skip income, refunds, transfers, cash operations, balances, totals, headers, service rows, rejected/declined/failed payments, and unclear rows from items.\n"
-        "Count skipped rows in skipped_rows_count.\n"
+        "Never turn balance, cashback accrual, exchange rate, original foreign amount, totals or headers into transaction rows. Count only these excluded non-transaction rows in skipped_rows_count.\n"
+        "Copy the visible booked/debited amount digits and separators exactly into amount_text, without the currency; amount must match it without losing zeros.\n"
+        "Set currency_text to the ISO currency of that SAME booked amount; never pair a local debit with the original foreign currency. If absent use null, never the default or another row's currency.\n"
+        "Set date_text to YYYY-MM-DD only when the complete date including year is visible. Otherwise null and transaction_date empty; never invent the year from today.\n"
+        "Set operation_kind to expense, income, transfer, refund or unknown using labels and direction. Set status to posted only for visibly completed bank operations or a completed purchase receipt; pending for uncompleted, declined for rejected/insufficient-funds, otherwise unknown.\n"
         "A red error icon or text such as Недостатньо коштів means rejected/declined: never return it as a completed expense.\n"
-        "Only skip a transfer when the screenshot explicitly proves it is between the user's own accounts (for example, На свою картку, На свою карту, own account, or internal transfer). Generic Переказ на картку and З гривневого рахунку are ambiguous and must not by themselves suppress an otherwise valid expense.\n"
+        "For explicit own-account transfers (На свою картку, На свою карту, own account, internal transfer), operation_kind=transfer. Generic Переказ на картку is ambiguous: operation_kind=unknown unless other evidence resolves it. Keep these rows for review.\n"
         "Do not classify a row as expense or income from its sign alone.\n"
-        "Each statement item must keep its own date and use type expense.\n"
+        "Each statement item must keep its own date, amount and currency. Do not copy document-wide facts over a row.\n"
         "If the UI shows debit amounts with a leading minus sign, still return positive amount magnitudes in JSON.\n"
         "If the screenshot uses the hryvnia sign (U+20B4), return UAH. If it uses the Turkish lira sign (U+20BA) or TL, return TRY. If it uses the euro sign (U+20AC), return EUR.\n"
         "Do not confuse U+20B4 hryvnia, U+20BA Turkish lira, and U+20AC euro, even on small screenshots.\n"
@@ -496,7 +609,7 @@ def _prompt(
         "If currency is visible only as a small symbol, mark currency_evidence_kind as symbol.\n"
         "If you rely on a symbol or on nearby header/transfer/balance text to choose currency, also copy one short visible non-merchant snippet into currency_context_text, for example гривневого рахунку, грн, UAH, TL, or EUR.\n"
         "If there is only one clear expense on the screenshot, prefer single_tx.\n"
-        "If amount or type is not clear, keep amount as null or type as an empty string and lower confidence.\n"
+        "If any fact is missing or unclear, preserve the row and emit null/empty evidence for that fact (amount_text, date_text, currency_text, amount, or type) rather than guessing; lower confidence and keep it for review.\n"
         "Never include full card or account numbers. If visible, keep only last 4 digits in card_last4.\n"
         "Use a short sanitized comment for the preview.\n"
         "For receipts, extract receipt_date, receipt_merchant, receipt_total, and receipt_items only when clearly visible. Never invent missing items. receipt_items is optional L2 evidence and may be empty when valid L1 fields exist. If L2 is unclear or arithmetic does not reconcile, preserve valid L1, set needs_review true, and add a warning.\n"
@@ -518,7 +631,7 @@ def _build_payload(
     return {
         "model": model,
         "store": False,
-        "max_output_tokens": config.OPENAI_MAX_OUTPUT_TOKENS,
+        "max_output_tokens": config.OPENAI_SCREENSHOT_MAX_OUTPUT_TOKENS,
         "input": [
             {
                 "role": "user",
@@ -540,6 +653,8 @@ def _build_payload(
 
 
 def _extract_text_payload(payload: dict[str, Any]) -> str:
+    if payload.get("status") == "incomplete":
+        raise OpenAIVisionInvalidResponseError("OpenAI returned incomplete financial output")
     output_text = payload.get("output_text")
     if isinstance(output_text, str) and output_text.strip():
         return output_text.strip()
@@ -564,55 +679,66 @@ def _parse_statement_items(
     today: date,
     dominant_currency: str,
     default_currency: str,
-) -> tuple[tuple[StatementItemAnalysis, ...], int]:
+) -> tuple[tuple[StatementItemAnalysis, ...], tuple[dict[str, Any], ...], int]:
     if not isinstance(raw_items, list):
-        return (), 0
+        return (), (), 0
 
     items: list[StatementItemAnalysis] = []
+    review_rows: list[dict[str, Any]] = []
     skipped = 0
-    fallback_currency = _normalize_currency_value(dominant_currency or default_currency, default=default_currency) or default_currency
     for raw_item in raw_items:
         if not isinstance(raw_item, dict):
             skipped += 1
             continue
 
         tx_type = _normalize_type(raw_item.get("type"))
-        if tx_type not in {None, "expense"}:
+        reason = _operation_finding(raw_item)
+        if not reason and tx_type not in {None, "expense"}:
+            reason = "type_conflict"
+        if not reason and _is_nonexpense_evidence(raw_item.get("category_hint"), raw_item.get("comment")):
+            reason = "type_conflict"
+        amount, tx_date, findings = _verified_fields(raw_item, today=today)
+        currency = _normalize_currency_value(raw_item.get("currency"))
+        if "currency_text" in raw_item:
+            currency, _, currency_finding = _verified_currency(raw_item)
+            if currency_finding:
+                findings += (currency_finding,)
+        if not currency and "currency_unknown" not in findings and "currency_conflict" not in findings:
+            findings += ("currency_unknown",)
+        if reason == "status_unknown":
+            findings += (reason,)
+        elif reason:
+            review_rows.append({"transaction_date": tx_date, "amount": amount, "currency": currency,
+                                "type": raw_item.get("operation_kind") or tx_type,
+                                "comment": _normalize_text(raw_item.get("comment")),
+                                "status": _normalize_text(raw_item.get("status")),
+                                "included": False, "exclude_reason": reason,
+                                "field_evidence": _field_evidence(raw_item),
+                                "field_findings": [reason], "needs_review": True})
             skipped += 1
             continue
-
-        if _is_nonexpense_evidence(raw_item.get("category_hint"), raw_item.get("comment")):
-            skipped += 1
-            continue
-
-        amount = _normalize_amount(raw_item.get("amount"))
-        if amount is None:
-            skipped += 1
-            continue
-
-        currency = _normalize_currency_value(raw_item.get("currency"), default=fallback_currency) or fallback_currency
-        if currency != fallback_currency:
-            skipped += 1
-            continue
-
         category_hint = _normalize_text(raw_item.get("category_hint"), limit=120)
         comment = _normalize_text(raw_item.get("comment"), limit=500) or category_hint
         items.append(
             StatementItemAnalysis(
-                transaction_date=_normalize_date(raw_item.get("transaction_date"), today=today),
+                transaction_date=tx_date,
                 type="expense",
                 amount=amount,
-                currency=currency or default_currency,
+                currency=currency,
                 category_hint=category_hint,
                 comment=comment,
                 confidence=_normalize_confidence(raw_item.get("confidence")),
+                field_findings=findings,
+                needs_review=bool(findings) or amount is None or tx_date is None or not currency,
+                currency_explicit="currency_text" in raw_item and bool(currency),
+                field_evidence=_field_evidence(raw_item),
             )
         )
-    return tuple(items), skipped
+    return tuple(items), tuple(review_rows), skipped
 
 
 def _is_valid_analysis(result: ScreenshotAnalysis) -> bool:
-    is_statement = result.mode == "statement_expenses" and len(result.statement_items) >= 2
+    is_statement = result.mode == "statement_expenses" and bool(result.statement_items or result.statement_review_rows)
     is_single = result.mode == "single_tx" and result.amount is not None and result.type in _ALLOWED_TYPES
     return is_statement or is_single
 
@@ -625,12 +751,19 @@ def _analysis_currency(result: ScreenshotAnalysis) -> str:
 
 def _with_currency(result: ScreenshotAnalysis, *, currency: str, resolution: str | None) -> ScreenshotAnalysis:
     normalized_currency = normalize_currency(currency) or currency
-    statement_items = tuple(replace(item, currency=normalized_currency) for item in result.statement_items)
+    # Document-level evidence cannot establish or overwrite a row's currency.
+    statement_items = tuple(
+        replace(item, needs_review=True,
+                field_findings=tuple(dict.fromkeys((*item.field_findings, "currency_conflict"))))
+        if item.currency and item.currency != normalized_currency else item
+        for item in result.statement_items
+    )
     return replace(
         result,
         currency=normalized_currency,
         dominant_currency=normalized_currency,
         statement_items=statement_items,
+        needs_review=result.needs_review or any(item.needs_review for item in statement_items),
         currency_resolution=resolution,
     )
 
@@ -731,9 +864,9 @@ def _parse_response(
         dominant_currency = evidence_currency
     if not dominant_currency and inferred_statement_currency:
         dominant_currency = inferred_statement_currency
-    effective_dominant_currency = dominant_currency or default_currency
+    effective_dominant_currency = dominant_currency
     currency = _normalize_currency_value(raw.get("currency"), default=effective_dominant_currency)
-    statement_items, normalized_skipped = _parse_statement_items(
+    statement_items, statement_review_rows, normalized_skipped = _parse_statement_items(
         raw.get("items"),
         today=today,
         dominant_currency=effective_dominant_currency,
@@ -743,9 +876,14 @@ def _parse_response(
     raw_response = raw if config.OPENAI_SCREENSHOT_STORE_RAW else None
     receipt_items, receipt_date, receipt_merchant, receipt_total, field_findings, needs_review, arithmetic_warnings = _parse_receipt_fields(raw, today=today, default_currency=effective_dominant_currency)
 
-    transaction_date = _normalize_date(raw.get("transaction_date"), today=today)
+    amount, transaction_date, evidence_findings = _verified_fields(raw, today=today)
+    if "date_text" not in raw and transaction_date is None and receipt_date is not None:
+        transaction_date = receipt_date
+    if mode_candidate == "statement_expenses":
+        evidence_findings = tuple(finding for item in statement_items for finding in item.field_findings)
+    elif transaction_date is None:
+        evidence_findings = tuple(dict.fromkeys((*evidence_findings, "date_unknown")))
     tx_type = _normalize_type(raw.get("type"))
-    amount = _normalize_amount(raw.get("amount"))
     category_hint = _normalize_text(raw.get("category_hint"), limit=120)
     comment = _normalize_text(raw.get("comment"), limit=500)
     context_currency = _infer_currency_from_context_text(
@@ -758,8 +896,18 @@ def _parse_response(
         amount = None
         tx_type = None
 
+    operation_finding = _operation_finding(raw)
+    currency_candidates: tuple[str, ...] = ()
+    if "currency_text" in raw and mode_candidate != "statement_expenses":
+        currency, currency_candidates, currency_finding = _verified_currency(raw)
+        effective_dominant_currency = currency
+        if currency_finding:
+            evidence_findings += (currency_finding,)
+
     mode = "unsupported"
-    if len(statement_items) >= 2:
+    if mode_candidate == "statement_expenses" and (statement_items or statement_review_rows):
+        mode = "statement_expenses"
+    elif len(statement_items) >= 2:
         mode = "statement_expenses"
     elif amount is not None and tx_type in _ALLOWED_TYPES:
         mode = "single_tx"
@@ -772,14 +920,20 @@ def _parse_response(
         currency = only_item.currency
         category_hint = category_hint or only_item.category_hint
         comment = comment or only_item.comment
-    elif mode_candidate == "single_tx" and amount is not None and tx_type in _ALLOWED_TYPES:
+    elif mode_candidate == "single_tx" and tx_type in _ALLOWED_TYPES:
         mode = "single_tx"
+
+    if operation_finding and mode_candidate != "statement_expenses":
+        if operation_finding != "status_unknown":
+            mode, amount = "unsupported", None
+        evidence_findings += (operation_finding,)
+    field_findings = tuple(dict.fromkeys((*field_findings, *evidence_findings)))
 
     analysis = ScreenshotAnalysis(
         transaction_date=transaction_date,
         type=tx_type,
         amount=amount,
-        currency=currency or default_currency,
+        currency=currency,
         account_hint=_normalize_text(raw.get("account_hint"), limit=120),
         category_hint=category_hint,
         comment=comment,
@@ -794,18 +948,31 @@ def _parse_response(
         dominant_currency=effective_dominant_currency,
         statement_items=statement_items,
         skipped_items_count=skipped_items_count,
+        statement_review_rows=statement_review_rows,
+        source="statement_transactions" if mode == "statement_expenses" else "screenshot",
+        field_evidence=_field_evidence(raw),
         currency_evidence_kind=currency_evidence_kind,
         currency_evidence_text=currency_evidence_text,
         currency_context_text=currency_context_text,
         receipt_items=receipt_items,
+        currency_candidates=currency_candidates,
         receipt_date=receipt_date,
         receipt_merchant=receipt_merchant,
         receipt_total=receipt_total,
         field_findings=field_findings,
-        needs_review=needs_review,
+        needs_review=needs_review or bool(evidence_findings) or any(item.needs_review for item in statement_items),
         arithmetic_warnings=arithmetic_warnings,
     )
+    has_financial_amount = analysis.amount is not None or bool(analysis.statement_items) or analysis.receipt_total is not None or bool(analysis.receipt_items)
+    if has_financial_amount and not _analysis_currency(analysis):
+        analysis = replace(
+            analysis,
+            needs_review=True,
+            field_findings=tuple(dict.fromkeys((*analysis.field_findings, "currency_unknown"))),
+        )
     candidate_currency = normalize_currency(_analysis_currency(analysis))
+    if "currency_text" in raw or any("currency_text" in row for row in (raw.get("items") or []) if isinstance(row, dict)):
+        return analysis
     item_currency_conflict = any(normalize_currency(item.currency) != context_currency for item in analysis.statement_items)
     if context_currency and (candidate_currency != context_currency or item_currency_conflict):
         resolution = "context_text_override" if currency_evidence_kind == "symbol" else "context_text_inferred"
@@ -871,6 +1038,14 @@ async def _request_analysis(
     )
 
 
+def _financial_fingerprint(result: ScreenshotAnalysis) -> tuple[tuple[str, ...], ...]:
+    if result.mode != "statement_expenses":
+        return ((str(result.type), str(result.amount), result.currency, str(result.transaction_date)),)
+    rows = [(str(x.type), str(x.amount), x.currency, str(x.transaction_date), "included") for x in result.statement_items]
+    rows.extend((str(x.get("type")), str(x.get("amount")), str(x.get("currency")), str(x.get("transaction_date")), str(x.get("exclude_reason"))) for x in result.statement_review_rows)
+    return tuple(sorted(rows))
+
+
 def _needs_fallback(result: ScreenshotAnalysis, *, default_currency: str) -> bool:
     if not _is_valid_analysis(result):
         return True
@@ -904,7 +1079,7 @@ async def analyze_screenshot(
                 detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL), used_fallback=False,
                 source="receipt", needs_review=True,
                 field_findings=tuple(dict.fromkeys((*evidence.findings, "receipt_manual_review"))),
-                raw_response={"trace": evidence.trace})
+                raw_response={"trace": evidence.trace, "field_candidates": dict(evidence.trace.get("field_candidates") or {})})
         # An unresolved merchant is metadata, not permission to discard two
         # agreeing full-image financial extractions. Keep reconciliation rejected
         # and the merchant blank; only this exact metadata-only conflict can
@@ -921,6 +1096,34 @@ async def analyze_screenshot(
             and evidence.transaction_type in {"expense", "income"}
         )
         # Rejected bank transactions never become expense suggestions.
+        if not evidence.accepted and not merchant_review and evidence.trace.get('screenshot_review_only'):
+            candidates = evidence.trace.get('field_candidates') or {}
+            amount = None
+            if isinstance(candidates.get('amount'), str):
+                try:
+                    parsed_amount = Decimal(candidates['amount'])
+                    if parsed_amount.is_finite() and parsed_amount > 0:
+                        amount = parsed_amount
+                except (InvalidOperation, ValueError):
+                    pass
+            currency = candidates.get('currency') if isinstance(candidates.get('currency'), str) else None
+            transaction_date = None
+            if isinstance(candidates.get('transaction_date'), str):
+                try:
+                    transaction_date = date.fromisoformat(candidates['transaction_date'])
+                except ValueError:
+                    pass
+            unknown = set(evidence.trace.get('unobserved_fields') or ())
+            findings = tuple(dict.fromkeys((*evidence.findings, *(field + '_unknown' for field in sorted(unknown)), 'screenshot_manual_review')))
+            return ScreenshotAnalysis(
+                transaction_date=transaction_date, type=None, amount=amount, currency=currency,
+                account_hint=None, category_hint=candidates.get('category_hint'),
+                comment=candidates.get('comment'), confidence=0.0,
+                bank_name=None, card_last4=None, model=config.OPENAI_VISION_MODEL,
+                detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL), used_fallback=False,
+                source='screenshot', needs_review=True, field_findings=findings,
+                raw_response={'trace': evidence.trace, 'field_candidates': dict(candidates)},
+            )
         if not evidence.accepted and not evidence.statement_review_rows and not merchant_review:
             raise OpenAIVisionInvalidResponseError("Photo evidence requires review")
         if not evidence.statement_items and not evidence.statement_review_rows and (evidence.amount is None or evidence.currency is None):
@@ -976,7 +1179,7 @@ async def analyze_screenshot(
         return ScreenshotAnalysis(
             transaction_date=evidence.transaction_date, type=evidence.transaction_type,
             amount=evidence.amount, currency=evidence.currency, account_hint=None,
-            category_hint=None, comment=evidence.merchant, confidence=1.0,
+            category_hint=evidence.trace.get("field_candidates", {}).get("category_hint"), comment=evidence.merchant, confidence=1.0,
             bank_name=None, card_last4=None, model=config.OPENAI_VISION_MODEL,
             detail=_normalize_detail(config.OPENAI_IMAGE_DETAIL), used_fallback=False,
             raw_response={"evidence_ids": evidence.evidence_ids, "trace": evidence.trace, "raw_evidence": evidence.raw_evidence},
@@ -1050,14 +1253,36 @@ async def _analyze_screenshot_legacy(
         income_categories=income_categories,
         used_fallback=True,
     )
+    currency_candidates = list(dict.fromkeys(
+        currency for currency in (_analysis_currency(result), _analysis_currency(retry_result)) if currency
+    ))
+    currency_conflict = len(currency_candidates) > 1 or _should_prefer_default_for_weak_symbol_conflict(result, default_currency=default_currency)
+    financial_conflict = _is_valid_analysis(result) and _financial_fingerprint(result) != _financial_fingerprint(retry_result)
+    if currency_conflict or financial_conflict:
+        # Confidence is not evidence: never silently replace financial facts or
+        # lose rows just because another attempt reports a higher confidence.
+        # Currency disagreement must not bypass this evidence-preservation rule.
+        primary_count = len(result.statement_items) + len(result.statement_review_rows)
+        retry_count = len(retry_result.statement_items) + len(retry_result.statement_review_rows)
+        chosen = retry_result if _is_valid_analysis(retry_result) and (not _is_valid_analysis(result) or retry_count > primary_count) else result
+        flags = tuple(flag for flag, present in (("provider_attempt_conflict", financial_conflict), ("currency_conflict", currency_conflict)) if present)
+        changes = {
+            "needs_review": True,
+            "field_findings": tuple(dict.fromkeys((*chosen.field_findings, *flags))),
+            "statement_items": tuple(replace(item, needs_review=True, field_findings=tuple(dict.fromkeys((*item.field_findings, *flags)))) for item in chosen.statement_items),
+        }
+        if currency_conflict:
+            changes.update(currency_evidence_kind="unknown", currency_resolution=None,
+                           currency_candidates=tuple(currency_candidates),
+                           raw_response={**(chosen.raw_response or {}), "currency_candidates": currency_candidates})
+        return replace(chosen, **changes)
     if _prefer_currency_retry(result, retry_result, default_currency=default_currency):
         return retry_result
     if retry_result.confidence >= result.confidence:
         result = retry_result
     elif retry_result.amount is not None and retry_result.type is not None:
         result = retry_result
-    if _should_prefer_default_for_weak_symbol_conflict(result, default_currency=default_currency):
-        return _with_currency(result, currency=default_currency, resolution="weak_symbol_default")
+
     logger.info(
         "Vision fallback kept primary result due to weaker retry outcome: primary_conf=%.3f retry_conf=%.3f",
         result.confidence,

@@ -677,6 +677,7 @@
             </label>
             <div class="ai-image-batch-total" id="aiImageBatchTotal" aria-live="polite"></div>
             <div class="ai-image-batch-list" id="aiImageBatchList"></div>
+            <button class="secondary-action" id="aiImageBatchAcknowledge" type="button" hidden></button>
             <div class="form-status" id="aiImageBatchStatus" hidden aria-live="polite"></div>
           </article>
 
@@ -2028,6 +2029,8 @@
           aiImageBatchDismiss: "Закрити перевірку",
           aiImageBatchReviewLabel: "Потрібна перевірка",
           aiImageBatchReviewReason: "Цей рядок не можна додати автоматично. Перевірте його або закрийте список.",
+          aiImageBatchAcknowledge: "Підтвердити перевірку виписки",
+          aiImageBatchAcknowledged: "Перевірку виписки підтверджено",
           aiImageInvalid: "Оберіть JPG, PNG, WEBP, GIF, HEIC або HEIF до 10 МБ.",
           addExpense: "Витрата",
           addIncome: "Дохід",
@@ -2343,6 +2346,8 @@
           aiImageBatchDismiss: "Close review",
           aiImageBatchReviewLabel: "Review needed",
           aiImageBatchReviewReason: "This row cannot be added automatically. Enter it manually or close the list.",
+          aiImageBatchAcknowledge: "Acknowledge statement review",
+          aiImageBatchAcknowledged: "Statement review acknowledged",
           aiImageInvalid: "Choose a JPG, PNG, WEBP, GIF, HEIC, or HEIF up to 10 MB.",
           addExpense: "Expense",
           addIncome: "Income",
@@ -3582,7 +3587,8 @@
           list: document.getElementById("aiImageBatchList"),
           meta: document.getElementById("aiImageBatchMeta"),
           status: document.getElementById("aiImageBatchStatus"),
-          dismiss: document.getElementById("aiImageBatchDismiss")
+          dismiss: document.getElementById("aiImageBatchDismiss"),
+          acknowledge: document.getElementById("aiImageBatchAcknowledge")
         };
       }
 
@@ -3715,8 +3721,16 @@
           return;
         }
         el.card.hidden = false;
+        el.card.setAttribute("aria-busy", String(aiImageBatchState.busy));
         el.dismiss.disabled = aiImageBatchState.busy || Boolean(transactionState.aiImageBatchContext);
         el.dismiss.title = transactionState.aiImageBatchContext ? tr("aiImageBatchReviewing") : "";
+        const needsAcknowledgement = Boolean(batch.review_rows && batch.review_rows.length) || Number(batch.skipped_items_count || 0) > 0;
+        if (el.acknowledge) {
+          el.acknowledge.hidden = !needsAcknowledgement;
+          el.acknowledge.textContent = batch.review_acknowledged ? tr("aiImageBatchAcknowledged") : tr("aiImageBatchAcknowledge");
+          el.acknowledge.disabled = aiImageBatchState.busy || Boolean(batch.review_acknowledged);
+          el.acknowledge.onclick = function () { acknowledgeAiImageBatchReview(); };
+        }
         const parserSkipped = Number(batch.skipped_items_count || 0);
         const skipped = Number(batch.skipped_count || 0) + parserSkipped;
         el.meta.textContent = tr("aiImageBatchSummary", {
@@ -3795,6 +3809,33 @@
       function setAiImageBatchBusy(value) {
         aiImageBatchState.busy = Boolean(value);
         renderAiImageBatch();
+      }
+
+      function acknowledgeAiImageBatchReview() {
+        const batch = aiImageBatchState.batch;
+        if (!batch || !batch.batch_id || !aiImageBatchItemUrl || aiImageBatchState.busy || batch.review_acknowledged) return;
+        const batchId = batch.batch_id;
+        setAiImageBatchBusy(true);
+        setAiImageBatchStatus("", "muted");
+        ensureSession().then(function () {
+          return postJson(aiImageBatchItemUrl, { batch_id: batchId, action: "acknowledge_review" });
+        }).then(function (payload) {
+          if (aiImageBatchState.batch && String(aiImageBatchState.batch.batch_id) === String(batchId)) {
+            const currentItems = aiImageBatchState.batch.items || [];
+            const updated = payload.batch;
+            updated.items = (updated.items || []).map(function (item) {
+              const local = currentItems.find(function (candidate) { return String(candidate.id) === String(item.id); });
+              if (local && local.status === "pending" && item.status === "pending") {
+                return Object.assign({}, item, { suggestion: local.suggestion });
+              }
+              return item;
+            });
+            aiImageBatchState.batch = updated;
+            renderAiImageBatch();
+          }
+        }).catch(function (errorPayload) {
+          setAiImageBatchStatus(transactionErrorMessage(errorPayload), "error");
+        }).finally(function () { setAiImageBatchBusy(false); });
       }
 
       function dismissAiImageBatch() {
@@ -4019,19 +4060,24 @@
         renderTransactionConfirmation(false);
       }
 
-      function resetTransactionDraft(hideConfirmation) {
+      function resetTransactionDraft(hideConfirmation, preserveBatchContext) {
         const el = transactionElements();
         transactionState.draft = null;
         transactionState.idempotencyKey = null;
         transactionState.draftFingerprint = null;
-        transactionState.aiImageBatchContext = null;
+        if (!preserveBatchContext) transactionState.aiImageBatchContext = null;
         if (hideConfirmation !== false && el.draftCard) el.draftCard.hidden = true;
         setTransactionConfirmationStatus("", "muted");
         renderAiImageBatch();
       }
 
       function clearReceiptItems() {
+        transactionState.recognitionReview = null;
+        transactionState.recognitionAcknowledgements = {};
+        const reviewCard = document.getElementById("recognitionReviewCard");
+        if (reviewCard) reviewCard.remove();
         transactionState.receiptItems = [];
+        transactionState.receiptResolution = "items";
         transactionState.receiptMetadata = { source: "", needs_review: [], needs_review_bool: false, field_findings: [], receipt_total: "" };
         const card = document.getElementById("receiptReviewCard");
         if (card) card.remove();
@@ -4061,25 +4107,39 @@
         if (!transactionState.receiptItems.length) { if (card) card.remove(); return; }
         if (!card) { card = document.createElement("section"); card.id = "receiptReviewCard"; card.className = "card card-pad"; form.parentNode.insertBefore(card, form); }
         card.innerHTML = "<h3>Receipt items (L2)</h3><p>Include, exclude, or edit before confirming.</p>";
+        const resolutionLabel = document.createElement("label");
+        resolutionLabel.textContent = activeLocale === "uk" ? "Збереження позицій чека " : "Receipt item handling ";
+        const resolution = document.createElement("select"); resolution.id = "receiptResolution";
+        [["items", activeLocale === "uk" ? "Перевірити та зберегти позиції" : "Review and save items"], ["l1_only", activeLocale === "uk" ? "Зберегти лише операцію, без позицій" : "Save transaction only, without items"]].forEach(function (entry) {
+          const option = document.createElement("option"); option.value = entry[0]; option.textContent = entry[1]; resolution.appendChild(option);
+        });
+        resolution.value = transactionState.receiptResolution || "items";
+        resolution.addEventListener("change", function () {
+          transactionState.receiptResolution = resolution.value;
+          invalidateTransactionDraft(); renderRecognitionReview();
+        });
+        resolutionLabel.appendChild(resolution); card.appendChild(resolutionLabel);
         transactionState.receiptItems.forEach(function (item, index) {
           const row = document.createElement("label"); row.className = "form-field";
           const input = document.createElement("input"); input.type = "text"; input.value = String(item.name || ""); input.setAttribute("aria-label", "Name");
-          input.addEventListener("input", function () { item.name = input.value; });
+          input.addEventListener("input", function () { item.name = input.value; invalidateTransactionDraft(); renderRecognitionReview(); });
           const numericFields = [["quantity", "Qty"], ["unit_price", "Unit price"], ["amount", "Amount"], ["discount", "Discount"]];
           const numericNodes = numericFields.map(function (field) {
             const control = document.createElement("input"); control.type = "number"; control.step = "0.01"; control.min = "0"; control.value = item[field[0]] == null ? "" : String(item[field[0]]); control.placeholder = field[1]; control.setAttribute("aria-label", field[1]);
-            control.addEventListener("input", function () { item[field[0]] = control.value; }); return control;
+            control.addEventListener("input", function () { item[field[0]] = control.value; invalidateTransactionDraft(); renderRecognitionReview(); }); return control;
           });
           const toggle = document.createElement("input"); toggle.type = "checkbox"; toggle.checked = item.status !== "excluded"; toggle.setAttribute("aria-label", "Include item");
-          toggle.addEventListener("change", function () { item.status = toggle.checked ? "included" : "excluded"; });
+          toggle.addEventListener("change", function () { item.status = toggle.checked ? "included" : "excluded"; invalidateTransactionDraft(); renderRecognitionReview(); });
           row.append(toggle, input); numericNodes.forEach(function (control) { row.appendChild(control); }); card.appendChild(row);
         });
       }
 
       function transactionPayload() {
         const el = transactionElements();
-        return {
+        const account = (((transactionState.options || {}).accounts) || []).find(function (item) { return String(item.id) === String(el.account && el.account.value); });
+        const payload = {
           kind: transactionState.kind,
+          currency: transactionState.requiredCurrency || (account && account.currency) || "",
           recognition_attempt_id: transactionState.recognitionAttemptId || undefined,
           amount: el.amount ? el.amount.value : "",
           account_id: el.account ? el.account.value : "",
@@ -4090,12 +4150,59 @@
           ai_image_batch_id: transactionState.aiImageBatchContext ? transactionState.aiImageBatchContext.batchId : "",
           ai_image_batch_item_id: transactionState.aiImageBatchContext ? transactionState.aiImageBatchContext.itemId : "",
           receipt_items: transactionState.receiptItems,
+          receipt_resolution: transactionState.receiptResolution || "items",
           source: transactionState.receiptMetadata.source,
           needs_review: transactionState.receiptMetadata.needs_review,
           needs_review_bool: transactionState.receiptMetadata.needs_review_bool,
           field_findings: transactionState.receiptMetadata.field_findings,
-          receipt_total: transactionState.receiptMetadata.receipt_total
+          receipt_total: transactionState.receiptMetadata.receipt_total || undefined,
         };
+        payload.recognition_review = recognitionReviewPayload(payload);
+        return payload;
+      }
+
+      function recognitionReviewValues(payload) {
+        const values = {};
+        ["kind", "amount", "currency", "account_id", "category_id", "transaction_date", "comment", "receipt_items", "receipt_total", "receipt_resolution"].forEach(function (key) { values[key] = payload[key] == null ? null : payload[key]; });
+        return values;
+      }
+
+      function recognitionReviewPayload(payload) {
+        const review = transactionState.recognitionReview;
+        if (!review) return undefined;
+        const values = recognitionReviewValues(payload);
+        const fingerprint = JSON.stringify(values);
+        const checked = transactionState.recognitionAcknowledgements || {};
+        return {token: review.token, values: values, acknowledgements: (review.issues || []).filter(function (issue) { return checked[issue.id] === fingerprint; }).map(function (issue) { return issue.id; })};
+      }
+
+      function renderRecognitionReview() {
+        const review = transactionState.recognitionReview;
+        const form = document.getElementById("transactionForm");
+        let card = document.getElementById("recognitionReviewCard");
+        if (!review || !form) { if (card) card.remove(); return; }
+        if (!card) { card = document.createElement("section"); card.id = "recognitionReviewCard"; card.className = "card card-pad"; form.parentNode.insertBefore(card, form); }
+        card.replaceChildren();
+        const uk = activeLocale === "uk";
+        const title = document.createElement("h3"); title.textContent = uk ? "Перевірка розпізнаного" : "Review recognition"; card.appendChild(title);
+        const hint = document.createElement("p"); hint.textContent = uk ? "Спочатку виправте поля та позиції, потім підтвердьте зауваження. Зміна даних потребує повторної перевірки." : "Correct fields and items, then acknowledge findings. Changes require a new review."; card.appendChild(hint);
+        const currencyLabel = document.createElement("label"); currencyLabel.textContent = uk ? "Валюта операції " : "Transaction currency ";
+        const select = document.createElement("select"); select.id = "recognitionCurrency";
+        const currencies = Array.from(new Set([transactionState.requiredCurrency].concat((((transactionState.options || {}).accounts) || []).map(function (a) { return a.currency; })).filter(Boolean)));
+        [""].concat(currencies).forEach(function (currency) { const option = document.createElement("option"); option.value = currency; option.textContent = currency || (uk ? "Оберіть валюту" : "Choose currency"); select.appendChild(option); });
+        select.value = transactionState.requiredCurrency || "";
+        select.addEventListener("change", function () { transactionState.requiredCurrency = select.value || null; renderTransactionOptions(); invalidateTransactionDraft(); renderRecognitionReview(); });
+        currencyLabel.appendChild(select); card.appendChild(currencyLabel);
+        const labels = {amount: uk ? "суму" : "amount", currency: uk ? "валюту" : "currency", transaction_date: uk ? "дату" : "date", kind: uk ? "напрямок операції" : "transaction direction", account_id: uk ? "рахунок" : "account", category_id: uk ? "категорію" : "category"};
+        const current = recognitionReviewPayload(transactionPayload());
+        (review.issues || []).forEach(function (issue) {
+          const label = document.createElement("label"); label.style.display = "block";
+          const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.dataset.reviewIssue = issue.id;
+          checkbox.checked = current.acknowledgements.indexOf(issue.id) !== -1;
+          checkbox.addEventListener("change", function () { const values = recognitionReviewValues(transactionPayload()); transactionState.recognitionAcknowledgements = transactionState.recognitionAcknowledgements || {}; transactionState.recognitionAcknowledgements[issue.id] = checkbox.checked ? JSON.stringify(values) : ""; invalidateTransactionDraft(); });
+          const detail = issue.code === "arithmetic_warning" ? (uk ? "суму та арифметику чека" : "receipt arithmetic and total") : labels[issue.field] || (uk ? "статус, тип і деталі документа" : "document status, type and details");
+          label.appendChild(checkbox); label.appendChild(document.createTextNode((uk ? " Я перевірив / виправив " : " I checked / corrected ") + detail)); card.appendChild(label);
+        });
       }
 
       function transactionPayloadFingerprint(payload) {
@@ -4154,7 +4261,8 @@
       function invalidateTransactionDraft() {
         if (transactionState.busy) return false;
         const draft = transactionState.draft;
-        resetTransactionDraft(false);
+        resetTransactionDraft(false, true);
+        if (transactionState.recognitionReview) renderRecognitionReview();
         if (draft && transactionCancelUrl) {
           postJson(transactionCancelUrl, { draft_id: draft.draft_id }).catch(function () {});
         }
@@ -4168,6 +4276,11 @@
           return;
         }
         const payload = transactionPayload();
+        if (transactionState.recognitionReview && (!transactionState.requiredCurrency || payload.recognition_review.acknowledgements.length !== transactionState.recognitionReview.issues.length)) {
+          renderRecognitionReview();
+          setTransactionConfirmationStatus(activeLocale === "uk" ? "Оберіть валюту та підтвердьте зауваження після виправлення полів." : "Choose currency and acknowledge findings after editing the fields.", "error");
+          return;
+        }
         const fingerprint = transactionPayloadFingerprint(payload);
         let soundEventKey = "transaction-draft:" + fingerprint;
         setTransactionBusy(true);
@@ -4393,11 +4506,15 @@
           receipt_total: suggestion.receipt_total == null ? "" : String(suggestion.receipt_total)
         };
         transactionState.receiptItems = Array.isArray(suggestion.receipt_items) ? suggestion.receipt_items.map(canonicalReceiptItem) : [];
+        transactionState.receiptResolution = "items";
+        transactionState.recognitionReview = suggestion.recognition_review || null;
+        transactionState.recognitionAcknowledgements = {};
         renderReceiptItems();
         transactionState.requiredCurrency = suggestion.currency_explicit ? suggestion.currency : null;
         setTransactionKind(suggestion.kind, true);
         setSuggestionSelectValue(el.account, suggestedValue("account_id"));
         setSuggestionSelectValue(el.category, suggestedValue("category_id"));
+        renderRecognitionReview();
 
         if (transactionState.requiredCurrency && !((transactionState.options || {}).accounts || []).some(function (account) { return account.currency === transactionState.requiredCurrency; })) {
           resetTransactionDraft();
@@ -9637,6 +9754,7 @@
         transactionState.idempotencyKey = null;
         transactionState.draftFingerprint = null;
         if (typeof settingsState !== "undefined") settingsState.data = null;
+        clearReceiptItems();
         if (typeof familyState !== "undefined") { familyState.payload = null; familyState.createDraft = null; familyState.inviteToken = ""; }
         if (typeof aiImageBatchState !== "undefined") aiImageBatchState.batch = null;
         document.querySelectorAll(".activation-modal").forEach(closeAccessibleModal);

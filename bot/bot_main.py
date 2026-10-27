@@ -312,6 +312,7 @@ from family_service import FamilyService, generate_family_invite_token
 from finance_scope import get_current_finance_scope
 from savings_service import SavingsService, is_savings_account_type
 from ai_transaction_draft_service import AiTransactionDraft, AiTransactionDraftService
+from screenshot_review import screenshot_review_metadata, unresolved_photo_currency, photo_review_warning
 from vision_tx import (
     AccountOption as VisionAccountOption,
     CategoryOption as VisionCategoryOption,
@@ -2559,7 +2560,7 @@ async def _resume_currency_resolution_with_created_account(
         text = _ai_batch_tx_card_text(flow)
         if notice:
             text = f"{notice}\n\n{text}"
-        await message.reply_text(text, reply_markup=bind_financial_preview(flow, kb_ai_batch_confirm(len(items))))
+        await message.reply_text(text, reply_markup=_ai_batch_confirm_markup(flow, len(items)))
         return
 
     _reset_currency_resolution_flow(context)
@@ -2698,7 +2699,7 @@ async def _apply_currency_resolution_conversion(
         )
         await message.reply_text(
             f"{notice_text}\n\n{_ai_batch_tx_card_text(flow)}",
-            reply_markup=bind_financial_preview(flow, kb_ai_batch_confirm(len(items))),
+            reply_markup=_ai_batch_confirm_markup(flow, len(items)),
         )
         return
 
@@ -12223,10 +12224,11 @@ def _build_ai_batch_tx_flow_state(
     for item in items:
         normalized_items.append(
             {
-                "date": _normalize_ai_tx_date(item.get("date")),
+                "date": str(item.get("date") or "").strip() if origin == AI_SCREENSHOT_SOURCE else _normalize_ai_tx_date(item.get("date")),
                 "type": str(item.get("type") or "").strip().lower(),
                 "amount": item.get("amount"),
-                "currency": normalize_currency(str(item.get("currency") or "UAH")) or "UAH",
+                "currency": normalize_currency(str(item.get("currency") or "")) if origin == AI_SCREENSHOT_SOURCE else normalize_currency(str(item.get("currency") or "UAH")) or "UAH",
+                "field_findings": list(item.get("field_findings") or ()),
                 "currency_explicit": bool(item.get("currency_explicit")),
                 "category_id": item.get("category_id"),
                 "comment": (str(item.get("comment") or "").strip()[:500] or None),
@@ -12309,10 +12311,18 @@ def _ai_tx_callback_prefix(flow: dict) -> str:
 
 
 def _ai_tx_confirm_markup(flow: dict) -> InlineKeyboardMarkup:
+    if unresolved_photo_currency(flow):
+        return kb_inline_cancel("ai:tx:cancel")
     callback_prefix = _ai_tx_callback_prefix(flow)
     if callback_prefix == "ai":
         return bind_financial_preview(flow, kb_ai_tx_confirm())
     return bind_financial_preview(flow, kb_ai_tx_confirm_prefixed(callback_prefix))
+
+
+def _ai_batch_confirm_markup(flow: dict, item_count: int) -> InlineKeyboardMarkup:
+    if unresolved_photo_currency(flow):
+        return kb_inline_cancel("ai:batch:cancel")
+    return bind_financial_preview(flow, kb_ai_batch_confirm(item_count))
 
 
 def _ai_tx_edit_markup(flow: dict) -> InlineKeyboardMarkup:
@@ -12381,10 +12391,10 @@ def _build_ai_tx_flow_state(
     draft_metadata: dict | None = None,
 ) -> dict:
     normalized_tx = {
-        "date": _normalize_ai_tx_date(tx.get("date")),
+        "date": str(tx.get("date") or "").strip() if origin == AI_SCREENSHOT_SOURCE else _normalize_ai_tx_date(tx.get("date")),
         "type": str(tx.get("type") or "").strip().lower(),
         "amount": tx.get("amount"),
-        "currency": normalize_currency(str(tx.get("currency") or "UAH")),
+        "currency": normalize_currency(str(tx.get("currency") or "")) if origin == AI_SCREENSHOT_SOURCE else normalize_currency(str(tx.get("currency") or "UAH")),
         "currency_explicit": bool(tx.get("currency_explicit")),
         "account_id": tx.get("account_id"),
         "category_id": tx.get("category_id"),
@@ -13791,7 +13801,7 @@ async def _handle_ai_batch_tx_text_input(update: Update, context: ContextTypes.D
         flow.pop("edit_item_index", None)
         context.user_data["ai_batch_tx_flow"] = flow
         await _sync_ai_batch_draft_flow(context, user.id, flow)
-        await update.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=bind_financial_preview(flow, kb_ai_batch_confirm(len(items))))
+        await update.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=_ai_batch_confirm_markup(flow, len(items)))
         return True
 
     try:
@@ -13844,7 +13854,7 @@ async def _handle_ai_batch_tx_text_input(update: Update, context: ContextTypes.D
         flow.pop("edit_item_index", None)
         context.user_data["ai_batch_tx_flow"] = flow
         await _sync_ai_batch_draft_flow(context, user.id, flow)
-        await update.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=bind_financial_preview(flow, kb_ai_batch_confirm(len(items))))
+        await update.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=_ai_batch_confirm_markup(flow, len(items)))
         return True
 
     if await_field == "comment":
@@ -13853,7 +13863,7 @@ async def _handle_ai_batch_tx_text_input(update: Update, context: ContextTypes.D
         flow.pop("edit_item_index", None)
         context.user_data["ai_batch_tx_flow"] = flow
         await _sync_ai_batch_draft_flow(context, user.id, flow)
-        await update.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=bind_financial_preview(flow, kb_ai_batch_confirm(len(items))))
+        await update.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=_ai_batch_confirm_markup(flow, len(items)))
         return True
 
     return False
@@ -13868,7 +13878,7 @@ async def _handle_ai_batch_callback(update: Update, context: ContextTypes.DEFAUL
     items = _ai_batch_flow_items(flow)
 
     if len(parts) == 3 and parts[2] == "back":
-        await q.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=bind_financial_preview(flow, kb_ai_batch_confirm(len(items))))
+        await q.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=_ai_batch_confirm_markup(flow, len(items)))
         return
 
     if len(parts) == 3 and parts[2] == "cancel":
@@ -14002,6 +14012,11 @@ async def _handle_ai_batch_callback(update: Update, context: ContextTypes.DEFAUL
         if not items:
             _reset_ai_batch_tx_flow(context)
             await _reply_home(q.message, "У пакеті не залишилось позицій.")
+            return
+        if unresolved_photo_currency(flow):
+            await q.message.reply_text(
+                photo_review_warning(flow)
+            )
             return
 
         account_id = flow.get("account_id")
@@ -14229,7 +14244,7 @@ async def _handle_ai_batch_callback(update: Update, context: ContextTypes.DEFAUL
                 ),
             )
             return
-        await q.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=bind_financial_preview(flow, kb_ai_batch_confirm(len(items))))
+        await q.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=_ai_batch_confirm_markup(flow, len(items)))
         return
 
     if parts[:4] == ["ai", "batch", "pick", "cat"] and len(parts) == 6:
@@ -14245,7 +14260,7 @@ async def _handle_ai_batch_callback(update: Update, context: ContextTypes.DEFAUL
         flow.pop("edit_item_index", None)
         context.user_data["ai_batch_tx_flow"] = flow
         await _sync_ai_batch_draft_flow(context, user.id, flow)
-        await q.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=bind_financial_preview(flow, kb_ai_batch_confirm(len(items))))
+        await q.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=_ai_batch_confirm_markup(flow, len(items)))
         return
 
     if parts[:3] == ["ai", "batch", "item"] and len(parts) == 4:
@@ -14317,7 +14332,7 @@ async def _handle_ai_batch_callback(update: Update, context: ContextTypes.DEFAUL
             flow.pop("edit_item_index", None)
             context.user_data["ai_batch_tx_flow"] = flow
             await _sync_ai_batch_draft_flow(context, user.id, flow)
-            await q.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=bind_financial_preview(flow, kb_ai_batch_confirm(len(items))))
+            await q.message.reply_text(_ai_batch_tx_card_text(flow), reply_markup=_ai_batch_confirm_markup(flow, len(items)))
             return
 
 
@@ -14482,6 +14497,11 @@ async def ai_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, *, cal
 
         if action == "ok":
             tx = _ai_flow_tx(flow)
+            if unresolved_photo_currency(flow):
+                await q.message.reply_text(
+                    photo_review_warning(flow)
+                )
+                return
             tx_type = str(tx.get("type") or "").strip().lower()
             if tx_type not in {"expense", "income"}:
                 await q.message.reply_text("Оберіть тип операції:", reply_markup=_ai_tx_pick_type_markup(flow))
@@ -17354,11 +17374,12 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 )
             batch_items.append(
                 {
-                    "date": item.transaction_date.isoformat(),
+                    "date": item.transaction_date.isoformat() if item.transaction_date else "",
                     "type": "expense",
                     "amount": item.amount,
-                    "currency": item.currency if currency_explicit else dominant_currency,
-                    "currency_explicit": currency_explicit,
+                    "currency": item.currency if currency_explicit or getattr(item, "currency_explicit", False) else "",
+                    "currency_explicit": bool(item.currency) and (currency_explicit or getattr(item, "currency_explicit", False)),
+                    "field_findings": list(getattr(item, "field_findings", ())),
                     "category_id": category_id,
                     "comment": item.comment,
                     "source": AI_SCREENSHOT_SOURCE,
@@ -17391,6 +17412,7 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             "file_size": image.file_size or len(image_bytes),
             "file_source": image.source,
         }
+        draft_metadata.update(screenshot_review_metadata(analysis))
         if analysis.raw_response is not None:
             draft_metadata["raw_response"] = analysis.raw_response
 
@@ -17514,7 +17536,7 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         dominant_currency = tx_currency
 
     tx_payload = {
-        "date": analysis.transaction_date.isoformat(),
+        "date": analysis.transaction_date.isoformat() if analysis.transaction_date else "",
         "type": tx_type,
         "amount": analysis.amount,
         "currency": tx_currency,
@@ -17544,6 +17566,7 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "file_size": image.file_size or len(image_bytes),
         "file_source": image.source,
     }
+    draft_metadata.update(screenshot_review_metadata(analysis))
     if analysis.raw_response is not None:
         draft_metadata["raw_response"] = analysis.raw_response
 

@@ -162,6 +162,78 @@ class ReceiptManualReviewTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result.transaction_date)
         self.assertIsNone(result.receipt_date)
 
+    async def test_screenshot_missing_date_status_and_direction_keeps_review_candidates_only(self):
+        full = tuple(ExtractionPass(source, mode='single_tx', transaction_date=None, merchant='Shop',
+                     evidence=(Evidence(source+'-amount', 'amount', '-1 234,50 ₴', '1234.50'),
+                               Evidence(source+'-currency', 'currency', '₴', 'UAH')))
+                     for source in ('full-a', 'full-b'))
+        evidence = reconcile_extractions(full)
+        self.assertFalse(evidence.accepted)
+        result = await self.analyze(evidence)
+        payload = vision_tx.serialize_miniapp_screenshot_analysis(result)
+        self.assertEqual(payload['mode'], 'single_tx')
+        self.assertEqual(payload['source'], 'screenshot')
+        # Agreeing evidence pre-fills the editable draft; missing date/type and
+        # review findings still prevent this from being a confirmed transaction.
+        self.assertEqual(payload['amount'], '1234.50')
+        self.assertEqual(payload['currency'], 'UAH')
+        for field in ('transaction_date', 'type'):
+            self.assertIsNone(payload[field], field)
+        self.assertEqual(payload['field_candidates'], {'amount': '1234.50', 'currency': 'UAH', 'comment': 'Shop'})
+        self.assertTrue(payload['needs_review'])
+        self.assertIn('status_unknown', payload['field_findings'])
+        self.assertIn('type_unknown', payload['field_findings'])
+        self.assertNotIn('status_conflict', payload['field_findings'])
+        self.assertNotIn('type_conflict', payload['field_findings'])
+
+    async def test_explicit_adverse_screenshot_status_never_opens_candidate_fallback(self):
+        from test_photo_evidence_safety import passes
+        for raw, value in [('failed', 'declined'), ('pending', 'pending'), ('refund', 'refunded')]:
+            with self.subTest(status=raw):
+                full = passes(status=(raw, value))
+                with self.assertRaises(vision_tx.OpenAIVisionInvalidResponseError):
+                    await self.analyze(reconcile_extractions(full))
+
+    async def test_receipt_review_preserves_agreeing_independent_fields_as_candidates(self):
+        from test_photo_evidence_safety import passes
+        first, second = passes()
+        evidence = reconcile_extractions(tuple(
+            replace(p, mode='receipt', merchant='Shop', transaction_date=date(2026, 10, 1),
+                    receipt_total=Decimal('1234.50'), line_items=({'name': 'Item', 'amount': Decimal('1234.50')},))
+            for p in (first, second)
+        ))
+        evidence = replace(evidence, accepted=False, requires_review=True,
+                           findings=('receipt_items_conflict',),
+                           trace={**evidence.trace, 'receipt_review_only': True})
+        result = await self.analyze(evidence)
+        payload = vision_tx.serialize_miniapp_screenshot_analysis(result)
+        self.assertIsNone(payload['amount'])
+        self.assertIsNone(payload['currency'])
+        self.assertIsNone(payload['transaction_date'])
+        self.assertEqual(payload['field_candidates'], {
+            'amount': '1234.50', 'currency': 'UAH', 'transaction_date': '2026-10-01',
+            'comment': 'Shop', 'items': [{'name': 'Item', 'amount': '1234.50'}],
+        })
+
+    async def test_receipt_review_missing_date_does_not_default_or_expose_date_candidate(self):
+        evidence = reconcile_extractions(tuple(replace(receipt_pass(s), transaction_date=None)
+                                                for s in ('full-a', 'full-b')))
+        result = await self.analyze(evidence)
+        payload = vision_tx.serialize_miniapp_screenshot_analysis(result)
+        self.assertIsNone(payload['transaction_date'])
+        self.assertNotIn('transaction_date', payload['field_candidates'])
+
+    async def test_receipt_review_disputed_amount_is_not_exposed_as_candidate_or_accepted_amount(self):
+        first, second = tuple(replace(receipt_pass(s), evidence=tuple(
+            replace(item, raw_text='12.34', value='12.34') if item.field == 'amount' else item
+            for item in receipt_pass(s).evidence)) for s in ('full-a', 'full-b'))
+        second = replace(second, evidence=tuple(replace(item, raw_text='13.34', value='13.34')
+                                                 if item.field == 'amount' else item for item in second.evidence))
+        result = await self.analyze(reconcile_extractions((first, second)))
+        payload = vision_tx.serialize_miniapp_screenshot_analysis(result)
+        self.assertIsNone(payload['amount'])
+        self.assertNotIn('amount', payload['field_candidates'])
+
 
 if __name__ == '__main__':
     unittest.main()

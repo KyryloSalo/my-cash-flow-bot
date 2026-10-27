@@ -25,7 +25,7 @@ from photo_pipeline import Evidence, ExtractionPass, PipelineConfig, Reconciliat
 
 logger = logging.getLogger("mcf.photo_shadow")
 _CACHE_TTL_SECONDS = 45.0
-_DURABLE_CACHE_VERSION = 5
+_DURABLE_CACHE_VERSION = 6
 _DURABLE_CACHE_PRODUCER = "photo-shadow"
 _CACHE_MAX_ENTRIES = 128
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -133,6 +133,7 @@ def _schema() -> dict[str, Any]:
     schema["properties"].update({
         "transaction_date": {"type": ["string", "null"]},
         "merchant": {"type": ["string", "null"]},
+        "category_hint": {"type": ["string", "null"]},
         "receipt_total": {"type": ["string", "null"]},
         "receipt_items": {"type": "array", "items": {
             "type": "object", "additionalProperties": False,
@@ -163,6 +164,8 @@ def _prompt(*, today: date | None = None) -> str:
         "For single_tx and receipt, statement_items MUST be []; put all visible core fields in evidence, never in statement_items. "
         "Do not clear visible amount/currency evidence merely because status or type is missing: omit only the missing field. "
         "Return only structured JSON evidence. "
+        "Extract category_hint only as the exact visible bank category label, or null if absent. "
+        "Do not infer a category from merchant or items; it is only a suggestion for user review. "
         "Fields are amount, currency, status, and type. Each item must include the exact visible raw_text, a "
         "normalized value and a stable local id. For one transaction use region=null, not invented region names. "
         "amount.value is the positive decimal magnitude, e.g. raw_text '-402.25 UAH' => value '402.25'. "
@@ -366,6 +369,7 @@ def _parse_pass(source: str, text: str) -> ExtractionPass:
         receipt_total=receipt_total, transaction_date=transaction_date,
         merchant=merchant.strip()[:160] if isinstance(merchant, str) and merchant.strip() else None,
         raw_evidence={"receipt_items_incomplete": isinstance(receipt_rows, list) and len(line_items) != len(receipt_rows),
+                      "category_hint": str(raw.get("category_hint") or "").strip()[:120] or None,
                       "_mode_explicit": "mode" in raw,
                       "statement_items": statement_items, "statement_review_rows": review_rows,
                       "skipped_items_count": max(invalid_rows, _safe_non_negative_int(raw.get("skipped_items_count")))},
