@@ -21,7 +21,7 @@ class ExtractionPass:
     raw_evidence: dict[str,Any]|None = None
     mode: str = "single_tx"
 @dataclass(frozen=True)
-class PipelineConfig: preprocessing_version:str="photo-preprocess-v1"; prompt_version:str="photo-evidence-v5"; schema_version:str="photo-schema-v2"
+class PipelineConfig: preprocessing_version:str="photo-preprocess-v1"; prompt_version:str="photo-evidence-v7"; schema_version:str="photo-schema-v3"
 
 @dataclass(frozen=True)
 class ImageQuality:
@@ -109,8 +109,8 @@ def _visible_amount(raw: str):
             text = text[:-len(token)].strip()
             break
     direction = None
-    if text.startswith(("−", "-", "+")):
-        direction = "expense" if text[0] in ("−", "-") else "income"
+    if text.startswith(("−", "-", "–", "+")):
+        direction = "expense" if text[0] in ("−", "-", "–") else "income"
         text = text[1:].strip()
     return parse_raw_amount(text), currency, direction
 

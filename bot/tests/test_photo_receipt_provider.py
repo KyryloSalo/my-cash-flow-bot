@@ -35,7 +35,7 @@ class ReceiptProviderTests(unittest.TestCase):
                     ("status", "paid", "completed"), ("type", "purchase", "expense"),
                 )
             ],
-            "transaction_date": "2026-10-14", "merchant": "Cafe",
+            "transaction_date": "2026-10-14", "raw_date": "14.10.2026", "merchant": "Cafe",
             "receipt_total": "10.00", "receipt_items": rows if rows is not None else [{"name": "Coffee", "amount_raw": "10.00"}],
         }
         return json.dumps(payload)
