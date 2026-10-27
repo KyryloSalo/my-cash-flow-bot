@@ -16,7 +16,7 @@ from vision_tx import _normalize_amount, _parse_response, serialize_miniapp_scre
 
 class EvidenceNormalizationTests(unittest.TestCase):
     def test_nonexpense_description_is_not_weakened_by_unknown_status(self):
-        for comment in ("Cashback credit", "На свою картку"):
+        for comment in ("Недостатньо коштів", "На свою картку"):
             with self.subTest(comment=comment):
                 result = self.parse(mode_candidate="statement_expenses", amount=None, items=[
                     {"type": "expense", "operation_kind": "expense", "status": "unknown",
@@ -26,7 +26,7 @@ class EvidenceNormalizationTests(unittest.TestCase):
                 ])
                 self.assertEqual(result.statement_items, ())
                 self.assertEqual(len(result.statement_review_rows), 1)
-                self.assertEqual(result.statement_review_rows[0]["reason"], "type_conflict")
+                self.assertEqual(result.statement_review_rows[0]["exclude_reason"], "type_conflict")
 
     def test_iso_timestamp_evidence_preserves_date_without_ignoring_conflicts(self):
         for evidence in ("2026-10-25 22:17:36", "2026-10-25T22:17:36+03:00"):
