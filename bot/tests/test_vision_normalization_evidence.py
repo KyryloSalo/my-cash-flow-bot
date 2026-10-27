@@ -15,6 +15,19 @@ from vision_tx import _normalize_amount, _parse_response, serialize_miniapp_scre
 
 
 class EvidenceNormalizationTests(unittest.TestCase):
+    def test_nonexpense_description_is_not_weakened_by_unknown_status(self):
+        for comment in ("Cashback credit", "На свою картку"):
+            with self.subTest(comment=comment):
+                result = self.parse(mode_candidate="statement_expenses", amount=None, items=[
+                    {"type": "expense", "operation_kind": "expense", "status": "unknown",
+                     "amount": 90, "amount_text": "90,00", "currency": "UAH",
+                     "currency_text": "₴", "transaction_date": "2026-10-27",
+                     "date_text": "2026-10-27", "comment": comment},
+                ])
+                self.assertEqual(result.statement_items, ())
+                self.assertEqual(len(result.statement_review_rows), 1)
+                self.assertEqual(result.statement_review_rows[0]["reason"], "type_conflict")
+
     def test_iso_timestamp_evidence_preserves_date_without_ignoring_conflicts(self):
         for evidence in ("2026-10-25 22:17:36", "2026-10-25T22:17:36+03:00"):
             with self.subTest(evidence=evidence):
@@ -181,6 +194,25 @@ class EvidenceNormalizationTests(unittest.TestCase):
         self.assertIn("status_unknown", result.field_findings)
         self.assertTrue(result.needs_review)
         self.assertEqual(self.parse(status="unknown", operation_kind="transfer").mode, "unsupported")
+
+    def test_nonexpense_operation_is_never_bookable_even_when_status_unknown(self):
+        result = self.parse(mode_candidate="statement_expenses", amount=None, items=[
+            {"type": "income", "operation_kind": "income", "status": "unknown",
+             "amount": 90, "currency": "UAH", "transaction_date": "2026-10-27",
+             "comment": "Salary"},
+        ])
+        self.assertEqual(result.statement_items, ())
+        self.assertEqual(len(result.statement_review_rows), 1)
+        self.assertEqual(result.statement_review_rows[0]["exclude_reason"], "type_conflict")
+        self.assertFalse(result.statement_review_rows[0]["included"])
+
+    def test_missing_expense_status_remains_editable(self):
+        result = self.parse(mode_candidate="statement_expenses", amount=None, items=[
+            {"type": "expense", "operation_kind": "expense", "amount": 90,
+             "currency": "UAH", "transaction_date": "2026-10-27", "comment": "Cafe"},
+        ])
+        self.assertEqual(len(result.statement_items), 1)
+        self.assertFalse(result.statement_items[0].needs_review)
 
     def test_statement_retains_unknown_date_and_excluded_rows_for_review(self):
         result = self.parse(mode_candidate="statement_expenses", amount=None, items=[

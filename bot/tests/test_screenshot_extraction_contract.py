@@ -66,6 +66,31 @@ class ScreenshotExtractionContractTests(unittest.TestCase):
         self.assertEqual(len(result.statement_items) + len(result.statement_review_rows), 8)
         self.assertEqual(len(result.statement_review_rows), 4)
         self.assertEqual(result.skipped_items_count, 4)
+    def test_prompt_requires_literal_evidence_and_no_synthesized_year(self) -> None:
+        prompt = _prompt(today=date(2026, 10, 27), default_currency="UAH", accounts=[], expense_categories=[], income_categories=[]).lower()
+        self.assertIn("literal verbatim visible source fragments", prompt)
+        self.assertIn("never synthesize a year from today", prompt)
+        self.assertIn("incomplete or absent", prompt)
+
+    def test_incomplete_visible_date_stays_literal_and_transaction_date_unknown(self) -> None:
+        body = {
+            "mode_candidate": "statement_expenses", "amount_text": None, "date_text": None,
+            "currency_text": "UAH", "status": "posted", "operation_kind": "expense",
+            "transaction_date": "2026-10-06", "type": "expense", "amount": 12,
+            "currency": "UAH", "dominant_currency": "UAH", "currency_evidence_kind": "code",
+            "currency_evidence_text": "UAH", "currency_context_text": "UAH", "account_hint": "",
+            "category_hint": "", "comment": "statement", "confidence": 0.9, "bank_name": "",
+            "card_last4": "", "skipped_rows_count": 0,
+            "items": [{"transaction_date": "2026-10-06", "date_text": "Вт, 6 жовтня",
+                       "amount_text": "12,00", "amount": 12, "currency_text": "₴", "currency": "UAH",
+                       "status": "posted", "operation_kind": "expense", "type": "expense",
+                       "comment": "Cafe", "category_hint": "", "confidence": 0.9}],
+            "receipt_date": "", "receipt_merchant": "", "receipt_total": None, "receipt_items": [],
+            "field_findings": [], "needs_review": True, "arithmetic_warnings": [],
+        }
+        result = _parse_response({"output_text": json.dumps(body)}, today=date(2026, 10, 27), default_currency="UAH", model="test", detail="low", used_fallback=False)
+        self.assertIsNone(result.statement_items[0].transaction_date)
+        self.assertEqual(result.statement_items[0].field_evidence["date_text"], "Вт, 6 жовтня")
 
 
 if __name__ == "__main__":

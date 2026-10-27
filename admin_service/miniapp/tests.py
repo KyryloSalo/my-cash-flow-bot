@@ -790,6 +790,12 @@ class MiniAppTests(TestCase):
         self.assertEqual(tx.metadata["receipt_metadata"], {
             "source": "receipt", "needs_review": [], "needs_review_bool": False,
             "field_findings": [], "receipt_total": "12.50",
+            "receipt_items": [{"description": "Item", "line_total": "12.50", "status": "included"}],
+            "arithmetic": {
+                "state": "matched", "resolution": "items", "computed_total": "12.50",
+                "supplied_total": "12.50", "transaction_amount": "12.50", "delta": "0.00",
+                "findings": [],
+            },
         })
         self.assertEqual(tx.metadata["receipt_review"][0]["line_total"], "12.50")
         self.assertEqual(WriteReceipt.objects.count(), 1)

@@ -593,8 +593,9 @@ def _prompt(
         "Bank history screens with multiple debit rows are supported and should usually be statement_expenses.\n"
         "Never turn balance, cashback accrual, exchange rate, original foreign amount, totals or headers into transaction rows. Count only these excluded non-transaction rows in skipped_rows_count.\n"
         "Copy the visible booked/debited amount digits and separators exactly into amount_text, without the currency; amount must match it without losing zeros.\n"
-        "Set currency_text to the ISO currency of that SAME booked amount; never pair a local debit with the original foreign currency. If absent use null, never the default or another row's currency.\n"
-        "Set date_text to YYYY-MM-DD only when the complete date including year is visible. Otherwise null and transaction_date empty; never invent the year from today.\n"
+        "Copy date_text, amount_text, and currency_text as literal verbatim visible source fragments, preserving separators, signs, spacing, and token form; never normalize those evidence fields.\n"
+        "Set currency_text to the literal visible currency marker/code for that SAME booked amount; currency is the normalized ISO field. Never pair a local debit with the original foreign currency. If absent use null, never the default or another row's currency.\n"
+        "Set date_text to the literal visible date fragment, preserving separators and spacing. Never synthesize a year from today or a day-of-week; if the year is incomplete or absent, keep date_text literal and set transaction_date empty.\n"
         "Set operation_kind to expense, income, transfer, refund or unknown using labels and direction. Set status to posted only for visibly completed bank operations or a completed purchase receipt; pending for uncompleted, declined for rejected/insufficient-funds, otherwise unknown.\n"
         "A red error icon or text such as Недостатньо коштів means rejected/declined: never return it as a completed expense.\n"
         "For explicit own-account transfers (На свою картку, На свою карту, own account, internal transfer), operation_kind=transfer. Generic Переказ на картку is ambiguous: operation_kind=unknown unless other evidence resolves it. Keep these rows for review.\n"
@@ -692,10 +693,8 @@ def _parse_statement_items(
             continue
 
         tx_type = _normalize_type(raw_item.get("type"))
-        reason = _operation_finding(raw_item)
-        if not reason and tx_type not in {None, "expense"}:
-            reason = "type_conflict"
-        if not reason and _is_nonexpense_evidence(raw_item.get("category_hint"), raw_item.get("comment")):
+        reason = "type_conflict" if tx_type not in {None, "expense"} else _operation_finding(raw_item)
+        if _is_nonexpense_evidence(raw_item.get("category_hint"), raw_item.get("comment")):
             reason = "type_conflict"
         amount, tx_date, findings = _verified_fields(raw_item, today=today)
         currency = _normalize_currency_value(raw_item.get("currency"))
