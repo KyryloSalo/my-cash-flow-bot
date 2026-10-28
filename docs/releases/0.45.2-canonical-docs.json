@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "version": "0.45.2",
+  "deployed_sha": "e9893ad2e2143aaa2f1a0c0a2eb8ca35b2f88938",
+  "runtime_pr": 83,
+  "production_run_id": 40731740128,
+  "validation_run_id": 40730382908,
+  "deployment_date": "2026-10-28",
+  "readback_at_utc": "2026-10-28T17:21:44.080823+00:00",
+  "readback": "passed",
+  "acceptance_boundary": "Exact-main CI, repeated 153 tests, named-PWA and boundary-PWA checks, exact-current independent reviews, production artifact/backup/revision/readiness and public readiness passed. Authenticated production photo/provider/review, effective recognition flags and named R10 production acceptance remain unverified; formal delivery completion remains INCOMPLETE. Historical source-bound runtime OCR evidence is revalidation, not fresh production OCR evidence. Financial confirmation and reconciliation boundaries were not relaxed; no financial probe write was performed.",
+  "canonical_baseline": "Outer canonical files are at 0.45.1. Apply these exact guarded replacements only after this docs PR is reviewed and merged. Preserve BOM/CRLF, historical acceptance warnings and one top-level heading per document.",
+  "canonical_sha256": {
+    "VERSION": "403524abcb410ab5cc233a383704f253000609405981deda48bf89517dd50250",
+    "docs/VERSIONING.md": "ea2223101d40a0b96593ca47b07af593b1085e9f871fea62cf8694fade68dd83",
+    "docs/RELEASE_NOTES.md": "6a1c79acdef4b0e7b353948975331c85e9605972c36dbc324c9e5b39633257ba",
+    "docs/CURRENT_STATE.md": "14d43175886ca1753dcf4b3c54718b8a1a65cf96875b7863177ead6c37e1591d",
+    "README.md": "f9f17c012e3ce437b886e1183e16a220b442581809b3f39aec0cf6125e78f338"
+  },
+  "changes": [
+    {
+      "path": "VERSION",
+      "kind": "replace_once",
+      "old_string": "0.45.1\n",
+      "new_string": "0.45.2\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "Last updated: 2026-10-23",
+      "new_string": "Last updated: 2026-10-28"
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Last updated: 2026-10-23\r\n\r\nCurrent production version: `0.45.1` (deployed 2026-10-23; runtime SHA `b3e22861ec827bbfa885832b22189063317dbfcb`, production run `39954037678`, readback passed). Semver rationale: PATCH restoring existing registration administrator notifications without a new public API. Production registration/recipient delivery acceptance remains unverified; previous acceptance gaps remain unchanged.",
+      "new_string": "Last updated: 2026-10-28\r\n\r\nCurrent production version: `0.45.2` (deployed 2026-10-28; runtime SHA `e9893ad2e2143aaa2f1a0c0a2eb8ca35b2f88938`, production run `40731740128`, readback passed). Semver rationale: PATCH fixing existing recognition normalization without a new public surface. Production photo/provider/review acceptance, effective recognition flags and named R10 acceptance remain unverified; previous acceptance gaps remain unchanged."
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "kind": "prepend_after_heading",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.45.2 - 2026-10-28 (deployed)\n\nPR #83 merged. Production run `40731740128` deployed runtime SHA `e9893ad2e2143aaa2f1a0c0a2eb8ca35b2f88938` after exact-main validate/publish CI `40730382908`; protected production Environment approval, encrypted off-host backup, deployment/readback and release promotion passed. Exact deployment artifact `12835069841` records `deployed_at_utc` `2026-10-28T17:21:44.080823+00:00` and readback passed.\n\nPATCH: fix existing recognition normalization for literal dates, sign/dash money, currency and schema-v3 handling while preserving statement rows, legitimate duplicates and date alignment. No new public surface, financial confirmation/reconciliation relaxation, or financial probe write was added.\n\nRepeated 153 tests plus named-PWA and boundary-PWA checks passed at the reviewed candidate; exact-current independent reviews passed. Prior source-bound runtime evidence remains historical revalidation, not fresh production OCR evidence. Fresh public readiness `python ops/readiness_smoke.py` exited `0` after deployment.\n\n**Production artifact, encrypted backup and public readiness are verified; authenticated production photo/provider/review, effective recognition flags and named R10 production acceptance remain UNVERIFIED.** Formal delivery completion remains INCOMPLETE and is not waived by staged R1-R9 integration. The existing financial confirmation/reconciliation boundary remains unchanged.\n\nSee `code/docs/releases/0.45.2-recognition-normalization.md`. The accompanying canonical-docs manifest is documentation-only, must be reviewed and merged before application, and must not trigger another runtime rollout.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "## Runtime delivery status — 2026-10-23 (0.45.1)",
+      "new_string": "## Runtime delivery status — 2026-10-28 (0.45.2)\n\nPR #83 merged. Production run `40731740128` deployed runtime SHA `e9893ad2e2143aaa2f1a0c0a2eb8ca35b2f88938` after exact-main validate/publish CI `40730382908`; protected production Environment approval, encrypted off-host backup, deployment/readback and release promotion passed. Exact deployment artifact `12835069841` records `deployed_at_utc` `2026-10-28T17:21:44.080823+00:00` and readback passed.\n\nPATCH: fix existing recognition normalization for literal dates, sign/dash money, currency and schema-v3 handling while preserving statement rows, legitimate duplicates and date alignment. No new public surface, financial confirmation/reconciliation relaxation, or financial probe write was added.\n\nRepeated 153 tests plus named-PWA and boundary-PWA checks passed at the reviewed candidate; exact-current independent reviews passed. Prior source-bound runtime evidence remains historical revalidation, not fresh production OCR evidence. Fresh public readiness `python ops/readiness_smoke.py` exited `0` after deployment.\n\n**Production artifact, encrypted backup and public readiness are verified; authenticated production photo/provider/review, effective recognition flags and named R10 production acceptance remain UNVERIFIED.** Formal delivery completion remains INCOMPLETE and is not waived by staged R1-R9 integration. Prior acceptance warnings remain unchanged.\n\nSee `code/docs/releases/0.45.2-recognition-normalization.md`. Documentation-only sync does not change the deployed runtime SHA or imply another rollout.\n\n## Previous runtime delivery status — 2026-10-23 (0.45.1)"
+    },
+    {
+      "path": "README.md",
+      "kind": "replace_once",
+      "old_string": "Current production release: **0.45.1**, deployed **2026-10-23**, runtime SHA `b3e22861ec827bbfa885832b22189063317dbfcb`, production run `39954037678`, validation `39951518916`, revision/readiness readback `2026-10-23T12:37:02.622959+00:00`. Registration administrator notifications now include source/partner attribution and suppress ordinary repeat-authentication enqueue. Backup, rollout, promotion and public smoke passed. **Real new-user production registration and recipient-side Telegram delivery remain unverified.** The task receipt remains COMPLETE — LOCAL; prior acceptance gaps are unchanged. See `docs/CURRENT_STATE.md`, `docs/RELEASE_NOTES.md` and `code/docs/releases/0.45.1-registration-admin-notifications.md`.\n\nPrevious 0.45.0 delivery record (historical; unresolved acceptance retained):",
+      "new_string": "Current production release: **0.45.2**, deployed **2026-10-28**, runtime SHA `e9893ad2e2143aaa2f1a0c0a2eb8ca35b2f88938`, production run `40731740128`, validation `40730382908`, revision/readiness readback `2026-10-28T17:21:44.080823+00:00`. Recognition normalization now preserves literal dates, sign/dash money, currency/schema-v3 handling, statement rows, legitimate duplicates and date alignment. Backup, rollout, promotion and public readiness passed. **Authenticated production photo/provider/review, effective recognition flags and named R10 production acceptance remain unverified; formal delivery completion remains INCOMPLETE.** Prior acceptance gaps remain unchanged. See `docs/CURRENT_STATE.md`, `docs/RELEASE_NOTES.md` and `code/docs/releases/0.45.2-recognition-normalization.md`.\n\nPrevious 0.45.1 delivery record (historical; unresolved acceptance retained):\nCurrent production release: **0.45.1**, deployed **2026-10-23**, runtime SHA `b3e22861ec827bbfa885832b22189063317dbfcb`, production run `39954037678`, validation `39951518916`, revision/readiness readback `2026-10-23T12:37:02.622959+00:00`. Registration administrator notifications now include source/partner attribution and suppress ordinary repeat-authentication enqueue. Backup, rollout, promotion and public smoke passed. **Real new-user production registration and recipient-side Telegram delivery remain unverified.** The task receipt remains COMPLETE — LOCAL; prior acceptance gaps are unchanged. See `docs/CURRENT_STATE.md`, `docs/RELEASE_NOTES.md` and `code/docs/releases/0.45.1-registration-admin-notifications.md`.\n\nPrevious 0.45.0 delivery record (historical; unresolved acceptance retained):"
+    }
+  ]
+}
