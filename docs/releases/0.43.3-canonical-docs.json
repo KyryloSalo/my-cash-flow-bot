@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "version": "0.43.3",
+  "deployed_sha": "581efb313ddfc40ea0fa529d545e8643b409ed27",
+  "runtime_pr": 72,
+  "production_run_id": 39624076224,
+  "deployment_date": "2026-10-21",
+  "validation_run_id": 39622895854,
+  "readback_at_utc": "2026-10-21T15:21:57.069785+00:00",
+  "live_jwks_readback_at_utc": "2026-10-21T15:28:49.268171+00:00",
+  "readback": "passed",
+  "source_of_truth": "GitHub production deployment artifact plus direct production revision/live-JWKS readback; documentation merge is not runtime activation",
+  "semver_rationale": "PATCH: backwards-compatible Telegram OIDC gzip transport repair",
+  "acceptance_boundary": "**ARTIFACT DEPLOYED; original phone journey NOT YET ACCEPTED.** Native Telegram -> external Chrome/Safari -> correct-user PWA and genuinely new/existing production user journeys remain unverified. Synthetic-provider acceptance and live JWKS retrieval are not real-user login evidence. The owner reported complete desktop login before deployment; the desktop/mobile discrepancy and the operational trigger of gzip responses remain unproven. Existing browser sessions can survive a failed repeat callback, but this is not a diagnosis of the owner device. Earlier acceptance gaps remain unchanged; production-wide financial-row-count invariance was not measured.",
+  "changes": [
+    {
+      "path": "VERSION",
+      "kind": "replace_once",
+      "old_string": "0.43.2\n",
+      "new_string": "0.43.3\n"
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "kind": "prepend_after_heading",
+      "old_string": "# Release Notes\n\n",
+      "new_string": "# Release Notes\n\n## 0.43.3 - 2026-10-21 (deployed)\n\nEnvironment: production. Production run `39624076224` deployed SHA `581efb313ddfc40ea0fa529d545e8643b409ed27` on **2026-10-21** after exact-main validation `39622895854` and explicit Environment approval. PATCH: decode gzip-compressed Telegram JWKS and token JSON without relaxing signature, claim, state, PKCE or replay validation. The deployed runtime also includes the reviewed public `/app/login/` entry requiring Telegram identity confirmation; ordinary bot entry no longer needs internal signed-link issuance.\n\nDeployment revision/readiness readback passed at `2026-10-21T15:21:57.069785+00:00`. Direct read-only production verification at `2026-10-21T15:28:49.268171+00:00` confirmed the exact active SHA and loaded four signing keys from the live Telegram provider using the deployed module. All eight containers were healthy and public root/PWA returned HTTP 200. Two real HTTP/gzip/RSA regressions and both isolated PostgreSQL/HTTPS/Chromium runs (35 Django regressions each, synthetic Telegram provider) passed. Independent implementation reviews found no blocking defect. No financial writes or payment-provider calls were made by production probes.\n\n**ARTIFACT DEPLOYED; original phone journey NOT YET ACCEPTED.** Native Telegram -> external Chrome/Safari -> correct-user PWA and genuinely new/existing production user journeys remain unverified. Synthetic-provider acceptance and live JWKS retrieval are not real-user login evidence. The owner reported complete desktop login before deployment; the desktop/mobile discrepancy and the operational trigger of gzip responses remain unproven. Existing browser sessions can survive a failed repeat callback, but this is not a diagnosis of the owner device. Earlier acceptance gaps remain unchanged; production-wide financial-row-count invariance was not measured.\n\nDocumentation-only sync: the docs merge SHA is not the deployed runtime SHA and does not activate another release.\n\n"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "kind": "replace_once",
+      "old_string": "## Runtime delivery status — 2026-10-21 (0.43.2)",
+      "new_string": "## Runtime delivery status — 2026-10-21 (0.43.3)\n\nProduction run `39624076224` deployed SHA `581efb313ddfc40ea0fa529d545e8643b409ed27` on **2026-10-21** after exact-main validation `39622895854` and explicit Environment approval. PATCH: decode gzip-compressed Telegram JWKS and token JSON without relaxing signature, claim, state, PKCE or replay validation. The deployed runtime also includes the reviewed public `/app/login/` entry requiring Telegram identity confirmation; ordinary bot entry no longer needs internal signed-link issuance.\n\nDeployment revision/readiness readback passed at `2026-10-21T15:21:57.069785+00:00`. Direct read-only production verification at `2026-10-21T15:28:49.268171+00:00` confirmed the exact active SHA and loaded four signing keys from the live Telegram provider using the deployed module. All eight containers were healthy and public root/PWA returned HTTP 200. Two real HTTP/gzip/RSA regressions and both isolated PostgreSQL/HTTPS/Chromium runs (35 Django regressions each, synthetic Telegram provider) passed. Independent implementation reviews found no blocking defect. No financial writes or payment-provider calls were made by production probes.\n\n**ARTIFACT DEPLOYED; original phone journey NOT YET ACCEPTED.** Native Telegram -> external Chrome/Safari -> correct-user PWA and genuinely new/existing production user journeys remain unverified. Synthetic-provider acceptance and live JWKS retrieval are not real-user login evidence. The owner reported complete desktop login before deployment; the desktop/mobile discrepancy and the operational trigger of gzip responses remain unproven. Existing browser sessions can survive a failed repeat callback, but this is not a diagnosis of the owner device. Earlier acceptance gaps remain unchanged; production-wide financial-row-count invariance was not measured.\n\n## Previous runtime delivery status — 2026-10-21 (0.43.2)"
+    },
+    {
+      "path": "README.md",
+      "kind": "replace_once",
+      "old_string": "Current production release: **0.43.2**, deployed **2026-10-21**, runtime SHA `d0725984911535fb9e792bfda5eaa936d38d8966`, production run `39565936880`, validation `39564606056`, revision/readiness readback `2026-10-21T08:05:00.394526+00:00`. Server-issued public HTTPS browser-login links and safe bot retry are deployed. Public route gates, anonymous Chromium recovery, and local isolated HTTPS/Chromium login acceptance passed. **Authenticated production Telegram -> native Chrome -> correct-user PWA acceptance remains pending the owner device check.** No financial write or payment-provider call was performed by the production probes; earlier acceptance gaps remain unchanged. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for exact scope.",
+      "new_string": "Current production release: **0.43.3**, deployed **2026-10-21**, runtime SHA `581efb313ddfc40ea0fa529d545e8643b409ed27`, production run `39624076224`, exact-main validation `39622895854`, revision/readiness readback `2026-10-21T15:21:57.069785+00:00`. Gzip-safe Telegram OIDC transport and the public Telegram-confirmation browser entry are deployed. Local synthetic-provider browser acceptance and live production signing-key retrieval passed. **Native phone login and new/existing correct-user production journeys remain unverified.** Desktop/mobile discrepancy and the operational trigger remain unproven. See `docs/CURRENT_STATE.md` and `docs/RELEASE_NOTES.md` for exact scope and preserved historical gaps."
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "Current production version: `0.43.2` (deployed 2026-10-21). Semver rationale: PATCH for the backwards-compatible server-issued public HTTPS browser-login repair; no new product surface.",
+      "new_string": "Current production version: `0.43.3` (deployed 2026-10-21). Semver rationale: PATCH for backwards-compatible gzip-safe Telegram OIDC authentication repair; no new product surface."
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "kind": "replace_once",
+      "old_string": "- `0.43.2` - current production artifact (browser-login issuance repair; native authenticated production journey remains unverified)",
+      "new_string": "- `0.43.3` - current production artifact (gzip-safe Telegram OIDC; native phone and new/existing production journeys remain unverified)\n- `0.43.2` - historical artifact (browser-login issuance repair; its native authenticated acceptance gap was not resolved by deployment alone)"
+    },
+    {
+      "path": "docs/MINI_APP_BOT_INTEGRATION.md",
+      "kind": "replace_once",
+      "old_string": "- Release `0.43.2` (`2026-10-21`, runtime `d0725984911535fb9e792bfda5eaa936d38d8966`) repairs issuance: the bot uses only the authenticated internal server issuer, which returns a public HTTPS `DOMAIN` link, not its internal request host. There is no bot-local signing fallback. Issuance failure returns actionable retry text without logging sensitive exception detail.",
+      "new_string": "- Release `0.43.3` (`2026-10-21`, runtime `581efb313ddfc40ea0fa529d545e8643b409ed27`) uses public `/app/login/` buttons followed by Telegram OIDC confirmation and handles gzip-compressed provider JWKS/token JSON. Ordinary entry no longer depends on the internal signed-link issuer; legacy signed routes remain compatible. Deployment and live-provider signing-key retrieval passed; native phone authentication remains unverified.\n- Historical release `0.43.2` (superseded for ordinary browser entry) (`2026-10-21`, runtime `d0725984911535fb9e792bfda5eaa936d38d8966`) repairs issuance: the bot uses only the authenticated internal server issuer, which returns a public HTTPS `DOMAIN` link, not its internal request host. There is no bot-local signing fallback. Issuance failure returns actionable retry text without logging sensitive exception detail."
+    },
+    {
+      "path": "docs/MINI_APP_BOT_INTEGRATION.md",
+      "kind": "replace_once",
+      "old_string": "- `/cabinet` and standalone app-entry messages also include a separate one-time browser/PWA login URL for Safari/Chrome/Home Screen sessions; that fresh browser login is the first button on these entry messages.",
+      "new_string": "- `/cabinet` and standalone app-entry messages include a public browser/PWA confirmation entry for Safari/Chrome/Home Screen sessions; this URL contains neither a signed login token nor a trusted Telegram identity."
+    },
+    {
+      "path": "docs/MINI_APP_BOT_INTEGRATION.md",
+      "kind": "replace_once",
+      "old_string": "- Expired or already-used browser-login pages link back to the bot with `app_login`, which issues a current signed URL.",
+      "new_string": "- Expired or already-used legacy browser-login pages link back to the bot with `app_login`, which offers the current Telegram-confirmation entry."
+    },
+    {
+      "path": "docs/MINI_APP_BOT_INTEGRATION.md",
+      "kind": "replace_once",
+      "old_string": "for a fresh signed URL.",
+      "new_string": "for a fresh Telegram-confirmation entry."
+    },
+    {
+      "path": "docs/MINI_APP_BOT_INTEGRATION.md",
+      "kind": "replace_once",
+      "old_string": "- `/cabinet` and standalone app-entry messages may generate a plain URL button to `/app/browser-login/<signed-token>/`;\n- this URL is for Safari/Chrome/Home Screen sessions and is shown before the Telegram Web App action on those messages, while the persistent Telegram chat menu remains `MenuButtonWebApp`;\n- known embedded mobile browsers must keep the handoff non-consuming and must not present the final login action until the same handoff is opened in Safari/Chrome;\n- the handoff's final action uses `/app/api/browser-login/<signed-token>/`, because the existing Mini App Service Worker bypasses `/app/api/*` and therefore cannot interfere with Safari's session-setting redirect. `/app/login/<signed-token>/` remains a legacy-compatible consumer only;\n- the signed token is the identity proof, not a trusted `tg_user_id` query parameter.\n- expired or already-used token pages and the unauthenticated standalone `/app/` shell must offer `https://t.me/vydnocapital_bot?start=app_login` so the bot can generate a fresh signed URL.",
+      "new_string": "- `/cabinet` and standalone app-entry messages use a public HTTPS `/app/login/` URL, not a user-bound signed token; the intended user must confirm their own identity through Telegram OIDC.\n- the browser entry precedes the Telegram Web App action on these messages, while the persistent Telegram chat menu remains `MenuButtonWebApp`;\n- known embedded mobile browsers retain non-consuming external-browser handoff before OIDC state creation;\n- URL identity parameters never grant authentication or operator permissions; state, PKCE, signature/claims and replay checks remain required.\n\nLegacy signed-link compatibility only:\n\n- previously issued `/app/browser-login/<signed-token>/` pages and `/app/api/browser-login/<signed-token>/` consumers remain compatible, with one-time signed identity proof and external-browser handoff;\n- expired/used legacy tokens and unauthenticated shells offer `https://t.me/vydnocapital_bot?start=app_login` for the current confirmation entry, not a new ordinary signed-link issuance path."
+    }
+  ]
+}
