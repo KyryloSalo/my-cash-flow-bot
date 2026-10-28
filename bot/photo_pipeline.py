@@ -21,7 +21,7 @@ class ExtractionPass:
     raw_evidence: dict[str,Any]|None = None
     mode: str = "single_tx"
 @dataclass(frozen=True)
-class PipelineConfig: preprocessing_version:str="photo-preprocess-v1"; prompt_version:str="photo-evidence-v5"; schema_version:str="photo-schema-v2"
+class PipelineConfig: preprocessing_version:str="photo-preprocess-v1"; prompt_version:str="photo-evidence-v7"; schema_version:str="photo-schema-v3"
 
 @dataclass(frozen=True)
 class ImageQuality:
@@ -109,8 +109,8 @@ def _visible_amount(raw: str):
             text = text[:-len(token)].strip()
             break
     direction = None
-    if text.startswith(("−", "-", "+")):
-        direction = "expense" if text[0] in ("−", "-") else "income"
+    if text.startswith(("−", "-", "–", "+")):
+        direction = "expense" if text[0] in ("−", "-", "–") else "income"
         text = text[1:].strip()
     return parse_raw_amount(text), currency, direction
 
@@ -188,7 +188,7 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
     for field, groups in evidence_groups.items():
         candidates = set().union(*groups.values()) if groups else set()
         values[field] = candidates
-        if any(len(group) != 1 for group in groups.values()) or len(groups) > 1 or len(candidates) != 1:
+        if groups and (any(len(group) != 1 for group in groups.values()) or len(groups) > 1 or len(candidates) != 1):
             findings.append(field + "_conflict")
     if not receipt_document and values["status"] != {"completed"}:
         findings.append("non_completed_status")
@@ -222,7 +222,43 @@ def reconcile_extractions(passes:tuple[ExtractionPass,...],*,today:Any=None)->Re
         # views may still open a blank manual form, never accepted evidence.
         findings = (*findings, "receipt_crop_layout_conflict")
         accepted = False
+    screenshot_document = len(full) >= 2 and all(item.mode == 'single_tx' for item in full)
+    field_candidates = {}
+    if (receipt_document or screenshot_document) and not excluded_receipt:
+        category_hints = [str((p.raw_evidence or {}).get("category_hint") or "").strip() for p in full]
+        if all(category_hints) and len(set(category_hints)) == 1:
+            field_candidates["category_hint"] = category_hints[0][:120]
+        amount_seen = [set() for _ in full]
+        currency_seen = [set() for _ in full]
+        for index, extraction in enumerate(full):
+            for item in extraction.evidence:
+                if item.field == "amount":
+                    parsed, _, _ = _visible_amount(item.raw_text)
+                    if parsed is not None and item.value == f"{parsed:.2f}":
+                        amount_seen[index].add(parsed)
+                elif item.field == "currency":
+                    parsed = _currency(item.raw_text)
+                    if parsed is not None and item.value.upper() == parsed:
+                        currency_seen[index].add(parsed)
+        if len(values["amount"]) == 1 and all(seen == values["amount"] for seen in amount_seen):
+            field_candidates["amount"] = f"{single('amount'):.2f}"
+        if len(values["currency"]) == 1 and all(seen == values["currency"] for seen in currency_seen):
+            field_candidates["currency"] = single("currency")
+        full_dates = [item.transaction_date for item in full]
+        if full_dates and full_dates[0] is not None and len(set(full_dates)) == 1:
+            field_candidates["transaction_date"] = full_dates[0].isoformat()
+        full_merchants = [" ".join(str(item.merchant or "").split()) for item in full]
+        if full_merchants and full_merchants[0] and len(set(full_merchants)) == 1:
+            field_candidates["comment"] = full_merchants[0][:160]
+        full_items = [tuple((str(row.get("name") or "").strip(), row.get("amount")) for row in item.line_items) for item in full]
+        if full_items and full_items[0] and len(set(full_items)) == 1:
+            field_candidates["items"] = [{"name": name, "amount": f"{amount:.2f}"} for name, amount in full_items[0]]
     trace = {"stage":"reconciliation", "pass_count":len(passes), "full_pass_count":len(full), "finding_count":len(findings),
              "document_mode":"receipt" if receipt_document else "unsupported",
-             "receipt_review_only":receipt_document and not excluded_receipt}
-    return ReconciliationResult(accepted, bool(findings), single("amount"), single("currency"), single("status"), single("type"), tuple(identifiers) if accepted else (), findings, trace, representative.transaction_date if representative else today, representative.merchant if representative and "merchant_conflict" not in findings else None, "L1" if accepted else None, representative.line_items if representative else (), representative.receipt_total if representative else None, tuple(item.raw_evidence or {} for item in passes))
+             "receipt_review_only":receipt_document and not excluded_receipt,
+             "screenshot_review_only": screenshot_document and not excluded_receipt
+                 and all(field in field_candidates for field in ('amount', 'currency'))
+                 and not any(finding in findings for finding in ('invalid_source', 'invalid_evidence_ids', 'insufficient_distinct_sources', 'insufficient_independent_full_passes')),
+             "unobserved_fields": [field for field in ('status', 'type') if not values[field]],
+             "field_candidates": field_candidates}
+    return ReconciliationResult(accepted, bool(findings), single("amount"), single("currency"), single("status"), single("type"), tuple(identifiers) if accepted else (), findings, trace, representative.transaction_date if representative else None, representative.merchant if representative and "merchant_conflict" not in findings else None, "L1" if accepted else None, representative.line_items if representative else (), representative.receipt_total if representative else None, tuple(item.raw_evidence or {} for item in passes))

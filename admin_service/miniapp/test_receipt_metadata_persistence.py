@@ -2,11 +2,28 @@ from contextlib import nullcontext
 from decimal import Decimal
 from types import SimpleNamespace as NS
 from unittest.mock import MagicMock, patch
-from django.test import SimpleTestCase
+from .tests_unit import SimpleTestCase
 from . import services as s
 
 
 class ReceiptPersistenceTests(SimpleTestCase):
+    def test_screenshot_audit_survives_both_draft_and_commit(self):
+        user = NS(tg_user_id=123)
+        audit = {'version': 1, 'source': 'screenshot', 'fields': ['amount', 'currency'],
+                 'resolved_issues': [{'id': 'i0', 'code': 'status_unknown', 'field': ''}]}
+        payload = dict(kind='expense', amount='12.50', account_id=7, category_id=8,
+                       currency='UAH', transaction_date='2026-10-01', source='screenshot',
+                       recognition_audit=audit)
+        account = NS(id=7, currency='UAH', label='Account', balance=Decimal('100'),
+                     account_type='main', non_negative_account_type='main', credit_limit=None, save=MagicMock())
+        with patch.object(s, 'locale_for_user', return_value='uk'), patch.object(s, '_active_scoped_account', return_value=account), patch.object(s, '_active_scoped_category', return_value=NS(id=8, name='Category')), patch.object(s, '_account_payload', return_value={}), patch.object(s, '_category_payload', return_value={}):
+            draft = s.build_transaction_draft(user, payload, draft_id='screenshot-preview')
+            self.assertEqual(draft.get('recognition_audit'), audit)
+            with patch.object(s, '_resolve_finance_scope', return_value=NS(is_family=False)), patch.object(s.db_transaction, 'atomic', return_value=nullcontext()), patch.object(s.Transaction.objects, 'create', return_value=NS(id=1, created_at=None)) as create, patch.object(s, 'enqueue_transaction_created'):
+                result = s.commit_transaction_draft(user, draft)
+        self.assertEqual(create.call_args.kwargs['metadata']['recognition_review'], audit)
+        self.assertEqual(result['transaction']['metadata']['recognition_review'], audit)
+
     def test_receipt_draft_preserves_provenance_and_review_metadata(self):
         user = NS(tg_user_id=123)
         payload = dict(kind='expense', amount='12.50', account_id=7, category_id=8,
@@ -19,6 +36,9 @@ class ReceiptPersistenceTests(SimpleTestCase):
         self.assertEqual(draft['receipt_metadata'], {
             'source': 'receipt', 'needs_review': [], 'needs_review_bool': False,
             'field_findings': [], 'receipt_total': '12.50',
+            'receipt_items': [{'description': 'Item', 'line_total': '12.50', 'status': 'included'}],
+            'arithmetic': {'state': 'matched', 'resolution': 'items', 'computed_total': '12.50',
+                           'supplied_total': '12.50', 'transaction_amount': '12.50', 'delta': '0.00', 'findings': []},
         })
 
     def test_receipt_confirm_preserves_provenance_and_review_metadata(self):

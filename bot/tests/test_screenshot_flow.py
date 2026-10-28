@@ -489,6 +489,8 @@ class ScreenshotFlowTests(unittest.IsolatedAsyncioTestCase):
             raw_response=None,
             mode="statement_expenses",
             dominant_currency="UAH",
+            currency_evidence_kind="code",
+            currency_evidence_text="UAH",
             statement_items=(
                 StatementItemAnalysis(
                     transaction_date=date(2026, 5, 3),
@@ -1271,7 +1273,7 @@ class ScreenshotFlowTests(unittest.IsolatedAsyncioTestCase):
             await bot_main.photo_message(update, context)
 
         flow = context.user_data["ai_batch_tx_flow"]
-        self.assertTrue(all(item["currency"] == "UAH" for item in flow["items"]))
+        self.assertTrue(all(item["currency"] == "" for item in flow["items"]))
         self.assertTrue(all(not bool(item["currency_explicit"]) for item in flow["items"]))
         self.assertIn("UAH", message.replies[1]["text"])
 
@@ -1407,7 +1409,7 @@ class ScreenshotFlowTests(unittest.IsolatedAsyncioTestCase):
 
         flow = context.user_data["ai_batch_tx_flow"]
         self.assertEqual(flow["account_id"], 45)
-        self.assertTrue(all(item["currency"] == "UAH" for item in flow["items"]))
+        self.assertTrue(all(item["currency"] == "" for item in flow["items"]))
         self.assertTrue(all(not bool(item["currency_explicit"]) for item in flow["items"]))
         self.assertIn("Monobank", message.replies[1]["text"])
         self.assertIn("UAH", message.replies[1]["text"])
@@ -1533,7 +1535,7 @@ class ScreenshotFlowTests(unittest.IsolatedAsyncioTestCase):
 
         flow = context.user_data["ai_batch_tx_flow"]
         self.assertEqual(flow["account_id"], 45)
-        self.assertTrue(all(item["currency"] == "UAH" for item in flow["items"]))
+        self.assertTrue(all(item["currency"] == "" for item in flow["items"]))
         self.assertTrue(all(not bool(item["currency_explicit"]) for item in flow["items"]))
         self.assertIn("Monobank", message.replies[1]["text"])
         self.assertIn("UAH", message.replies[1]["text"])

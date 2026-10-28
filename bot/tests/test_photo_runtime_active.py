@@ -55,6 +55,31 @@ class ActivePhotoRuntimeTests(unittest.IsolatedAsyncioTestCase):
                     b"image", mime_type="image/png", today=date(2026, 10, 15), default_currency="UAH",
                     accounts=[], expense_categories=[], income_categories=[])
 
+    async def test_screenshot_review_preserves_supported_field_candidates_and_conflicts(self):
+        evidence = ReconciliationResult(
+            accepted=False, requires_review=True, amount=Decimal("12.34"), currency="UAH",
+            status=None, transaction_type=None, evidence_ids=(),
+            findings=("status_unknown", "type_conflict"),
+            trace={"screenshot_review_only": True, "unobserved_fields": ["status"],
+                   "field_candidates": {"amount": "12.34", "currency": "UAH",
+                                        "transaction_date": "2026-10-14",
+                                        "comment": "Cafe", "category_hint": "Food"}},
+            transaction_date=date(2026, 10, 14), merchant="Cafe")
+        with patch.object(vision_tx.config, "PHOTO_PIPELINE_ENABLED", True), \
+             patch.dict(sys.modules, {"photo_shadow": types.SimpleNamespace(analyze_photo=AsyncMock(return_value=evidence))}):
+            result = await vision_tx.analyze_screenshot(
+                b"image", mime_type="image/png", today=date(2026, 10, 15), default_currency="UAH",
+                accounts=[], expense_categories=[], income_categories=[])
+        self.assertEqual(result.amount, Decimal("12.34"))
+        self.assertEqual(result.currency, "UAH")
+        self.assertEqual(result.transaction_date, date(2026, 10, 14))
+        self.assertEqual(result.comment, "Cafe")
+        self.assertEqual(result.category_hint, "Food")
+        self.assertIsNone(result.type)
+        self.assertTrue(result.needs_review)
+        self.assertEqual(result.field_findings, ("status_unknown", "type_conflict", "screenshot_manual_review"))
+        self.assertEqual(result.raw_response["field_candidates"]["amount"], "12.34")
+
     async def test_enabled_pipeline_returns_review_only_statement_to_caller(self):
         evidence = ReconciliationResult(
             accepted=False, requires_review=True, amount=None, currency='UAH', status=None,

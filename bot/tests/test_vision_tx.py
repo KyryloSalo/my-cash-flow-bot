@@ -5,6 +5,9 @@ import os
 import sys
 import types
 import unittest
+import asyncio
+from dataclasses import replace
+from unittest.mock import AsyncMock, patch
 from datetime import date
 from decimal import Decimal
 
@@ -14,6 +17,7 @@ sys.modules.setdefault("httpx", types.SimpleNamespace(AsyncClient=object, HTTPEr
 from vision_tx import (  # noqa: E402
     ScreenshotAnalysis,
     StatementItemAnalysis,
+    _analyze_screenshot_legacy,
     _needs_fallback,
     _parse_response,
     _prefer_currency_retry,
@@ -84,6 +88,54 @@ class VisionTxParseTests(unittest.TestCase):
         self.assertEqual(analysis.statement_items[1].currency, "TRY")
         self.assertEqual(analysis.skipped_items_count, 0)
 
+    def test_absent_single_currency_stays_empty_and_requires_review(self) -> None:
+        analysis = _parse_response(self._payload({
+            "mode_candidate": "single_tx", "transaction_date": "2026-10-01", "type": "expense",
+            "amount": -42.50, "currency": "", "dominant_currency": "", "currency_evidence_kind": "unknown",
+            "currency_evidence_text": "", "currency_context_text": "", "account_hint": "",
+            "category_hint": "coffee", "comment": "Cafe", "confidence": .9, "bank_name": "",
+            "card_last4": "", "skipped_rows_count": 0, "items": [], "receipt_date": "",
+            "receipt_merchant": "", "receipt_total": None, "receipt_items": [], "field_findings": [],
+            "needs_review": False, "arithmetic_warnings": [],
+        }), today=date(2026, 10, 1), default_currency="UAH", model="test", detail="high", used_fallback=False)
+        self.assertEqual(analysis.currency, "")
+        self.assertEqual(analysis.amount, Decimal("42.50"))
+        self.assertTrue(analysis.needs_review)
+        self.assertIn("currency_unknown", analysis.field_findings)
+
+    def test_absent_statement_and_receipt_currencies_stay_empty(self) -> None:
+        analysis = _parse_response(self._payload({
+            "mode_candidate": "statement_expenses", "transaction_date": "", "type": "", "amount": None,
+            "currency": "", "dominant_currency": "", "currency_evidence_kind": "unknown",
+            "currency_evidence_text": "", "currency_context_text": "", "account_hint": "",
+            "category_hint": "", "comment": "statement", "confidence": .9, "bank_name": "",
+            "card_last4": "", "skipped_rows_count": 0, "items": [
+                {"transaction_date": "2026-10-01", "type": "expense", "amount": -10,
+                 "currency": "", "category_hint": "food", "comment": "Lunch", "confidence": .9},
+                {"transaction_date": "2026-10-01", "type": "expense", "amount": -20,
+                 "currency": "", "category_hint": "food", "comment": "Dinner", "confidence": .9},
+            ], "receipt_date": "2026-10-01", "receipt_merchant": "Shop", "receipt_total": 30,
+            "receipt_items": [{"name": "Food", "quantity": 1, "unit_price": 30, "total": 30,
+                               "currency": "", "evidence": "Food 30", "confidence": .9}],
+            "field_findings": [], "needs_review": False, "arithmetic_warnings": [],
+        }), today=date(2026, 10, 1), default_currency="UAH", model="test", detail="high", used_fallback=False)
+        self.assertEqual(analysis.dominant_currency, "")
+        self.assertEqual([item.currency for item in analysis.statement_items], ["", ""])
+        self.assertEqual(analysis.receipt_items[0].currency, "")
+        self.assertTrue(analysis.needs_review)
+        self.assertIn("currency_unknown", analysis.field_findings)
+
+    def test_currency_candidates_are_structured_and_serialized_without_raw_response(self) -> None:
+        analysis = ScreenshotAnalysis(
+            transaction_date=date(2026, 10, 1), type="expense", amount=Decimal("10"), currency="EUR",
+            account_hint=None, category_hint=None, comment="Cafe", confidence=.9, bank_name=None,
+            card_last4=None, model="test", detail="high", used_fallback=True,
+            currency_candidates=("EUR", "UAH"), needs_review=True,
+        )
+        payload = serialize_miniapp_screenshot_analysis(analysis)
+        self.assertEqual(payload["currency_candidates"], ["EUR", "UAH"])
+        self.assertNotIn("raw_response", payload)
+
     def test_statement_rejected_and_own_account_rows_are_dropped_from_model_output(self) -> None:
         analysis = _parse_response(
             self._payload({
@@ -128,8 +180,10 @@ class VisionTxParseTests(unittest.TestCase):
                 }), today=date(2026, 10, 14), default_currency="EUR", model="test-model",
                 detail="high", used_fallback=False,
             )
-            self.assertEqual(analysis.mode, "single_tx")
-            self.assertEqual(analysis.amount, Decimal("17.51"))
+            self.assertEqual(analysis.mode, "statement_expenses")
+            self.assertIsNone(analysis.amount)
+            self.assertEqual(analysis.statement_items[0].amount, Decimal("17.51"))
+            self.assertEqual(len(analysis.statement_review_rows), 1)
             self.assertEqual(analysis.skipped_items_count, 1)
 
     def test_ambiguous_transfer_and_currency_context_do_not_suppress_expense(self) -> None:
@@ -296,7 +350,8 @@ class VisionTxParseTests(unittest.TestCase):
         self.assertEqual(analysis.mode, "statement_expenses")
         self.assertEqual(analysis.dominant_currency, "TRY")
         self.assertEqual(len(analysis.statement_items), 3)
-        self.assertEqual(analysis.statement_items[0].currency, "TRY")
+        self.assertEqual(analysis.statement_items[0].currency, "")
+        self.assertTrue(analysis.statement_items[0].needs_review)
         self.assertEqual(analysis.statement_items[1].currency, "TRY")
         self.assertEqual(analysis.statement_items[2].currency, "TRY")
 
@@ -369,7 +424,8 @@ class VisionTxParseTests(unittest.TestCase):
         self.assertEqual(analysis.currency_evidence_kind, "symbol")
         self.assertEqual(analysis.currency_evidence_text, "₴")
         self.assertEqual(analysis.currency_resolution, "evidence_override")
-        self.assertTrue(all(item.currency == "UAH" for item in analysis.statement_items))
+        self.assertTrue(all(item.currency == "EUR" for item in analysis.statement_items))
+        self.assertTrue(all("currency_conflict" in item.field_findings for item in analysis.statement_items))
 
     def test_context_text_overrides_symbol_only_try_misread_to_uah(self) -> None:
         analysis = _parse_response(
@@ -424,7 +480,8 @@ class VisionTxParseTests(unittest.TestCase):
         self.assertEqual(analysis.dominant_currency, "UAH")
         self.assertEqual(analysis.currency_context_text, "З гривневого рахунку ФОП")
         self.assertEqual(analysis.currency_resolution, "context_text_override")
-        self.assertTrue(all(item.currency == "UAH" for item in analysis.statement_items))
+        self.assertTrue(all(item.currency == "TRY" for item in analysis.statement_items))
+        self.assertTrue(all("currency_conflict" in item.field_findings for item in analysis.statement_items))
 
     def test_needs_fallback_when_ambiguous_currency_differs_from_default(self) -> None:
         result = ScreenshotAnalysis(
@@ -468,7 +525,7 @@ class VisionTxParseTests(unittest.TestCase):
 
         self.assertTrue(_needs_fallback(result, default_currency="UAH"))
 
-    def test_weak_symbol_only_conflict_prefers_default_currency(self) -> None:
+    def test_weak_symbol_only_conflict_requires_review_without_default_substitution(self) -> None:
         result = ScreenshotAnalysis(
             transaction_date=date(2026, 6, 2),
             type="expense",
@@ -501,7 +558,56 @@ class VisionTxParseTests(unittest.TestCase):
             currency_evidence_text="€",
         )
 
-        self.assertTrue(_should_prefer_default_for_weak_symbol_conflict(result, default_currency="UAH"))
+        with patch("vision_tx._request_analysis", new=AsyncMock(side_effect=[result, result])):
+            actual = asyncio.run(_analyze_screenshot_legacy(
+                b"synthetic", mime_type="image/png", today=date(2026, 6, 2), default_currency="UAH",
+                accounts=[], expense_categories=[], income_categories=[],
+            ))
+        self.assertEqual(actual.currency, "EUR")
+        self.assertEqual(actual.statement_items[0].currency, "EUR")
+        self.assertEqual(actual.amount, result.amount)
+        self.assertTrue(actual.needs_review)
+        self.assertIn("currency_conflict", actual.field_findings)
+        self.assertFalse(is_screenshot_currency_explicit(actual))
+
+    def test_currency_retry_disagreement_preserves_candidates_for_review(self) -> None:
+        primary = ScreenshotAnalysis(
+            transaction_date=date(2026, 6, 2), type="expense", amount=Decimal("100.00"),
+            currency="EUR", account_hint=None, category_hint="cafe", comment="Synthetic shop",
+            confidence=.9, bank_name=None, card_last4=None, model="test", detail="high",
+            used_fallback=False, currency_evidence_kind="code", currency_evidence_text="EUR",
+        )
+        retry = replace(primary, currency="UAH", currency_evidence_text="UAH", used_fallback=True)
+        with patch("vision_tx._request_analysis", new=AsyncMock(side_effect=[primary, retry])):
+            actual = asyncio.run(_analyze_screenshot_legacy(
+                b"synthetic", mime_type="image/png", today=date(2026, 6, 2), default_currency="UAH",
+                accounts=[], expense_categories=[], income_categories=[],
+            ))
+        self.assertTrue(actual.needs_review)
+        self.assertIn("currency_conflict", actual.field_findings)
+        self.assertFalse(is_screenshot_currency_explicit(actual))
+        self.assertEqual(actual.amount, primary.amount)
+        self.assertEqual(actual.comment, primary.comment)
+        self.assertEqual(actual.category_hint, primary.category_hint)
+        self.assertEqual(actual.raw_response["currency_candidates"], ["EUR", "UAH"])
+
+    def test_weak_default_symbol_on_retry_requires_review_before_promotion(self) -> None:
+        primary = ScreenshotAnalysis(
+            transaction_date=date(2026, 6, 2), type="expense", amount=Decimal("100.00"),
+            currency="USD", account_hint=None, category_hint="cafe", comment="Synthetic shop",
+            confidence=.6, bank_name=None, card_last4=None, model="test", detail="high",
+            used_fallback=False, currency_evidence_kind="symbol", currency_evidence_text="$",
+        )
+        retry = replace(primary, currency="EUR", confidence=.95, currency_evidence_text="€", used_fallback=True)
+        with patch("vision_tx._request_analysis", new=AsyncMock(side_effect=[primary, retry])):
+            actual = asyncio.run(_analyze_screenshot_legacy(
+                b"synthetic", mime_type="image/png", today=date(2026, 6, 2), default_currency="EUR",
+                accounts=[], expense_categories=[], income_categories=[],
+            ))
+        self.assertTrue(actual.needs_review)
+        self.assertIn("currency_conflict", actual.field_findings)
+        self.assertEqual(actual.currency, primary.currency)
+        self.assertEqual(actual.raw_response["currency_candidates"], ["USD", "EUR"])
 
     def test_prefer_currency_retry_when_retry_matches_default_currency(self) -> None:
         primary = ScreenshotAnalysis(

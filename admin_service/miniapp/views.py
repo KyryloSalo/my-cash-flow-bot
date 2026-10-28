@@ -47,6 +47,7 @@ from miniapp.auth import (
 )
 from miniapp.ai_text_client import MiniAppAiTextError, request_ai_text_parse
 from miniapp.ai_image_client import MiniAppAiImageError, request_ai_image_parse
+from miniapp.recognition_review import ReviewError, issue_review, resolve_review
 from miniapp.ai_voice_client import MiniAppAiVoiceError, request_ai_voice_parse
 from miniapp.models import RecognitionCapture
 from miniapp.export_client import MiniAppExportError, request_export_csv, request_export_xlsx
@@ -1652,6 +1653,7 @@ def _ai_image_batch_payload(batch: dict[str, object] | None) -> dict[str, object
         "committed_count": committed_count,
         "skipped_count": skipped_count,
         "pending_count": len(normalized_items) - committed_count - skipped_count,
+        "review_acknowledged": batch.get("review_acknowledged") is True,
         "skipped_items_count": max(0, int(batch.get("skipped_items_count") or 0)),
         "items": normalized_items,
         "review_rows": [row for row in (batch.get("review_rows") if isinstance(batch.get("review_rows"), list) else []) if isinstance(row, dict)],
@@ -2333,6 +2335,38 @@ def _recognition_update(user, attempt_id, outcome, **kwargs):
         return None
 
 
+def _resolve_recognition_review(user, payload, request=None):
+    """Resolve signed findings before ordinary financial validation, not instead of it."""
+    result = {key: value for key, value in payload.items() if key != "recognition_audit"}
+    if "recognition_review" not in result:
+        return result
+    try:
+        context = None
+        if request is not None:
+            active = request.session.get("recognition_review_active")
+            if not isinstance(active, dict):
+                raise ReviewError("stale_review", "No active server recognition review.")
+            context = active
+        audit = resolve_review(_identity_scope_binding(user), result, server_context=context)
+    except ReviewError as exc:
+        raise MiniAppTransactionError("recognition_review_required", str(exc)) from exc
+    for field in ("currency", "transaction_date"):
+        if not str(result.get(field) or "").strip():
+            raise MiniAppTransactionError("recognition_review_required", "Choose currency and date before confirming recognition.")
+    resolved_codes = {str(issue.get("code")) for issue in audit["resolved_issues"]}
+    findings = result.get("field_findings") or []
+    if not isinstance(findings, list) or any(
+        (str(finding.get("code")) if isinstance(finding, dict) else str(finding)) not in resolved_codes
+        for finding in findings
+    ):
+        raise MiniAppTransactionError("recognition_review_required", "Review findings changed; recognize the image again.")
+    # Only signed reviewable issues reached this point; immutable safety conflicts
+    # are rejected in resolve_review. Never erase client-added/unsigned findings.
+    result.update(source=audit["source"], recognition_audit=audit,
+                  field_findings=[], needs_review=False, needs_review_bool=False)
+    return result
+
+
 @csrf_exempt
 @require_POST
 def transaction_draft(request: HttpRequest) -> JsonResponse:
@@ -2343,6 +2377,7 @@ def transaction_draft(request: HttpRequest) -> JsonResponse:
     payload = _read_json(request)
     draft_id = secrets.token_urlsafe(16)
     try:
+        payload = _resolve_recognition_review(user, payload, request=request)
         batch_context = _batch_context_for_transaction_draft(request, payload)
         draft = build_transaction_draft(user, payload, draft_id=draft_id)
     except MiniAppTransactionError as exc:
@@ -2356,6 +2391,11 @@ def transaction_draft(request: HttpRequest) -> JsonResponse:
     if batch_context is not None:
         entry["ai_image_batch"] = batch_context
     _persist_draft_action(user=user, operation="normal_transaction", draft_id=draft_id, entry=entry)
+    if "recognition_audit" in payload:
+        request.session["recognition_review_active"] = {
+            **request.session["recognition_review_active"], "consumed": True,
+        }
+        request.session.modified = True
     drafts[draft_id] = entry
     _save_session_transaction_drafts(request, drafts)
     _recognition_update(user, recognition_attempt_id, "draft", normalized_result=draft)
@@ -2487,6 +2527,20 @@ def ai_image_parse(request: HttpRequest) -> JsonResponse:
             suggestion = _ai_image_batch_payload(batch) or {"mode": "batch"}
         else:
             suggestion = build_ai_image_suggestion(user, parsed)
+            if suggestion.get("mode") == "transaction":
+                suggestion["recognition_review"] = issue_review(
+                    _identity_scope_binding(user), suggestion, attempt_id=attempt_id
+                )
+                request.session["recognition_review_active"] = {
+                    "attempt_id": attempt_id,
+                    "review_nonce": suggestion["recognition_review"]["review_nonce"],
+                    "source_fingerprint": suggestion["recognition_review"]["source_fingerprint"],
+                    "consumed": False,
+                }
+                request.session.modified = True
+    except ReviewError as exc:
+        _recognition_update(user, attempt_id, "failed", error_code="invalid_suggestion")
+        return JsonResponse({"error": {"code": "invalid_suggestion", "message": str(exc)}}, status=400)
     except MiniAppAiImageError as exc:
         _recognition_update(user, attempt_id, "failed", error_code="invalid_payload" if exc.status == 400 else "ai_image_unavailable")
         code = "invalid_payload" if exc.status == 400 else "ai_image_unavailable"

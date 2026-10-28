@@ -21,11 +21,13 @@ from decimal import Decimal
 from PIL import Image, ImageOps
 
 import config
+from literal_dates import verified_literal_date
+from statement_review import align_review_rows, is_non_operation
 from photo_pipeline import Evidence, ExtractionPass, PipelineConfig, ReconciliationResult, build_cache_key, reconcile_extractions, plan_vertical_tiles, parse_raw_amount, assess_image_quality, _visible_amount, _currency, _lex, _STATUS, _TYPE
 
 logger = logging.getLogger("mcf.photo_shadow")
 _CACHE_TTL_SECONDS = 45.0
-_DURABLE_CACHE_VERSION = 5
+_DURABLE_CACHE_VERSION = 6
 _DURABLE_CACHE_PRODUCER = "photo-shadow"
 _CACHE_MAX_ENTRIES = 128
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -132,7 +134,9 @@ def _schema() -> dict[str, Any]:
     schema = _core_schema()
     schema["properties"].update({
         "transaction_date": {"type": ["string", "null"]},
+        "raw_date": {"type": ["string", "null"]},
         "merchant": {"type": ["string", "null"]},
+        "category_hint": {"type": ["string", "null"]},
         "receipt_total": {"type": ["string", "null"]},
         "receipt_items": {"type": "array", "items": {
             "type": "object", "additionalProperties": False,
@@ -148,7 +152,8 @@ def _prompt(*, today: date | None = None) -> str:
     return (
         f"Reference date: {(today or date.today()).isoformat()}. "
         "For bank screenshots extract transaction_date as ISO date from the visible date, not only for receipts. "
-        "If the year is omitted, use the most recent occurrence of the visible month/day not after the reference date. "
+        "If the year is omitted, never invent a year: leave transaction_date empty, preserve the literal raw date for review, and the reference date cannot fill a missing year. "
+        "For single_tx and receipt, put the exact visible date text in top-level raw_date, or null when absent; never add a missing year. "
         "Extract evidence from one banking screenshot. Set mode to single_tx for one transaction, statement_expenses "
         "for a history/statement with multiple rows, receipt for a merchant receipt, or unsupported when unclear. "
         "Classify the document layout BEFORE checking row eligibility. "
@@ -163,6 +168,8 @@ def _prompt(*, today: date | None = None) -> str:
         "For single_tx and receipt, statement_items MUST be []; put all visible core fields in evidence, never in statement_items. "
         "Do not clear visible amount/currency evidence merely because status or type is missing: omit only the missing field. "
         "Return only structured JSON evidence. "
+        "Extract category_hint only as the exact visible bank category label, or null if absent. "
+        "Do not infer a category from merchant or items; it is only a suggestion for user review. "
         "Fields are amount, currency, status, and type. Each item must include the exact visible raw_text, a "
         "normalized value and a stable local id. For one transaction use region=null, not invented region names. "
         "amount.value is the positive decimal magnitude, e.g. raw_text '-402.25 UAH' => value '402.25'. "
@@ -273,12 +280,7 @@ def _parse_pass(source: str, text: str) -> ExtractionPass:
         ))
     if not isinstance(raw, dict):
         raise ValueError("Invalid extraction object")
-    transaction_date = None
-    if isinstance(raw.get("transaction_date"), str):
-        try:
-            transaction_date = date.fromisoformat(raw["transaction_date"])
-        except ValueError:
-            pass
+    transaction_date = verified_literal_date(raw.get("transaction_date"), raw.get("raw_date"))
     line_items = []
     receipt_rows = raw.get("receipt_items")
     if isinstance(receipt_rows, list):
@@ -298,21 +300,15 @@ def _parse_pass(source: str, text: str) -> ExtractionPass:
     statement_items = []
     invalid_rows = 0
     review_rows = []
+    non_transaction_rows = []
     def exclude_row(index, row, reason):
         nonlocal invalid_rows
         invalid_rows += 1
         candidate = row if isinstance(row, dict) else {}
-        amount = parse_raw_amount(candidate.get("amount"))
         visible_amount, visible_currency, visible_direction = _visible_amount(str(candidate.get("raw_amount") or ""))
-        if visible_amount is not None:
-            amount = visible_amount
-        tx_date = candidate.get("transaction_date")
-        try:
-            tx_date = date.fromisoformat(tx_date)
-        except (TypeError, ValueError):
-            tx_date = None
+        tx_date = verified_literal_date(candidate.get("transaction_date"), candidate.get("raw_date"))
         review_rows.append({"row_index": index, "reason": reason, "transaction_date": tx_date,
-                            "amount": amount, "currency": visible_currency or str(candidate.get("currency") or "").strip().upper() or None,
+                            "amount": visible_amount, "currency": visible_currency or _currency(candidate.get("raw_currency")),
                             "direction": visible_direction,
                             "type": candidate.get("type"), "status": candidate.get("status"),
                             "comment": str(candidate.get("comment") or candidate.get("category_hint") or "")[:500] or None,
@@ -323,6 +319,9 @@ def _parse_pass(source: str, text: str) -> ExtractionPass:
             if not isinstance(row, dict):
                 exclude_row(index, None, "invalid_row")
                 continue
+            if is_non_operation(row):
+                non_transaction_rows.append(row)
+                continue
             if index >= 200:
                 exclude_row(index, row, "row_limit")
                 continue
@@ -331,10 +330,8 @@ def _parse_pass(source: str, text: str) -> ExtractionPass:
                 continue
             amount = parse_raw_amount(row.get("amount"))
             currency = str(row.get("currency") or "").strip().upper()
-            tx_date = row.get("transaction_date")
-            try:
-                tx_date = date.fromisoformat(tx_date)
-            except (TypeError, ValueError):
+            tx_date = verified_literal_date(row.get("transaction_date"), row.get("raw_date"))
+            if tx_date is None:
                 exclude_row(index, row, "missing_or_invalid_date")
                 continue
             if amount is None or currency not in {"UAH", "TRY", "EUR", "USD"}:
@@ -366,8 +363,11 @@ def _parse_pass(source: str, text: str) -> ExtractionPass:
         receipt_total=receipt_total, transaction_date=transaction_date,
         merchant=merchant.strip()[:160] if isinstance(merchant, str) and merchant.strip() else None,
         raw_evidence={"receipt_items_incomplete": isinstance(receipt_rows, list) and len(line_items) != len(receipt_rows),
+                      "category_hint": str(raw.get("category_hint") or "").strip()[:120] or None,
+                      "raw_date": raw["raw_date"].strip()[:160] if isinstance(raw.get("raw_date"), str) else None,
                       "_mode_explicit": "mode" in raw,
                       "statement_items": statement_items, "statement_review_rows": review_rows,
+                      "non_transaction_rows": non_transaction_rows,
                       "skipped_items_count": max(invalid_rows, _safe_non_negative_int(raw.get("skipped_items_count")))},
         mode=mode,
     )
@@ -487,20 +487,7 @@ def _reconcile_statement_passes(passes, result):
         return result
     layout_conflict = any(p.mode != 'statement_expenses' for p in full)
     rows_by_pass = [(p.raw_evidence or {}).get('statement_items', []) for p in full]
-    review_rows = []
-    seen_review = {}
-    for p in full:
-        for row in (p.raw_evidence or {}).get('statement_review_rows', []):
-            # OCR descriptions and validation reasons may differ across passes.
-            # Identity includes position so genuinely repeated transactions survive.
-            key = (row.get('row_index'), str(row.get('transaction_date')), str(row.get('amount')), row.get('currency'))
-            if key not in seen_review:
-                merged = dict(row)
-                merged['review_reasons'] = [row.get('reason')]
-                seen_review[key] = merged
-                review_rows.append(merged)
-            elif row.get('reason') not in seen_review[key]['review_reasons']:
-                seen_review[key]['review_reasons'].append(row.get('reason'))
+    review_rows = align_review_rows([(p.source, (p.raw_evidence or {}).get('statement_review_rows', [])) for p in full])
     if layout_conflict or not all(rows_by_pass):
         findings = tuple(dict.fromkeys((*result.findings, 'statement_review_only',
             'statement_layout_conflict' if layout_conflict else 'statement_rows_unresolved')))
@@ -554,7 +541,7 @@ async def analyze_photo(image_bytes: bytes, *, mime_type: str, model: str, detai
             variants = _preprocess_variants(canvas)
             canonical = variants[0]
     except (OSError, ValueError) as exc: raise ValueError("Malformed or unsupported image") from exc
-    key = build_cache_key(image_bytes, config=PipelineConfig(), model=model, detail=detail).as_string() + ":active:statement-row-v2:" + today.isoformat()
+    key = build_cache_key(image_bytes, config=PipelineConfig(), model=model, detail=detail).as_string() + ":active:statement-row-v5:" + today.isoformat()
     durable = _load_durable(key)
     if durable is not None:
         _CACHE[key] = (time.monotonic(), durable)

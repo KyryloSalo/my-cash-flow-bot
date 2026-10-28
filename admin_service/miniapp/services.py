@@ -1376,13 +1376,44 @@ def _pick_ai_image_category(user: TelegramUser, *, kind: str, category_hint: obj
     if not hint:
         return None
     matches: list[Category] = []
+    component_matches: list[Category] = []
+    components = {_ai_image_token(value) for value in re.split(r"[,;/|]", hint) if _ai_image_token(value)}
     for category in _scoped_categories_qs(user).filter(is_active=True, deleted_at__isnull=True).order_by("id")[:200]:
         if _category_kind(category) != kind:
             continue
         values = [category.slug, category.name, *(category.aliases or [])]
         if any(_ai_image_token(value) == hint for value in values):
             matches.append(category)
+        elif len(components) > 1 and any(_ai_image_token(value) in components for value in values):
+            component_matches.append(category)
+    if not matches:
+        matches = component_matches
     return matches[0] if len(matches) == 1 else None
+
+
+def _image_money(value: object) -> Decimal | None:
+    """Parse explicit money notation, never guess an ambiguous separator."""
+    raw = str(value if value is not None else "").strip()
+    if not raw or len(raw) > 128:
+        return None
+    raw = raw.replace("\u00a0", " ").replace("\u202f", " ")
+    if " " in raw:
+        if not re.fullmatch(r"\d{1,3}(?: \d{3})+(?:[.,]\d{1,2})?", raw):
+            return None
+        raw = raw.replace(" ", "")
+    if "," in raw and "." in raw:
+        if re.fullmatch(r"\d{1,3}(?:,\d{3})+\.\d{1,2}", raw):
+            raw = raw.replace(",", "")
+        elif re.fullmatch(r"\d{1,3}(?:\.\d{3})+,\d{1,2}", raw):
+            raw = raw.replace(".", "").replace(",", ".")
+        else:
+            return None
+    elif not re.fullmatch(r"\d+(?:[.,]\d{1,2})?", raw):
+        return None
+    try:
+        return _parse_transaction_amount(raw.replace(",", "."))
+    except MiniAppTransactionError:
+        return None
 
 
 def build_ai_image_suggestion(user: TelegramUser, parsed: dict[str, object]) -> dict[str, object]:
@@ -1391,14 +1422,15 @@ def build_ai_image_suggestion(user: TelegramUser, parsed: dict[str, object]) -> 
     # interpreted as a statement batch, even when the model also supplied rows.
     receipt_items = parsed.get("receipt_items") if isinstance(parsed.get("receipt_items"), list) else []
     statement_items = parsed.get("statement_items") if isinstance(parsed.get("statement_items"), list) else []
+    review_rows = parsed.get("statement_review_rows") if isinstance(parsed.get("statement_review_rows"), list) else []
     source = str(parsed.get("source") or "").strip().lower()
-    if not source and mode == "statement_expenses" and statement_items and not receipt_items:
+    if not source and mode == "statement_expenses" and (statement_items or review_rows) and not receipt_items:
         source = "statement_transactions"
     if mode == "statement_expenses" and receipt_items and statement_items:
         # Ambiguous mixed evidence is deliberately rejected rather than
         # silently creating the wrong set of transactions.
         return {"mode": "unrecognized", "needs_review": True, "source": source}
-    if mode == "statement_expenses" and statement_items and source == "statement_transactions":
+    if mode == "statement_expenses" and (statement_items or review_rows) and source == "statement_transactions":
         return {
             "mode": "batch",
             "item_count": len(statement_items),
@@ -1411,46 +1443,50 @@ def build_ai_image_suggestion(user: TelegramUser, parsed: dict[str, object]) -> 
             "arithmetic_warnings": parsed.get("arithmetic_warnings") if isinstance(parsed.get("arithmetic_warnings"), list) else [],
         }
     kind = str(parsed.get("type") or "").strip().lower()
-    if source == "receipt" and not kind and parsed.get("needs_review"):
+    direction_unknown = not kind
+    candidate_review = source == "screenshot" and isinstance(parsed.get("field_candidates"), dict) and bool(parsed["field_candidates"])
+    if (source == "receipt" or candidate_review) and not kind and parsed.get("needs_review"):
         # Draft-form direction only; not accepted evidence or a ledger write.
         kind = "expense"
     if mode not in {"single_tx", "statement_expenses"} or kind not in SUPPORTED_NORMAL_TRANSACTION_KINDS:
         return {"mode": "unrecognized"}
 
     locale = locale_for_user(user)
-    base_currency = _base_currency(user)
-    currency_explicit = bool(parsed.get("currency_explicit"))
     receipt_source = source == "receipt"
-    currency = (_normalize_currency(parsed.get("currency"), default=base_currency)
-                 if not receipt_source or currency_explicit else "")
-    amount: Decimal | None = None
-    if parsed.get("amount") is not None:
-        try:
-            candidate_amount = _quantize(Decimal(str(parsed.get("amount"))))
-        except (InvalidOperation, ValueError):
-            candidate_amount = ZERO
-        if candidate_amount > ZERO:
-            amount = candidate_amount
+    candidates = parsed.get("field_candidates") if isinstance(parsed.get("field_candidates"), dict) else {}
+    # Candidates prefill a review form, not accepted financial evidence.
+    def field_value(name: str):
+        value = parsed.get(name)
+        return candidates.get(name) if value in (None, "") else value
 
-    transaction_date = None if receipt_source else timezone.localdate()
-    raw_date = str(parsed.get("transaction_date") or "").strip()
+    currency_explicit = bool(parsed.get("currency_explicit")) or bool(candidates.get("currency"))
+    currency = _normalize_currency(field_value("currency"), default="") if currency_explicit else ""
+    if not re.fullmatch(r"[A-Z]{3}", currency):
+        currency = ""
+    currency_explicit = bool(currency)
+    amount = _image_money(field_value("amount"))
+
+    transaction_date = None
+    raw_date = str(field_value("transaction_date") or "").strip()
     if raw_date:
         try:
             transaction_date = date.fromisoformat(raw_date)
         except ValueError:
             pass
 
-    account = (None if receipt_source and not currency_explicit else
+    account = (None if not currency_explicit else
                _pick_ai_image_account(user, parsed, currency=currency, currency_explicit=currency_explicit))
-    category = _pick_ai_image_category(user, kind=kind, category_hint=parsed.get("category_hint"))
+    category = _pick_ai_image_category(user, kind=kind, category_hint=field_value("category_hint"))
     missing_fields: list[str] = []
+    if direction_unknown:
+        missing_fields.append("kind")
     if amount is None:
         missing_fields.append("amount")
     if account is None:
         missing_fields.append("account_id")
     if category is None:
         missing_fields.append("category_id")
-    if receipt_source and not currency_explicit:
+    if not currency_explicit:
         missing_fields.append("currency")
     if transaction_date is None:
         missing_fields.append("transaction_date")
@@ -1471,8 +1507,10 @@ def build_ai_image_suggestion(user: TelegramUser, parsed: dict[str, object]) -> 
         "account_id": int(account.id) if account is not None else None,
         "category_id": int(category.id) if category is not None else None,
         "transaction_date": transaction_date.isoformat() if transaction_date else None,
-        "comment": str(parsed.get("comment") or "").strip()[:500],
+        "comment": str(field_value("comment") or "").strip()[:500],
+        "field_candidates": candidates,
         "missing_fields": missing_fields,
+        "field_evidence": dict(parsed.get("field_evidence") or {}) if isinstance(parsed.get("field_evidence"), dict) else {},
         "confidence": float(parsed.get("confidence") or 0),
         # Optional additive runtime metadata; older bot responses remain valid.
         "field_findings": parsed.get("field_findings") if isinstance(parsed.get("field_findings"), list) else [],
@@ -1514,8 +1552,10 @@ def build_ai_image_batch(user: TelegramUser, parsed: dict[str, object], *, batch
                 # change the batch into an income capture path.
                 "type": "expense",
                 "amount": raw_item.get("amount"),
-                "currency": raw_item.get("currency") or parsed.get("dominant_currency") or parsed.get("currency"),
-                "currency_explicit": bool(parsed.get("currency_explicit")),
+                # An explicit empty row currency means unresolved evidence, not
+                # permission to use a document-wide currency or pick an account.
+                "currency": raw_item.get("currency") if "currency" in raw_item else parsed.get("dominant_currency") or parsed.get("currency"),
+                "currency_explicit": bool(raw_item.get("currency")) if "currency" in raw_item else bool(parsed.get("currency_explicit")),
                 "account_hint": parsed.get("account_hint"),
                 "bank_name": parsed.get("bank_name"),
                 "card_last4": parsed.get("card_last4"),
@@ -1524,6 +1564,7 @@ def build_ai_image_batch(user: TelegramUser, parsed: dict[str, object], *, batch
                 "comment": raw_item.get("name") or raw_item.get("merchant") or raw_item.get("comment"),
                 "confidence": raw_item.get("confidence"),
                 "field_findings": raw_item.get("field_findings") or parsed.get("field_findings"),
+                "field_evidence": raw_item.get("field_evidence"),
                 "needs_review": raw_item.get("needs_review") or parsed.get("needs_review"),
                 "arithmetic_warnings": raw_item.get("arithmetic_warnings") or parsed.get("arithmetic_warnings"),
             },
@@ -1606,6 +1647,46 @@ def _normalize_receipt_review(raw_receipt_items: object) -> list[dict[str, objec
     return normalized
 
 
+def _receipt_arithmetic(items: list[dict[str, object]], *, amount: Decimal,
+                        supplied_total: object, resolution: str) -> dict[str, object]:
+    """Recompute optional L2 evidence, never treating absent lines as zero.
+
+    A user may explicitly keep only verified L1 rather than repair partial OCR
+    lines. Preserve those lines and findings in the audit, not as accepted L2.
+    Line totals are net amounts; discounts are not subtracted a second time.
+    """
+    if resolution not in {"items", "l1_only"}:
+        raise MiniAppTransactionError("invalid_receipt_resolution", "Choose how to review receipt items.")
+    total = _parse_transaction_amount(supplied_total) if supplied_total not in (None, "") else None
+    if total is not None and total != amount:
+        raise MiniAppTransactionError("receipt_total_amount_mismatch", "Receipt total and transaction amount must match.")
+    included = [item for item in items if item["status"] == "included"]
+    complete = bool(included) and all("line_total" in item for item in included)
+    computed = sum((Decimal(item["line_total"]) for item in included), ZERO) if complete else None
+    reference = total if total is not None else amount
+    delta = computed - reference if computed is not None else None
+    findings = []
+    if items and not complete:
+        findings.append("items_incomplete")
+    if delta is not None and delta != ZERO:
+        findings.append("items_total_mismatch")
+    if findings and resolution != "l1_only":
+        raise MiniAppTransactionError(
+            "receipt_arithmetic_requires_review",
+            "Correct the receipt items or explicitly save only the transaction total.",
+            extra={"findings": findings},
+        )
+    return {
+        "state": "l1_only" if resolution == "l1_only" else ("matched" if complete else "not_available"),
+        "resolution": resolution,
+        "computed_total": f"{computed:.2f}" if computed is not None else None,
+        "supplied_total": f"{total:.2f}" if total is not None else None,
+        "transaction_amount": f"{amount:.2f}",
+        "delta": f"{delta:.2f}" if delta is not None else None,
+        "findings": findings,
+    }
+
+
 def build_transaction_draft(user: TelegramUser, payload: dict[str, object], *, draft_id: str) -> dict[str, object]:
     locale = locale_for_user(user)
     kind = _normalize_transaction_kind(payload.get("kind"))
@@ -1657,6 +1738,15 @@ def build_transaction_draft(user: TelegramUser, payload: dict[str, object], *, d
     if source == "receipt" and not str(payload.get("currency") or "").strip():
         raise MiniAppTransactionError("currency_required", "Receipt currency must be selected before confirmation.")
 
+    receipt_evidence = receipt_review
+    arithmetic = None
+    if source == "receipt":
+        resolution = str(payload.get("receipt_resolution") or "items")
+        arithmetic = _receipt_arithmetic(receipt_evidence, amount=amount,
+                                         supplied_total=payload.get("receipt_total"), resolution=resolution)
+        if resolution == "l1_only":
+            receipt_review = []
+
     return {
         "draft_id": draft_id,
         "kind": kind,
@@ -1671,10 +1761,15 @@ def build_transaction_draft(user: TelegramUser, payload: dict[str, object], *, d
         "comment": comment,
         "goal_spend": goal_spend,
         "receipt_review": receipt_review,
+        **({"recognition_audit": dict(payload["recognition_audit"])}
+           if isinstance(payload.get("recognition_audit"), dict) else {}),
         "receipt_metadata": {
             "source": "receipt", "needs_review": [], "needs_review_bool": False,
             "field_findings": [],
             "receipt_total": f"{_parse_transaction_amount(payload['receipt_total']):.2f}" if payload.get("receipt_total") not in (None, "") else None,
+            "receipt_items": receipt_evidence,
+            "arithmetic": arithmetic,
+            **({"recognition_review": payload["recognition_audit"]} if isinstance(payload.get("recognition_audit"), dict) else {}),
         } if source == "receipt" else {},
         "source": "receipt" if source == "receipt" else MINIAPP_TRANSACTION_SOURCE,
         "confirmation": {
@@ -1745,6 +1840,8 @@ def commit_transaction_draft(user: TelegramUser, draft: dict[str, object]) -> di
     if source not in {MINIAPP_TRANSACTION_SOURCE, MINIAPP_BILLING_EXPENSE_SOURCE, "receipt"}:
         raise MiniAppTransactionError("invalid_transaction_source", "Unsupported transaction source.")
     metadata = {"receipt_review": receipt_review} if receipt_review else {}
+    if isinstance(draft.get("recognition_audit"), dict):
+        metadata["recognition_review"] = dict(draft["recognition_audit"])
     if source == "receipt":
         receipt_metadata = draft.get("receipt_metadata")
         if not isinstance(receipt_metadata, dict) or receipt_metadata.get("source") != "receipt":
