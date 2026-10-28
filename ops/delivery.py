@@ -129,6 +129,23 @@ def emit(data):
     print(json.dumps(data, ensure_ascii=False, indent=2))
 
 
+def gate_partition(data, gates):
+    if not isinstance(gates, dict):
+        raise SystemExit("invalid staged gate partition")
+    groups = [gates.get(name) for name in ("integration", "production")]
+    if any(not isinstance(group, list) or not group or
+           any(not isinstance(value, str) or not value.strip() for value in group)
+           for group in groups):
+        raise SystemExit("invalid staged gate partition")
+    supplied = groups[0] + groups[1]
+    known = {requirement["id"] for requirement in data["requirements"]}
+    if (len(supplied) != len(set(supplied)) or set(supplied) != known or
+            any(not isinstance(gates.get(name), str) or not gates[name].strip()
+                for name in ("approval", "cohort"))):
+        raise SystemExit("staged gates must partition every requirement exactly once with plan approval and cohort")
+    return set(groups[0]), set(groups[1])
+
+
 def parser():
     ap = argparse.ArgumentParser(description=__doc__)
     subs = ap.add_subparsers(dest="cmd", required=True)
@@ -154,6 +171,12 @@ def parser():
     start.add_argument("--new-task", action="store_true")
     for name in ("status", "candidate", "snapshot", "preflight", "readiness"):
         command(name)
+    gates = command("configure-gates")
+    gates.add_argument("--integration-requirement", action="append", required=True)
+    gates.add_argument("--production-requirement", action="append", required=True)
+    gates.add_argument("--approval", required=True, help="Explicit authorization for the staged plan, NOT production Environment approval")
+    gates.add_argument("--cohort", required=True)
+    subs.choices["readiness"].add_argument("--stage", choices=["integration", "completion"], default="completion")
     for name in ("clarification", "requirement"):
         command(name).add_argument("text")
     check = command("record-check")
@@ -187,7 +210,7 @@ def parser():
     return ap
 
 
-def readiness(root, sid, data):
+def readiness(root, sid, data, stage="completion"):
     if data["candidate"] != candidate(root):
         raise SystemExit("candidate changed; snapshot and verify the new candidate")
     route = data["acceptance_command"].strip()
@@ -206,9 +229,21 @@ def readiness(root, sid, data):
     def valid(check):
         return check["candidate"] == data["candidate"] and check["status"] == "passed" and check["exit_code"] == 0
     successful = [check for check in latest.values() if valid(check)]
-    if not any(check["kind"] == "acceptance" and check["command"].strip() == route
-               and check["environment"] == data["target"] for check in successful):
-        raise SystemExit("named acceptance route has no passing " + data["target"] + " target-environment evidence")
+    gates = data.get("gates")
+    staged = "gates" in data
+    if staged:
+        ids = {r["id"] for r in data["requirements"]}
+        integration, production = gate_partition(data, gates)
+        required_ids = integration if stage == "integration" else ids
+    else:
+        if stage == "integration":
+            raise SystemExit("integration stage requires an explicitly configured staged plan")
+        required_ids = {r["id"] for r in data["requirements"]}
+    route_envs = ({"local"} if stage == "integration" else {"local", "production"}) if staged else {data["target"]}
+    for environment in sorted(route_envs):
+        if not any(check["kind"] == "acceptance" and check["command"].strip() == route and
+                   check["environment"] == environment for check in successful):
+            raise SystemExit("named acceptance route has no passing " + environment + " target-environment evidence")
     required_kinds = {"acceptance"} | ({"unit"} if data["kind"] != "documentation" else set())
     if not required_kinds.issubset({check["kind"] for check in successful}):
         raise SystemExit("required checks incomplete")
@@ -218,17 +253,24 @@ def readiness(root, sid, data):
         verify_evidence(root, sid, check.get("evidence"))
     for requirement in data["requirements"]:
         accepted = [latest.get(name) for name in requirement["evidence_ids"]]
-        if requirement["status"] != "passed" or not any(check and valid(check) and check["kind"] == "acceptance" and check["environment"] == data["target"] for check in accepted):
+        if requirement["id"] not in required_ids:
+            continue
+        envs = {"local"} if staged and requirement["id"] in integration else ({"production"} if staged else {data["target"]})
+        if requirement["status"] != "passed" or not any(check and valid(check) and check["kind"] == "acceptance" and check["environment"] in envs for check in accepted):
             raise SystemExit("unverified " + data["target"] + " requirement: " + requirement["id"])
-    if data["target"] == "production":
+    if staged and stage == "integration":
+        return "READY FOR INTEGRATION"
+    if data["target"] == "production" or staged:
         release = data.get("deployment", {})
         kinds = {check["kind"] for check in successful if check["environment"] == "production"}
+        cohort = gates["cohort"] if staged else data["requested_cohort"]
         if (not {"runtime", "activation"}.issubset(kinds) or release.get("active_revision") != data["candidate"]
+                or not re.fullmatch(r"[0-9a-f]{40}", data["candidate"])
                 or not release.get("behavior_enabled") or not release.get("result_authoritative")
-                or release.get("cohort") != data["requested_cohort"] or not data["requested_cohort"]):
+                or release.get("cohort") != cohort or not cohort):
             raise SystemExit("production activation, exact revision and cohort readback required")
         verify_evidence(root, sid, release.get("evidence"))
-    return "COMPLETE — " + data["target"].upper()
+    return "COMPLETE — " + ("PRODUCTION" if staged else data["target"].upper())
 
 
 def main(argv=None):
@@ -270,6 +312,15 @@ def main(argv=None):
         return 0
     data = load(root, sid)
     if args.cmd == "status":
+        emit(data)
+        return 0
+    if args.cmd == "configure-gates":
+        plan = {"integration": args.integration_requirement, "production": args.production_requirement,
+                "approval": args.approval, "cohort": args.cohort}
+        gate_partition(data, plan)
+        data["gates"] = plan
+        data["status"] = "in_progress"
+        save(root, sid, data)
         emit(data)
         return 0
     if args.cmd == "preflight":
@@ -315,7 +366,9 @@ def main(argv=None):
         if not req or not check or check["kind"] != "acceptance" or check["status"] != "passed" or check["exit_code"] != 0 or check["candidate"] != candidate(root):
             raise SystemExit("accept requires a passing current-candidate acceptance check")
         verify_evidence(root, sid, check["evidence"])
-        req.update(status="passed", evidence_ids=[args.check])
+        req["status"] = "passed"
+        if args.check not in req["evidence_ids"]:
+            req["evidence_ids"].append(args.check)
     elif args.cmd == "record-reproduction":
         data["reproduction"] = {"status": args.status, "command": args.command, "candidate": candidate(root),
                                 "evidence": evidence(root, sid, args.evidence), "recorded_at": now()}
@@ -337,8 +390,8 @@ def main(argv=None):
                               "behavior_enabled": args.behavior_enabled, "result_authoritative": args.authoritative,
                               "checked_at": now(), "evidence": evidence(root, sid, args.evidence)}
     elif args.cmd == "readiness":
-        result = readiness(root, sid, data)
-        data["status"] = "complete"
+        result = readiness(root, sid, data, args.stage)
+        data["status"] = "integration_ready" if args.stage == "integration" else "complete"
         save(root, sid, data)
         print(result)
         return 0
