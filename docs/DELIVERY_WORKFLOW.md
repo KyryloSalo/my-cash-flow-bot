@@ -81,3 +81,21 @@ Removing the obsolete skill reference does not waive any of these checks, change
 Production tasks remain `INCOMPLETE` from local checks: they require separate production acceptance per requirement, runtime/activation evidence and `record-release` for the exact clean full SHA and agreed cohort with `--behavior-enabled --authoritative`. Only record that after real approved rollout/readback; this is an evidence index, not permission to skip release gates. Use the existing PR → protected main → exact-SHA validation artifact → production Environment approval → rollout → revision/behavior readback route. A validated artifact or green unit suite is not an active feature.
 
 Keep one named integration owner and one final candidate. Reuse valid unchanged evidence, not stale evidence after edits. Do not load unrelated histories, inspect all worktrees, refactor hotspot handlers, weaken CI or add new provider coupling just to complete a task. The separate [browser acceptance guide](BROWSER_ACCEPTANCE.md) describes what the local PWA smoke actually proves.
+
+
+## Opt-in staged delivery gates
+
+Use `configure-gates` after `start` and `preflight` to partition every requirement exactly once:
+
+```bash
+python ops/delivery.py configure-gates --session-id "$HERMES_SESSION_ID" \
+  --integration-requirement r1 --production-requirement r2 \
+  --approval "User authorized staged integration/completion gates" --cohort canary
+python ops/delivery.py readiness --session-id "$HERMES_SESSION_ID" --stage integration
+```
+
+Both groups must be nonempty. Unknown, duplicate, empty, malformed, or later-uncovered requirement IDs fail closed, including malformed persisted plans. `--stage integration` is rejected unless a staged plan is explicitly configured; tasks without a plan keep their existing strict default behavior. Integration readiness uses the current candidate, preflight, named local acceptance, unit/review evidence, evidence hashes, reproduction, and reassessment gates, and reports `READY FOR INTEGRATION` without claiming completion. The default `readiness` stage remains `completion` for backward compatibility.
+
+On a staged plan, completion requires local acceptance for integration requirements and production acceptance for production requirements, the named route in both environments, plus production runtime/activation and authoritative exact clean 40-character SHA/cohort readback. The explicitly configured cohort is authoritative for that staged plan even when the original task targeted local verification; successful final readiness reports `COMPLETE — PRODUCTION`, never local completion. Repeated `accept` calls append check IDs so local links remain available for completion.
+
+`--approval` records the human's authorization to split the requirement gates only. It is **not** production Environment approval or evidence that deployment occurred. The CLI never approves, commits, merges, or deploys; the protected GitHub production approval, exact-SHA validation artifact, deployment and external readback remain separate mandatory steps. Gate configuration changes sequencing, not the original outcomes or source candidate: existing valid candidate-bound evidence may be reused, but cannot satisfy newly added requirements or changed source. Do not present synthetic CLI release fixtures as actual production evidence.
