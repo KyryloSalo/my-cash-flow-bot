@@ -1,0 +1,44 @@
+name: tls-monitor
+on:
+  schedule: [{cron: '*/5 * * * *'}]
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: tls-monitor
+  cancel-in-progress: true
+jobs:
+  monitor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Check public HTTPS and TLS
+        id: check
+        shell: bash
+        run: |
+          set +e
+          python3 ops/tls_monitor.py --check --json > tls-monitor.json
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Open or update one incident issue
+        if: steps.check.outputs.status != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          body="Automated public HTTPS/TLS monitor failed on ${GITHUB_SHA}.\n\n$(python3 -c 'import json; print(json.dumps(json.load(open("tls-monitor.json")), indent=2)[:12000])')\n\nRun: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label tls-monitor --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then gh issue edit "$number" --repo "$GITHUB_REPOSITORY" --body "$body"; else gh issue create --repo "$GITHUB_REPOSITORY" --title 'Public TLS monitor failure' --label tls-monitor --body "$body"; fi
+      - name: Close incident issue on recovery
+        if: steps.check.outputs.status == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for number in $(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label tls-monitor --json number --jq '.[].number'); do
+            gh issue close "$number" --repo "$GITHUB_REPOSITORY" --comment "Recovered: public HTTPS/TLS monitor passed on ${GITHUB_SHA}."
+          done
+      - name: Fail the workflow after issue handling
+        if: steps.check.outputs.status != '0'
+        run: exit 1
