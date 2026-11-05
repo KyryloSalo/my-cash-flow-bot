@@ -1,6 +1,6 @@
 # Browser login through Telegram confirmation
 
-Status: candidate implementation; production activation requires the protected GitHub delivery route and exact-SHA deployment evidence.
+Status: deployed to production on 2026-10-21 at runtime SHA `581efb313ddfc40ea0fa529d545e8643b409ed27` through approved production run `39624076224`; deployment readback passed. Actual native Telegram-to-browser acceptance remains unverified.
 
 ## User flow
 
@@ -34,6 +34,10 @@ The isolated acceptance uses a real Django server, HTTPS proxy, PostgreSQL and C
 Synthetic-provider success verifies the application callback path, not real Telegram confirmation or native Telegram-to-Chrome behavior.
 Production readback of the entry page and Telegram redirect is likewise not proof of a completed user login.
 Actual confirmation by the intended Telegram user remains a separate acceptance step.
+
+Release `0.43.3` also decodes gzip-compressed Telegram JWKS and token responses before JSON parsing. Signature, claim, state, PKCE and replay checks are unchanged. Two real HTTP/gzip/RSA regressions and both isolated Chromium runs with 35 Django regressions passed. A read-only probe of the deployed module loaded four signing keys from the live Telegram provider at `2026-10-21T15:28:49.268171+00:00`; this is not an authenticated production login.
+
+The owner reported successful desktop link generation and Telegram-confirmed login before this deployment. The desktop/mobile difference and the operational trigger of the gzip behavior are not established. An existing browser session can survive a failed repeat callback; this is a code-path observation, not a diagnosis of the owner's device.
 
 ## Historical failure
 
