@@ -1,0 +1,125 @@
+{
+  "main_sha": {
+    "command": "git rev-parse HEAD",
+    "exit_code": 0,
+    "result": "f2e53b659cee68da7d1cfb6ebabd89384fe180e2"
+  },
+  "local_drift": {
+    "command": "git rev-list --left-right --count HEAD...origin/main",
+    "exit_code": 0,
+    "result": "3\t59"
+  },
+  "local_branch": {
+    "command": "git branch --show-current",
+    "exit_code": 0,
+    "result": "recovery/local-sync-20261013"
+  },
+  "protection": {
+    "command": "gh api repos/KyryloSalo/my-cash-flow-bot/branches/main/protection --jq '{required_approvals:.required_pull_request_reviews.required_approving_review_count,checks:.required_status_checks.contexts,admins:.enforce_admins.enabled}'",
+    "exit_code": 0,
+    "result": {
+      "admins": true,
+      "checks": [
+        "validate"
+      ],
+      "required_approvals": 0
+    }
+  },
+  "open_issues_and_prs": {
+    "command": "gh api 'repos/KyryloSalo/my-cash-flow-bot/issues?state=open&per_page=100' --jq '[.[] | {number,title,is_pull_request:has(\"pull_request\")}]'",
+    "exit_code": 0,
+    "result": [
+      {
+        "is_pull_request": true,
+        "number": 31,
+        "title": "fix(photo): reconcile recognition and preserve receipt review"
+      },
+      {
+        "is_pull_request": true,
+        "number": 29,
+        "title": "feat(photo): complete receipt review runtime"
+      },
+      {
+        "is_pull_request": true,
+        "number": 8,
+        "title": "feat(auto-capture): add secure Android notification capture"
+      },
+      {
+        "is_pull_request": true,
+        "number": 5,
+        "title": "feat(ios): add gated capture adapter groundwork"
+      }
+    ]
+  },
+  "recent_runs": {
+    "command": "gh run list --repo KyryloSalo/my-cash-flow-bot --limit 8 --json databaseId,workflowName,headSha,status,conclusion,createdAt",
+    "exit_code": 0,
+    "result": [
+      {
+        "conclusion": "success",
+        "createdAt": "2026-10-18T19:24:16Z",
+        "databaseId": 39158608725,
+        "headSha": "f2e53b659cee68da7d1cfb6ebabd89384fe180e2",
+        "status": "completed",
+        "workflowName": "Deploy validated release to production"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-10-18T19:16:27Z",
+        "databaseId": 39158010613,
+        "headSha": "f2e53b659cee68da7d1cfb6ebabd89384fe180e2",
+        "status": "completed",
+        "workflowName": "Validate release (production requires new manual approval)"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-10-18T19:09:22Z",
+        "databaseId": 39157453721,
+        "headSha": "9ea9aeb3b61156f578db1556ce708fa2bf4d7e50",
+        "status": "completed",
+        "workflowName": "Validate release (production requires new manual approval)"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-10-18T18:43:15Z",
+        "databaseId": 39155447393,
+        "headSha": "4d48764b5a2ce7b67f1329147a7f7bf9698c1c3b",
+        "status": "completed",
+        "workflowName": "Validate release (production requires new manual approval)"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-10-18T18:27:21Z",
+        "databaseId": 39154223705,
+        "headSha": "c002bc14ea1d64b3a027c0aeea1c7803946e9ed0",
+        "status": "completed",
+        "workflowName": "Validate release (production requires new manual approval)"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-10-18T18:20:32Z",
+        "databaseId": 39153715689,
+        "headSha": "0d6eab89e79908acd32eda0cb2a3cb3996ef3b84",
+        "status": "completed",
+        "workflowName": "Validate release (production requires new manual approval)"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-10-18T18:12:19Z",
+        "databaseId": 39153085298,
+        "headSha": "253c276b097b12ac29dc77d02f58cd6a5c2985df",
+        "status": "completed",
+        "workflowName": "Deploy validated release to production"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-10-18T18:05:53Z",
+        "databaseId": 39152591339,
+        "headSha": "253c276b097b12ac29dc77d02f58cd6a5c2985df",
+        "status": "completed",
+        "workflowName": "Validate release (production requires new manual approval)"
+      }
+    ]
+  },
+  "observed_at": "2026-10-19T00:27:35.041650+03:00"
+}

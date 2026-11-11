@@ -1,0 +1,2661 @@
+{
+  "schema_version": 1,
+  "source_sha": "f2e53b659cee68da7d1cfb6ebabd89384fe180e2",
+  "scope": "Tracked non-test Python in bot/admin_service/schema; AST only. No runtime settings, env files or secrets read.",
+  "limitations": [
+    "Static candidates, not proof of enabled production behavior.",
+    "Dynamic env names, shell/Compose env, JS config, runtime registrations, routers and scheduled calls can be absent.",
+    "Django route fragments are not fully resolved URLs; prefixes/includes and auth/method semantics require review.",
+    "Owners, FLOW links, default policy and retirement decisions remain to be curated in HEALTH-04."
+  ],
+  "configuration_names": [
+    {
+      "name": "ADMIN_DOMAIN",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 106,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "ADMIN_EMAIL",
+      "sources": [
+        {
+          "path": "admin_service/users/management/commands/create_initial_admin.py",
+          "line": 14,
+          "access": "os.environ.get"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "ADMIN_IP_ALLOWLIST",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 378,
+          "access": "env_list"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "ADMIN_NOTIFICATIONS_ENABLED",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 371,
+          "access": "env_bool"
+        },
+        {
+          "path": "bot/config.py",
+          "line": 72,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "ADMIN_PASSWORD",
+      "sources": [
+        {
+          "path": "admin_service/users/management/commands/create_initial_admin.py",
+          "line": 15,
+          "access": "os.environ.get"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "ADMIN_TELEGRAM_IDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 363,
+          "access": "env_list"
+        },
+        {
+          "path": "bot/config.py",
+          "line": 68,
+          "access": "env_list"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "ADMIN_TEST_TELEGRAM_IDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 370,
+          "access": "env_list"
+        },
+        {
+          "path": "bot/config.py",
+          "line": 71,
+          "access": "env_list"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "ADMIN_TOKEN",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 55,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "ADMIN_TRUSTED_PROXY_IPS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 379,
+          "access": "env_list"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "ADMIN_USERNAME",
+      "sources": [
+        {
+          "path": "admin_service/users/management/commands/create_initial_admin.py",
+          "line": 13,
+          "access": "os.environ.get"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "API_HOST",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 56,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "API_PORT",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 57,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "AUTO_CAPTURE_ALLOWLIST_TG_IDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 86,
+          "access": "env_list"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "AUTO_CAPTURE_ANDROID_ENABLED",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 82,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "AUTO_CAPTURE_ENABLED",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 81,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "AUTO_CAPTURE_IOS_ENABLED",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 83,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "AXES_COOLOFF_MINUTES",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 383,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "AXES_ENABLED",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 381,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "AXES_FAILURE_LIMIT",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 382,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "BILLING_INTERNAL_BASE_URL",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 58,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "BILLING_INTERNAL_TOKEN",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 295,
+          "access": "env"
+        },
+        {
+          "path": "bot/config.py",
+          "line": 59,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "BOT_TOKEN",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 321,
+          "access": "env"
+        },
+        {
+          "path": "bot/config.py",
+          "line": 50,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "CSRF_COOKIE_SECURE",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 212,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "DATABASE_URL",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 177,
+          "access": "env"
+        },
+        {
+          "path": "bot/config.py",
+          "line": 51,
+          "access": "env"
+        },
+        {
+          "path": "bot/runtime_health.py",
+          "line": 8,
+          "access": "os.environ subscript"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "DJANGO_ALLOWED_HOSTS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 111,
+          "access": "env_list"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "DJANGO_DEBUG",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 78,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "DJANGO_SECRET_KEY",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 89,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "DJANGO_SECRET_KEY_FILE",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 90,
+          "access": "env_file_secret"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "DJANGO_SETTINGS_MODULE",
+      "sources": [
+        {
+          "path": "admin_service/common/readiness.py",
+          "line": 102,
+          "access": "os.environ.setdefault"
+        },
+        {
+          "path": "admin_service/config/asgi.py",
+          "line": 6,
+          "access": "os.environ.setdefault"
+        },
+        {
+          "path": "admin_service/config/celery.py",
+          "line": 8,
+          "access": "os.environ.setdefault"
+        },
+        {
+          "path": "admin_service/config/wsgi.py",
+          "line": 6,
+          "access": "os.environ.setdefault"
+        },
+        {
+          "path": "admin_service/manage.py",
+          "line": 7,
+          "access": "os.environ.setdefault"
+        },
+        {
+          "path": "admin_service/miniapp/local_preview_seed.py",
+          "line": 7,
+          "access": "os.environ.setdefault"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "DOMAIN",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 105,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "ENABLE_ADMIN_DEVELOPER_MODE",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 373,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "ENABLE_ADMIN_TEST_TOOLS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 372,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "FAMILY_ACCESS_ENABLED",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 89,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "GAMIFICATION_PROCESSING_ENABLED",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 362,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "GAMIFICATION_UI_ENABLED",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 361,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "LEGACY_ADMIN_DOMAIN",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 107,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_BOT_INTERNAL_AI_TIMEOUT_SECONDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 318,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_BOT_INTERNAL_BASE_URL",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 316,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_BOT_INTERNAL_TIMEOUT_SECONDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 317,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_BROWSER_LOGIN_SECRET",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 336,
+          "access": "env"
+        },
+        {
+          "path": "bot/config.py",
+          "line": 64,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_BROWSER_LOGIN_TOKEN_TTL_SECONDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 337,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_BROWSER_LOGIN_TTL_SECONDS",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 65,
+          "access": "env_int"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_BROWSER_SESSION_AGE_SECONDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 338,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_CACHE_BUST_VERSION",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 63,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_DEV_TG_USER_ID",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 360,
+          "access": "env_int"
+        },
+        {
+          "path": "admin_service/miniapp/local_preview_seed.py",
+          "line": 23,
+          "access": "os.environ.get"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_EXPORT_INTERNAL_BASE_URL",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 314,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_EXPORT_INTERNAL_TIMEOUT_SECONDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 315,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_OPERATOR_TELEGRAM_IDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 367,
+          "access": "env_list"
+        },
+        {
+          "path": "bot/config.py",
+          "line": 69,
+          "access": "env_list"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_TELEGRAM_AUTH_MAX_AGE",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 335,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MINIAPP_URL",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 62,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MONO_API_BASE_URL",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 284,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MONO_BILLING_RETURN_URL",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 294,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MONO_BILLING_WEBHOOK_URL",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 293,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MONO_BIND_AMOUNT",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 287,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MONO_BIND_INVOICE_VALIDITY_SECONDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 288,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MONO_GRACE_DAYS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 291,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MONO_MERCHANT_TOKEN",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 285,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MONO_RENEWAL_AMOUNT",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 289,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MONO_RENEWAL_PERIOD_DAYS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 290,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MONO_SOFT_GRACE_DAYS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 292,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "MONO_WEBHOOK_VERIFY_SIGNATURES",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 286,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "OPENAI_API_KEY",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 74,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "OPENAI_IMAGE_DETAIL",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 79,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "OPENAI_MAX_OUTPUT_TOKENS",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 80,
+          "access": "env_int"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "OPENAI_REQUEST_TIMEOUT_MS",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 81,
+          "access": "env_int"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "OPENAI_SCREENSHOT_CONFIDENCE_THRESHOLD",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 83,
+          "access": "env_float"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "OPENAI_SCREENSHOT_STORE_RAW",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 82,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "OPENAI_STT_MODEL",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 75,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "OPENAI_TX_MODEL",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 76,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "OPENAI_VISION_FALLBACK_MODEL",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 78,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "OPENAI_VISION_MODEL",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 77,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PHOTO_PIPELINE_CACHE_DIR",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 86,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PHOTO_PIPELINE_CACHE_TTL_SECONDS",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 87,
+          "access": "env_int"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PHOTO_PIPELINE_ENABLED",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 85,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PHOTO_PIPELINE_SHADOW_ENABLED",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 84,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PRIMARY_ADMIN_TELEGRAM_ID",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 364,
+          "access": "env_int"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PRIVACY_POLICY_URL",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 66,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PRODUCTION_CANARY_ACTION_TTL_SECONDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 354,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PRODUCTION_CANARY_ALLOWED_SCENARIOS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 356,
+          "access": "env_list"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PRODUCTION_CANARY_ENABLED",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 340,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PRODUCTION_CANARY_LOGIN_TTL_SECONDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 353,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PRODUCTION_CANARY_MAX_AMOUNT",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 355,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PRODUCTION_CANARY_TELEGRAM_IDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 348,
+          "access": "env_list"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PUSH_INTERNAL_BASE_URL",
+      "sources": [
+        {
+          "path": "bot/config.py",
+          "line": 60,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "PUSH_INTERNAL_TOKEN",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 296,
+          "access": "env"
+        },
+        {
+          "path": "bot/config.py",
+          "line": 61,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "REDIS_URL",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 223,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "RESET_ONBOARDING_NOTICE_TEXT",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 375,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "SECURE_HSTS_INCLUDE_SUBDOMAINS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 216,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "SECURE_HSTS_SECONDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 215,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "SECURE_SSL_REDIRECT",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 209,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "SESSION_COOKIE_SECURE",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 211,
+          "access": "env_bool"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "SUPPORT_CONTACT_URL",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 319,
+          "access": "env"
+        },
+        {
+          "path": "bot/config.py",
+          "line": 67,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "TELEGRAM_BOT_TOKEN",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 321,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "TELEGRAM_OIDC_CLIENT_ID",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 322,
+          "access": "configured_secret"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "TELEGRAM_OIDC_CLIENT_SECRET",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 323,
+          "access": "configured_secret"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "TELEGRAM_OIDC_FLOW_TTL_SECONDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 333,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "TELEGRAM_OIDC_HTTP_TIMEOUT_SECONDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 334,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "TELEGRAM_OIDC_REDIRECT_URI",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 325,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "TZ",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 191,
+          "access": "env"
+        },
+        {
+          "path": "bot/config.py",
+          "line": 53,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "WEB_PUSH_TTL_SECONDS",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 300,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "WEB_PUSH_VAPID_PRIVATE_KEY",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 298,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "WEB_PUSH_VAPID_PUBLIC_KEY",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 297,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    },
+    {
+      "name": "WEB_PUSH_VAPID_SUBJECT",
+      "sources": [
+        {
+          "path": "admin_service/config/settings.py",
+          "line": 299,
+          "access": "env"
+        }
+      ],
+      "owner": null,
+      "flow_ids": [],
+      "default_policy": "not evaluated; no values stored"
+    }
+  ],
+  "django_routes": [
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 23,
+      "route_fragment": "internal/health/ready",
+      "view": "ready"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 24,
+      "route_fragment": "internal/health/live",
+      "view": "live"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 25,
+      "route_fragment": "app/",
+      "view": "include(('miniapp.urls', 'miniapp'), namespace='miniapp')"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 26,
+      "route_fragment": "billing/mono/webhook",
+      "view": "monobank_webhook"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 27,
+      "route_fragment": "billing/mono/return",
+      "view": "monobank_return"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 28,
+      "route_fragment": "internal/billing/mono/init-bind",
+      "view": "monobank_init_bind"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 29,
+      "route_fragment": "internal/billing/mono/init-recovery",
+      "view": "monobank_init_recovery"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 30,
+      "route_fragment": "internal/billing/mono/cancel-autorenew",
+      "view": "monobank_cancel_autorenew"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 31,
+      "route_fragment": "internal/billing/mono/retry-renew",
+      "view": "monobank_retry_renew"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 32,
+      "route_fragment": "internal/billing/mono/sync-bind-status",
+      "view": "monobank_sync_bind_status"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 33,
+      "route_fragment": "internal/push/event",
+      "view": "internal_notification_event"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 34,
+      "route_fragment": "internal/transactions/recent",
+      "view": "internal_transactions_recent"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 35,
+      "route_fragment": "internal/transactions/void/draft",
+      "view": "internal_transaction_void_draft"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 36,
+      "route_fragment": "internal/transactions/void/confirm",
+      "view": "internal_transaction_void_confirm"
+    },
+    {
+      "path": "admin_service/config/urls.py",
+      "line": 37,
+      "route_fragment": "",
+      "view": "admin_site.urls"
+    },
+    {
+      "path": "admin_service/gamification/urls.py",
+      "line": 8,
+      "route_fragment": "overview",
+      "view": "views.overview"
+    },
+    {
+      "path": "admin_service/gamification/urls.py",
+      "line": 9,
+      "route_fragment": "preferences",
+      "view": "views.preferences"
+    },
+    {
+      "path": "admin_service/gamification/urls.py",
+      "line": 10,
+      "route_fragment": "no-expenses",
+      "view": "views.no_expenses"
+    },
+    {
+      "path": "admin_service/gamification/urls.py",
+      "line": 11,
+      "route_fragment": "pins",
+      "view": "views.pins"
+    },
+    {
+      "path": "admin_service/gamification/urls.py",
+      "line": 12,
+      "route_fragment": "notifications/claim",
+      "view": "views.notification_claim"
+    },
+    {
+      "path": "admin_service/gamification/urls.py",
+      "line": 13,
+      "route_fragment": "notifications/ack",
+      "view": "views.notification_ack"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 7,
+      "route_fragment": "",
+      "view": "views.index"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 8,
+      "route_fragment": "api/gamification/",
+      "view": "include(('gamification.urls', 'gamification'), namespace='gamification')"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 9,
+      "route_fragment": "r/<slug:code>",
+      "view": "funnel_views.partner_link_redirect"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 10,
+      "route_fragment": "operator/",
+      "view": "views.operator_index"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 11,
+      "route_fragment": "browser-login/<str:token>/",
+      "view": "views.browser_login_handoff"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 12,
+      "route_fragment": "api/browser-login/<str:token>/",
+      "view": "views.browser_login"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 13,
+      "route_fragment": "api/canary/browser-login",
+      "view": "views.canary_browser_login_bootstrap"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 14,
+      "route_fragment": "login/<str:token>/",
+      "view": "views.browser_login"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 15,
+      "route_fragment": "family/join/<str:token>/",
+      "view": "views.family_join"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 16,
+      "route_fragment": "manifest.webmanifest",
+      "view": "views.manifest"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 17,
+      "route_fragment": "sw.js",
+      "view": "views.service_worker"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 18,
+      "route_fragment": "auth/telegram/start",
+      "view": "views.telegram_oidc_start"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 19,
+      "route_fragment": "auth/telegram/callback",
+      "view": "views.telegram_oidc_callback"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 20,
+      "route_fragment": "api/auth/telegram",
+      "view": "views.auth_telegram"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 21,
+      "route_fragment": "api/auth/dev",
+      "view": "views.auth_dev"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 22,
+      "route_fragment": "api/auth/logout",
+      "view": "views.auth_logout"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 23,
+      "route_fragment": "api/funnel/session",
+      "view": "funnel_views.funnel_session"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 24,
+      "route_fragment": "api/funnel/event",
+      "view": "funnel_views.funnel_event"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 25,
+      "route_fragment": "api/funnel/billing-consent",
+      "view": "funnel_views.billing_consent"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 26,
+      "route_fragment": "api/profile",
+      "view": "views.profile"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 27,
+      "route_fragment": "api/operator/bootstrap",
+      "view": "views.operator_bootstrap"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 28,
+      "route_fragment": "api/operator/users/<int:tg_user_id>/",
+      "view": "views.operator_user_detail"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 29,
+      "route_fragment": "api/operator/users/<int:tg_user_id>/status",
+      "view": "views.operator_user_status"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 30,
+      "route_fragment": "api/operator/users/<int:tg_user_id>/actions",
+      "view": "views.operator_user_action"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 31,
+      "route_fragment": "api/onboarding",
+      "view": "views.onboarding"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 32,
+      "route_fragment": "api/onboarding/draft",
+      "view": "views.onboarding_draft"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 33,
+      "route_fragment": "api/onboarding/confirm",
+      "view": "views.onboarding_confirm"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 34,
+      "route_fragment": "api/settings",
+      "view": "views.settings_options"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 35,
+      "route_fragment": "api/install-nudge",
+      "view": "views.install_nudge_status"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 36,
+      "route_fragment": "api/install-nudge/event",
+      "view": "views.install_nudge_event"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 37,
+      "route_fragment": "api/trial-recovery/event",
+      "view": "views.trial_recovery_event"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 38,
+      "route_fragment": "api/settings/profile",
+      "view": "views.settings_profile"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 39,
+      "route_fragment": "api/settings/reminder",
+      "view": "views.settings_reminder"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 40,
+      "route_fragment": "api/settings/savings",
+      "view": "views.settings_savings"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 41,
+      "route_fragment": "api/account-deletion",
+      "view": "account_deletion_views.account_deletion_preflight"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 46,
+      "route_fragment": "api/account-deletion/confirm",
+      "view": "account_deletion_views.account_deletion_confirm"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 51,
+      "route_fragment": "api/capture/v1/status",
+      "view": "capture_views.status"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 52,
+      "route_fragment": "api/capture/v1/pairing/start",
+      "view": "capture_views.pairing_start"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 53,
+      "route_fragment": "api/capture/v1/pairing/approve",
+      "view": "capture_views.pairing_approve"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 54,
+      "route_fragment": "api/capture/v1/events",
+      "view": "capture_views.ingest"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 55,
+      "route_fragment": "api/capture/v1/inbox",
+      "view": "capture_views.inbox"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 56,
+      "route_fragment": "api/capture/v1/events/<int:event_id>/review",
+      "view": "capture_views.review"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 57,
+      "route_fragment": "api/capture/v1/events/<int:event_id>/confirm",
+      "view": "capture_views.confirm"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 58,
+      "route_fragment": "api/capture/v1/events/<int:event_id>/dismiss",
+      "view": "capture_views.dismiss"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 59,
+      "route_fragment": "api/capture/v1/connections/<int:connection_id>/revoke",
+      "view": "capture_views.revoke"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 60,
+      "route_fragment": "api/notifications",
+      "view": "views.notification_status"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 61,
+      "route_fragment": "api/notifications/subscribe",
+      "view": "views.notification_subscribe"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 62,
+      "route_fragment": "api/notifications/unsubscribe",
+      "view": "views.notification_unsubscribe"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 63,
+      "route_fragment": "api/notifications/read",
+      "view": "views.notification_read"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 64,
+      "route_fragment": "api/notifications/preferences",
+      "view": "views.notification_preferences"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 65,
+      "route_fragment": "api/notifications/test",
+      "view": "views.notification_test"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 66,
+      "route_fragment": "api/saving-tasks",
+      "view": "views.saving_tasks"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 67,
+      "route_fragment": "api/saving-tasks/draft",
+      "view": "views.saving_task_draft"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 68,
+      "route_fragment": "api/saving-tasks/confirm",
+      "view": "views.saving_task_confirm"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 69,
+      "route_fragment": "api/saving-tasks/cancel",
+      "view": "views.saving_task_cancel_draft"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 70,
+      "route_fragment": "api/settings/billing",
+      "view": "views.billing_action"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 71,
+      "route_fragment": "canary/checkout/",
+      "view": "views.canary_checkout"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 72,
+      "route_fragment": "canary/checkout/exchange",
+      "view": "views.canary_checkout_exchange"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 73,
+      "route_fragment": "canary/checkout/confirm",
+      "view": "views.canary_checkout_confirm"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 74,
+      "route_fragment": "api/family",
+      "view": "views.family_overview"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 75,
+      "route_fragment": "api/family/create/draft",
+      "view": "views.family_create_draft"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 76,
+      "route_fragment": "api/family/create/confirm",
+      "view": "views.family_create_confirm"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 77,
+      "route_fragment": "api/family/invite/create",
+      "view": "views.family_invite_create"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 78,
+      "route_fragment": "api/family/invite/accept",
+      "view": "views.family_invite_accept"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 79,
+      "route_fragment": "api/family/invite/revoke",
+      "view": "views.family_invite_revoke"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 80,
+      "route_fragment": "api/family/member/remove",
+      "view": "views.family_member_remove"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 81,
+      "route_fragment": "api/family/leave",
+      "view": "views.family_leave"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 82,
+      "route_fragment": "api/help",
+      "view": "views.help_center"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 83,
+      "route_fragment": "api/ai-text/parse",
+      "view": "views.ai_text_parse"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 84,
+      "route_fragment": "api/ai-voice/parse",
+      "view": "views.ai_voice_parse"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 85,
+      "route_fragment": "api/ai-image/parse",
+      "view": "views.ai_image_parse"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 86,
+      "route_fragment": "api/ai-image/batch",
+      "view": "views.ai_image_batch"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 87,
+      "route_fragment": "api/ai-image/batch/item",
+      "view": "views.ai_image_batch_item"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 88,
+      "route_fragment": "api/transactions/options",
+      "view": "views.transaction_options"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 89,
+      "route_fragment": "api/transactions/draft",
+      "view": "views.transaction_draft"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 90,
+      "route_fragment": "api/transactions/confirm",
+      "view": "views.transaction_confirm"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 91,
+      "route_fragment": "api/transactions/cancel",
+      "view": "views.transaction_cancel"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 92,
+      "route_fragment": "api/billing-expense/options",
+      "view": "views.billing_expense_options"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 93,
+      "route_fragment": "api/billing-expense/draft",
+      "view": "views.billing_expense_draft"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 94,
+      "route_fragment": "api/billing-expense/confirm",
+      "view": "views.billing_expense_confirm"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 95,
+      "route_fragment": "api/billing-expense/cancel",
+      "view": "views.billing_expense_cancel"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 96,
+      "route_fragment": "api/accounts/options",
+      "view": "views.account_options"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 97,
+      "route_fragment": "api/accounts/draft",
+      "view": "views.account_draft"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 98,
+      "route_fragment": "api/accounts/confirm",
+      "view": "views.account_confirm"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 99,
+      "route_fragment": "api/accounts/cancel",
+      "view": "views.account_cancel"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 100,
+      "route_fragment": "api/transfers/options",
+      "view": "views.transfer_options"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 101,
+      "route_fragment": "api/transfers/draft",
+      "view": "views.transfer_draft"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 102,
+      "route_fragment": "api/transfers/confirm",
+      "view": "views.transfer_confirm"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 103,
+      "route_fragment": "api/transfers/cancel",
+      "view": "views.transfer_cancel"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 104,
+      "route_fragment": "api/debts/options",
+      "view": "views.debt_options"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 105,
+      "route_fragment": "api/debts/draft",
+      "view": "views.debt_draft"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 106,
+      "route_fragment": "api/debts/confirm",
+      "view": "views.debt_confirm"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 107,
+      "route_fragment": "api/debts/cancel",
+      "view": "views.debt_cancel"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 108,
+      "route_fragment": "api/bootstrap",
+      "view": "views.bootstrap"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 109,
+      "route_fragment": "api/flow",
+      "view": "views.flow"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 110,
+      "route_fragment": "api/categories",
+      "view": "views.categories"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 111,
+      "route_fragment": "api/category-catalog",
+      "view": "views.category_catalog"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 112,
+      "route_fragment": "api/activity",
+      "view": "views.activity"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 113,
+      "route_fragment": "api/history",
+      "view": "views.history"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 114,
+      "route_fragment": "api/history/edit/draft",
+      "view": "views.history_edit_draft"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 115,
+      "route_fragment": "api/history/edit/confirm",
+      "view": "views.history_edit_confirm"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 116,
+      "route_fragment": "api/history/edit/cancel",
+      "view": "views.history_edit_cancel"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 117,
+      "route_fragment": "api/history/void/draft",
+      "view": "views.history_void_draft"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 118,
+      "route_fragment": "api/history/void/confirm",
+      "view": "views.history_void_confirm"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 119,
+      "route_fragment": "api/history/void/cancel",
+      "view": "views.history_void_cancel"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 120,
+      "route_fragment": "api/export.xlsx",
+      "view": "views.export_xlsx"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 121,
+      "route_fragment": "api/export.csv",
+      "view": "views.export_csv"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 122,
+      "route_fragment": "api/accounts",
+      "view": "views.accounts"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 123,
+      "route_fragment": "api/credit-cards",
+      "view": "views.credit_cards"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 124,
+      "route_fragment": "api/debts",
+      "view": "views.debts"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 125,
+      "route_fragment": "api/goals",
+      "view": "views.goals"
+    },
+    {
+      "path": "admin_service/miniapp/urls.py",
+      "line": 126,
+      "route_fragment": "api/investments",
+      "view": "views.investments"
+    }
+  ],
+  "telegram_handlers": [
+    {
+      "path": "bot/bot_main.py",
+      "line": 17795,
+      "handler": "start_entry",
+      "registration": "CommandHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17796,
+      "handler": "restart_onboarding_entry",
+      "registration": "CommandHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17797,
+      "handler": "restart_onboarding_callback_entry",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17801,
+      "handler": "onb_lang",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17802,
+      "handler": "onb_privacy",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17805,
+      "handler": "onb_currency_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17806,
+      "handler": "onb_currency_text",
+      "registration": "MessageHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17809,
+      "handler": "onb_start_date_choice",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17810,
+      "handler": "onb_start_date_text",
+      "registration": "MessageHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17812,
+      "handler": "onb_account_bank",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17813,
+      "handler": "onb_account_bank_text",
+      "registration": "MessageHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17814,
+      "handler": "onb_account_type_choice",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17816,
+      "handler": "onb_account_last4_choice",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17817,
+      "handler": "onb_account_last4_text_direct",
+      "registration": "MessageHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17820,
+      "handler": "onb_account_last4_choice",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17821,
+      "handler": "onb_account_last4_text",
+      "registration": "MessageHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17824,
+      "handler": "onb_account_currency_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17825,
+      "handler": "onb_account_currency_text",
+      "registration": "MessageHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17827,
+      "handler": "onb_account_balance",
+      "registration": "MessageHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17828,
+      "handler": "onb_accounts_more_done",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17829,
+      "handler": "onb_confirm",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17830,
+      "handler": "onb_edit_accounts",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17836,
+      "handler": "guard_cancellation_resistant_help_task",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17837,
+      "handler": "guard_cancellation_resistant_help_task",
+      "registration": "MessageHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17839,
+      "handler": "menu_command",
+      "registration": "CommandHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17840,
+      "handler": "help_command",
+      "registration": "CommandHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17841,
+      "handler": "settings_command",
+      "registration": "CommandHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17842,
+      "handler": "cabinet_command",
+      "registration": "CommandHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17843,
+      "handler": "billing_tx_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17844,
+      "handler": "ai_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17845,
+      "handler": "onb_privacy",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17846,
+      "handler": "onboarding_callback_fallback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17847,
+      "handler": "help_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17848,
+      "handler": "home_navigation_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17849,
+      "handler": "home_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17850,
+      "handler": "family_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17851,
+      "handler": "saving_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17852,
+      "handler": "transfer_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17853,
+      "handler": "reports_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17854,
+      "handler": "export_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17855,
+      "handler": "debt_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17856,
+      "handler": "debt_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17857,
+      "handler": "trial_recovery_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17858,
+      "handler": "settings_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17859,
+      "handler": "expense_reminder_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17860,
+      "handler": "categories_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17861,
+      "handler": "pick_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17862,
+      "handler": "poll_callback",
+      "registration": "CallbackQueryHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17863,
+      "handler": "voice_message",
+      "registration": "MessageHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17864,
+      "handler": "photo_message",
+      "registration": "MessageHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17865,
+      "handler": "photo_message",
+      "registration": "MessageHandler"
+    },
+    {
+      "path": "bot/bot_main.py",
+      "line": 17866,
+      "handler": "text_message",
+      "registration": "MessageHandler"
+    }
+  ],
+  "task_decorators": [
+    {
+      "path": "admin_service/admin_notifications/tasks.py",
+      "line": 12,
+      "function": "send_admin_notification_task",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/broadcasts/tasks.py",
+      "line": 77,
+      "function": "send_manual_message_task",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/broadcasts/tasks.py",
+      "line": 145,
+      "function": "send_broadcast_task",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/common/tasks.py",
+      "line": 8,
+      "function": "scheduler_probe",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/gamification/tasks.py",
+      "line": 8,
+      "function": "process_gamification_events_task",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/gamification/tasks.py",
+      "line": 15,
+      "function": "finalize_due_profiles_task",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/miniapp/tasks.py",
+      "line": 21,
+      "function": "purge_expired_auth_token_uses_task",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/miniapp/tasks.py",
+      "line": 26,
+      "function": "dispatch_pending_pushes",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/miniapp/tasks.py",
+      "line": 37,
+      "function": "emit_billing_lifecycle_pushes",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/miniapp/tasks.py",
+      "line": 74,
+      "function": "emit_debt_due_pushes",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/miniapp/tasks.py",
+      "line": 97,
+      "function": "emit_weekly_summary_pushes",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/polls/tasks.py",
+      "line": 72,
+      "function": "send_poll_campaign_task",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/subscriptions/tasks.py",
+      "line": 14,
+      "function": "run_due_monobank_charges_task",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/subscriptions/tasks.py",
+      "line": 19,
+      "function": "reconcile_pending_monobank_charges_task",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/subscriptions/tasks.py",
+      "line": 27,
+      "function": "dispatch_trial_recovery_task",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/support/tasks.py",
+      "line": 25,
+      "function": "send_support_reply_task",
+      "decorator": "shared_task"
+    },
+    {
+      "path": "admin_service/support/tasks.py",
+      "line": 112,
+      "function": "notify_new_support_case_task",
+      "decorator": "shared_task"
+    }
+  ],
+  "parse_errors": []
+}
