@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "event_id": "018f6f2a-8c1d-7c42-a36f-8db46cb2a001",
+  "source": "ios_manual_share",
+  "bank": "unknown",
+  "observed_at": "2026-10-13T12:30:00+03:00",
+  "occurred_at": null,
+  "amount": "1234.50",
+  "currency": "UAH",
+  "merchant": "Synthetic Merchant",
+  "operation_hint": "purchase",
+  "parser_version": "ios-manual-share/1"
+}
