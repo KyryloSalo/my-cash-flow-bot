@@ -1,0 +1,49 @@
+{
+  "version": "0.45.3",
+  "runtime_sha": "8b8c22ffe3b51d3a345942c1cb97796a19523dfb",
+  "production_run": "43539198834",
+  "production_deployed_at_utc": "2026-11-14T01:18:35.463851+00:00",
+  "apply_policy": "Apply only after this docs PR is reviewed and merged. Verify baseline SHA256, unique anchors, BOM/newline preservation and rendered output. Documentation-only synchronization; no runtime deployment. Preserve all prior unresolved acceptance warnings.",
+  "files": [
+    {
+      "path": "VERSION",
+      "base_sha256": "36b16cef18d1a1374abbd297956cd1aa64697e34ae3065921e44808ac338cb88",
+      "replacements": [{"old": "0.45.2", "new": "0.45.3"}]
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "base_sha256": "7a7fcb04eda93f5fb6c4e76c19245604e8a3510910ef0e6623c5f528241ebf90",
+      "replacements": [
+        {"old": "Last updated: 2026-10-28", "new": "Last updated: 2026-11-14"},
+        {
+          "old": "Current production version: `0.45.2` (deployed 2026-10-28; runtime SHA `e9893ad2e2143aaa2f1a0c0a2eb8ca35b2f88938`, production run `40731740128`, readback passed). Semver rationale: PATCH fixing existing recognition normalization without a new public surface. Production photo/provider/review acceptance, effective recognition flags and named R10 acceptance remain unverified; previous acceptance gaps remain unchanged.",
+          "new": "Current production version: `0.45.3` (deployed 2026-11-14; runtime SHA `8b8c22ffe3b51d3a345942c1cb97796a19523dfb`, production run `43539198834`, readback passed at `2026-11-14T01:18:35.463851+00:00`). Semver rationale: PATCH restoring existing partner billing offer validation without a new public surface or changes to bonus/renewal/financial confirmation terms. The affected production offer now validates and retains 90 days; real customer card-binding retry/bonus activation and the formal named production acceptance remain unverified. Production photo/provider/review acceptance, effective recognition flags and named R10 acceptance remain unverified; previous acceptance gaps remain unchanged."
+        }
+      ]
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "base_sha256": "3384ec5c675d95e94a6820240c3f08010166b229e07104292bf43f6c9cdbad41",
+      "replacements": [{
+        "old": "# Release Notes\n\n",
+        "new": "# Release Notes\n\n## 0.45.3 - 2026-11-14 (deployed)\n\nPR #87 restored immutable numeric partner offer IDs in billing funnel validation. Runtime SHA `8b8c22ffe3b51d3a345942c1cb97796a19523dfb` passed exact-main CI `43538358480` and approved production run `43539198834`; encrypted off-host backup, deployment, readback and promotion passed at `2026-11-14T01:18:35.463851+00:00` (artifact `14091740399`).\n\nPATCH: narrowly accept `partner_link:<positive integer>` only for `offer_variant`; preserve exact offer ID, bonus duration, consent idempotency and renewal timestamp. All other slug validation and financial confirmation gates remain unchanged. Actual baseline RED, 48 focused PostgreSQL tests, local authenticated Chromium/PWA consent acceptance, independent exact-content review and required PR/main CI passed.\n\nProduction read-only validation confirmed the affected account's existing offer is accepted and its 90 course days remain intact; BillingConsent/Payment/Subscription counts were unchanged and no provider was called. Public readiness passed. **Actual customer card-binding retry/bonus activation and the formal named production acceptance are not yet observed; local browser/synthetic payment tests are not production payment acceptance.** The generic isolated-worktree verifier lacked `.env`; custom exact-candidate acceptance and canonical CI passed without copying secrets. Previous unrelated acceptance warnings remain unchanged.\n\nSee `code/docs/releases/0.45.3-partner-billing-offer.md`. This documentation sync records an already deployed runtime and does not authorize another rollout.\n\n"
+      }]
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "base_sha256": "f5f17e7162e911b9992bf069c7d84a469db8104dc11020dd522c1c0de8849b04",
+      "replacements": [{
+        "old": "Last updated: 2026-10-28\n\n## Runtime delivery status — 2026-10-28 (0.45.2)",
+        "new": "Last updated: 2026-11-14\n\n## Runtime delivery status — 2026-11-14 (0.45.3)\n\nPR #87 merged. Exact runtime SHA `8b8c22ffe3b51d3a345942c1cb97796a19523dfb` passed main CI `43538358480` and approved production run `43539198834`; encrypted off-host backup, deployment/readback and release promotion passed at `2026-11-14T01:18:35.463851+00:00` (artifact `14091740399`).\n\nPATCH: restore partner card-binding consent by narrowly accepting immutable numeric `partner_link:` IDs in `offer_variant`, with all other slug rules and financial confirmation unchanged. Exact offer identity, trial duration, consent idempotency and renewal timestamps are preserved. Baseline RED, 48 focused PostgreSQL tests, authenticated local Chromium/PWA consent acceptance, independent review and required PR/main CI passed.\n\nThe affected production offer now passes the formerly failing validator and retains 90 course days. Read-only production probes left BillingConsent/Payment/Subscription counts unchanged and called no payment provider; public readiness passed. **Real customer card-binding retry/bonus activation and the formal named production acceptance remain unverified.** Local synthetic payment/browser acceptance does not prove those actions. Previous unrelated receipt/provider/real-device acceptance gaps remain unchanged.\n\nSee `code/docs/releases/0.45.3-partner-billing-offer.md`. The documentation merge is not the deployed runtime SHA and requires no new production rollout.\n\n## Previous runtime delivery status — 2026-10-28 (0.45.2)"
+      }]
+    },
+    {
+      "path": "README.md",
+      "base_sha256": "272ac0cfd9803f062afb5687d286a605aaf318f468fe8c77ef4deb5966afcecb",
+      "replacements": [{
+        "old": "## Current Mini App Delivery\n\n",
+        "new": "## Current Mini App Delivery\n\nCurrent production release: **0.45.3**, deployed **2026-11-14**, runtime SHA `8b8c22ffe3b51d3a345942c1cb97796a19523dfb`, production run `43539198834`, validation `43538358480`, revision/readback `2026-11-14T01:18:35.463851+00:00`. Partner card-binding offer validation is restored without rewriting offer IDs or bonus/renewal terms. Backup, rollout, promotion and public readiness passed; the affected production offer is accepted with its existing 90 days preserved in a read-only check. **Actual customer card-binding retry/bonus activation and formal named production acceptance remain unverified.** Previous unrelated acceptance gaps remain unchanged. See `docs/CURRENT_STATE.md`, `docs/RELEASE_NOTES.md` and `code/docs/releases/0.45.3-partner-billing-offer.md`.\n\nPrevious 0.45.2 delivery record (historical; unresolved acceptance retained):\n"
+      }]
+    }
+  ]
+}
