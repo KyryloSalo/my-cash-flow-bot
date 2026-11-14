@@ -15,6 +15,7 @@ from miniapp.funnel import (
     PENDING_REGISTRATION_EVENT_KEY,
     _request_device_dimensions,
     normalize_attribution,
+    record_server_event,
     retry_pending_registration_event,
     validate_client_event_payload,
 )
@@ -35,6 +36,18 @@ class Session(dict):
 
 
 class FunnelPayloadValidationTests(SimpleTestCase):
+    def test_partner_offer_id_is_preserved_in_server_billing_events(self) -> None:
+        acquisition = SimpleNamespace(
+            funnel_version="v1", last_landing_variant="organic", platform="desktop", container="browser",
+        )
+        for event_name in ("billing_consent_accepted", "bind_invoice_created", "payment_success"):
+            with self.subTest(event_name=event_name), patch("miniapp.funnel._create_event_once") as create_event:
+                record_server_event(
+                    acquisition=acquisition, event_name=event_name,
+                    idempotency_key=f"test:{event_name}", offer_variant="partner_link:123",
+                )
+                self.assertEqual(create_event.call_args.kwargs["payload"]["offer_variant"], "partner_link:123")
+
     def test_known_browser_automation_is_classified_for_default_exclusion(self) -> None:
         request = RequestFactory().get(
             "/app/api/funnel/session",
@@ -44,6 +57,46 @@ class FunnelPayloadValidationTests(SimpleTestCase):
         dimensions = _request_device_dimensions(request)
 
         self.assertEqual(dimensions["automation_status"], "automated")
+
+    def test_client_offer_variants_preserve_supported_identifiers(self) -> None:
+        for offer_id in ("partner_link:1", "partner_link:9223372036854775807", "organic_30d_1uah_499uah", "askills_course_90d", "x" * 64):
+            with self.subTest(offer_id=offer_id):
+                event = validate_client_event_payload({
+                    "event_name": "checkout_opened",
+                    "event_id": "8d09ed8c-bccb-4c7f-9c82-c4385853540d",
+                    "offer_variant": offer_id,
+                })
+                self.assertEqual(event.offer_variant, offer_id)
+
+    def test_offer_variant_rejects_invalid_or_unbounded_identifiers(self) -> None:
+        acquisition = SimpleNamespace(
+            funnel_version="v1", last_landing_variant="organic", platform="desktop", container="browser",
+        )
+        for offer_id in (
+            "partner_link:0", "partner_link:-1", "partner_link:abc", "partner_link:01",
+            "partner_link:" + "1" * 20, "other:123", "https://example.test", "x" * 65,
+            "partner_link:1\nextra", "partner_link:١", "partner_link:1?secret=value",
+        ):
+            with self.subTest(offer_id=offer_id), self.assertRaises(FunnelValidationError):
+                validate_client_event_payload({
+                    "event_name": "checkout_opened",
+                    "event_id": "8d09ed8c-bccb-4c7f-9c82-c4385853540d",
+                    "offer_variant": offer_id,
+                })
+            with self.subTest(server_offer_id=offer_id), self.assertRaises(FunnelValidationError):
+                record_server_event(
+                    acquisition=acquisition, event_name="billing_consent_accepted",
+                    idempotency_key="consent:invalid", offer_variant=offer_id,
+                )
+
+    def test_partner_namespace_is_not_allowed_in_other_dimensions(self) -> None:
+        for field in ("funnel_version", "landing_variant", "platform", "container", "outcome", "placement"):
+            with self.subTest(field=field), self.assertRaises(FunnelValidationError):
+                validate_client_event_payload({
+                    "event_name": "checkout_opened",
+                    "event_id": "8d09ed8c-bccb-4c7f-9c82-c4385853540d",
+                    field: "partner_link:123",
+                })
 
     def test_social_link_preview_is_classified_for_default_exclusion(self) -> None:
         request = RequestFactory().get(
