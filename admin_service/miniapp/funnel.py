@@ -84,6 +84,8 @@ _ALLOWED_CLIENT_FIELDS = frozenset(
     }
 )
 _SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+# Immutable partner billing offers use the server-issued partner_link:<pk> namespace.
+_PARTNER_OFFER_RE = re.compile(r"^partner_link:[1-9][0-9]{0,18}$")
 _DIMENSION_FIELDS = (
     "funnel_version",
     "landing_variant",
@@ -139,7 +141,9 @@ def _bounded_slug(value: Any, *, field: str, required: bool = False) -> str:
         if required:
             raise FunnelValidationError("invalid_payload", f"{field} is required.")
         return ""
-    if not _SLUG_RE.fullmatch(normalized):
+    if not _SLUG_RE.fullmatch(normalized) and not (
+        field == "offer_variant" and _PARTNER_OFFER_RE.fullmatch(normalized)
+    ):
         raise FunnelValidationError("invalid_payload", f"{field} is invalid.")
     return normalized
 
