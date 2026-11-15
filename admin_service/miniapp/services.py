@@ -2037,6 +2037,20 @@ def _parse_optional_credit_limit(value: object) -> Decimal | None:
     )
 
 
+def _account_input_balance(value: Decimal, mode: object, *, account_type: str, credit_limit: Decimal) -> Decimal:
+    """Translate explicit bank-available input once; legacy callers retain net semantics."""
+    mode = str(mode or "net").strip()
+    if mode == "net":
+        return value
+    if mode != "available_credit":
+        raise MiniAppTransactionError("invalid_balance_input_mode", "Choose net balance or available credit.")
+    if account_type != "credit" or credit_limit <= ZERO:
+        raise MiniAppTransactionError("invalid_credit_limit", "Available credit requires a credit account with a positive limit.")
+    if value < ZERO:
+        raise MiniAppTransactionError("invalid_available_credit", "Available credit cannot be negative; use net balance for over-limit debt.")
+    return _parse_signed_transaction_amount(str(value - credit_limit))
+
+
 def _parse_account_label(value: object) -> str:
     label = str(value or "").strip()
     if not label:
@@ -2133,6 +2147,10 @@ def build_account_draft(user: TelegramUser, payload: dict[str, object], *, draft
         credit_limit = _parse_signed_transaction_amount(payload.get("credit_limit"), default=ZERO)
         if credit_limit < ZERO:
             raise MiniAppTransactionError("invalid_credit_limit", "Credit limit cannot be negative.")
+        starting_balance = _account_input_balance(
+            starting_balance, payload.get("balance_input_mode"),
+            account_type=requested_account_type, credit_limit=credit_limit,
+        )
         monthly_rate = _parse_optional_rate(payload.get("monthly_interest_rate"))
         goal_name = str(payload.get("goal_name") or "").strip()[:120]
         goal_amount = _parse_signed_transaction_amount(payload.get("goal_amount"), default=ZERO)
@@ -2212,6 +2230,11 @@ def build_account_draft(user: TelegramUser, payload: dict[str, object], *, draft
 
     if action == "balance_correction":
         target_balance = _parse_signed_transaction_amount(payload.get("target_balance"))
+        target_balance = _account_input_balance(
+            target_balance, payload.get("balance_input_mode"),
+            account_type="credit" if account.credit_limit else account.account_type,
+            credit_limit=_quantize(account.credit_limit or ZERO),
+        )
         current_balance = _quantize(account.balance)
         delta = _quantize(target_balance - current_balance)
         return {
@@ -3535,7 +3558,9 @@ def build_accounts_preview(user: TelegramUser, *, limit: int = 8) -> dict[str, o
 
 
 def build_credit_cards_preview(user: TelegramUser, *, limit: int = 6) -> dict[str, object]:
-    credit_qs = _scoped_accounts_qs(user).filter(is_active=True, account_type__in=LIABILITY_ACCOUNT_TYPES).order_by("balance", "label")
+    credit_qs = _scoped_accounts_qs(user).filter(is_active=True).filter(
+        Q(account_type__in=LIABILITY_ACCOUNT_TYPES) | Q(credit_limit__gt=ZERO)
+    ).order_by("balance", "label")
     rows = list(credit_qs[:limit])
     if not rows:
         return {
@@ -3553,7 +3578,7 @@ def build_credit_cards_preview(user: TelegramUser, *, limit: int = 6) -> dict[st
         balance = _quantize(account.balance)
         debt_amount = abs(balance) if balance < ZERO else ZERO
         credit_limit = _quantize(account.credit_limit) if account.credit_limit is not None else None
-        available_credit = None if credit_limit is None else max(ZERO, credit_limit - debt_amount)
+        available_credit = None if credit_limit is None else max(ZERO, credit_limit + balance)
         utilization_percent = None
         if credit_limit is not None and credit_limit > ZERO:
             utilization_percent = int((debt_amount / credit_limit * ONE_HUNDRED).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
@@ -3569,9 +3594,13 @@ def build_credit_cards_preview(user: TelegramUser, *, limit: int = 6) -> dict[st
                 "available_credit": money_payload(available_credit, account.currency) if available_credit is not None else None,
                 "utilization_percent": utilization_percent,
                 "monthly_interest_rate": (
-                    f"{_quantize(account.monthly_interest_rate):.4f}".rstrip("0").rstrip(".")
+                    f"{account.monthly_interest_rate:.4f}".rstrip("0").rstrip(".")
                     if account.monthly_interest_rate is not None
                     else None
+                ),
+                "monthly_interest_forecast": (
+                    money_payload(_quantize(debt_amount * account.monthly_interest_rate / ONE_HUNDRED), account.currency)
+                    if account.monthly_interest_rate is not None else None
                 ),
             }
         )

@@ -800,6 +800,15 @@
                 <select id="accountType" name="account_type"></select>
               </label>
 
+              <label class="form-field" data-account-field="balance-mode" hidden>
+                <span data-money-i18n="moneyBalanceMode">Як вказано баланс</span>
+                <select id="accountBalanceMode">
+                  <option value="available_credit" data-money-i18n="moneyAvailableCredit">Доступно в банку (разом із кредитним лімітом)</option>
+                  <option value="net" data-money-i18n="moneyNetBalance">Власні кошти мінус борг (борг зі знаком −)</option>
+                </select>
+                <small data-money-i18n="moneyCreditBalanceHelp">Доступно 100 000 при ліміті 300 000 = борг 200 000. Корекція змінює баланс лише після підтвердження.</small>
+              </label>
+
               <label class="form-field" data-account-field="starting">
                 <span data-money-i18n="moneyStartingBalance">Початковий баланс</span>
                 <input id="accountStartingBalance" name="starting_balance" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00">
@@ -816,8 +825,9 @@
               </label>
 
               <label class="form-field" data-account-field="interest">
-                <span data-money-i18n="moneyInterest">Відсоток на місяць, якщо є</span>
-                <input id="accountInterestRate" name="monthly_interest_rate" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00">
+                <span data-money-i18n="moneyInterest">Ставка, % на місяць (не сума)</span>
+                <input id="accountInterestRate" name="monthly_interest_rate" type="text" inputmode="decimal" autocomplete="off" placeholder="3,5" aria-describedby="accountInterestHelp">
+                <small id="accountInterestHelp" data-money-i18n="moneyInterestHelp"></small>
               </label>
 
               <div class="form-grid" data-account-field="goal">
@@ -1385,6 +1395,7 @@
               <p class="tx-meta" id="statusCreditSubtitle">Ліміти й активні рахунки в мінусі</p>
               <div class="k" id="debtAmountLabel">Загальний борг</div>
               <div class="v" id="debtAmount">0 грн</div>
+              <div id="creditCardDetails" class="muted"></div>
               <div class="k" id="activeCardsLabel">Активні рахунки</div>
               <div class="v" id="activeCards">0</div>
             </article>
@@ -2069,7 +2080,12 @@
           moneyStartingBalance: "Початковий баланс",
           moneyTargetBalance: "Баланс після корекції",
           moneyCreditLimit: "Кредитний ліміт, якщо є",
-          moneyInterest: "Відсоток на місяць, якщо є",
+          moneyInterest: "Ставка, % на місяць (не сума)",
+          moneyInterestHelp: "Наприклад, 3,5 = 3,5% від фактичного боргу за місяць, не від ліміту. Оцінка без пільгового періоду й комісій.",
+          moneyBalanceMode: "Як вказано баланс",
+          moneyAvailableCredit: "Доступно в банку (разом із кредитним лімітом)",
+          moneyNetBalance: "Власні кошти мінус борг (борг зі знаком −)",
+          moneyCreditBalanceHelp: "Доступно 100 000 при ліміті 300 000 = борг 200 000. Існуючий баланс зміниться лише після підтвердження корекції.",
           moneyGoalName: "Назва цілі",
           moneyGoalAmount: "Сума цілі",
           moneyGoalDate: "Дата цілі",
@@ -2386,7 +2402,12 @@
           moneyStartingBalance: "Starting balance",
           moneyTargetBalance: "Balance after correction",
           moneyCreditLimit: "Credit limit, if any",
-          moneyInterest: "Monthly interest, if any",
+          moneyInterest: "Interest rate, % per month (not an amount)",
+          moneyInterestHelp: "For example, 3.5 = 3.5% of actual debt per month, not the limit. Estimate excludes grace periods and fees.",
+          moneyBalanceMode: "Balance input meaning",
+          moneyAvailableCredit: "Available at the bank (including credit limit)",
+          moneyNetBalance: "Own funds minus debt (negative for debt)",
+          moneyCreditBalanceHelp: "100,000 available with a 300,000 limit = 200,000 debt. Existing balances change only after confirming a correction.",
           moneyGoalName: "Goal name",
           moneyGoalAmount: "Goal amount",
           moneyGoalDate: "Goal date",
@@ -4683,6 +4704,7 @@
           accountCurrency: document.getElementById("accountCurrency"),
           accountCustomCurrency: document.getElementById("accountCustomCurrency"),
           accountType: document.getElementById("accountType"),
+          accountBalanceMode: document.getElementById("accountBalanceMode"),
           accountStartingBalance: document.getElementById("accountStartingBalance"),
           accountTargetBalance: document.getElementById("accountTargetBalance"),
           accountCreditLimit: document.getElementById("accountCreditLimit"),
@@ -4796,6 +4818,13 @@
         }) || null;
       }
 
+      function accountCreditInputEnabled() {
+        const el = moneyElements();
+        const action = el.accountAction ? el.accountAction.value : "create";
+        const target = selectedMoneyAccount();
+        return action === "create" ? el.accountType && el.accountType.value === "credit" : action === "balance_correction" && target && (target.account_type === "credit" || moneyValue(target.credit_limit) > 0);
+      }
+
       function updateAccountActionFields() {
         const el = moneyElements();
         const action = el.accountAction ? el.accountAction.value : "create";
@@ -4822,6 +4851,22 @@
         if (el.accountLabel) el.accountLabel.required = action === "create" || action === "rename";
         if (el.accountCustomCurrency) el.accountCustomCurrency.required = customCurrency;
         if (el.accountPreviewButton) el.accountPreviewButton.disabled = moneyState.accountBusy || (!creating && !selected);
+        const creditInput = accountCreditInputEnabled();
+        const modeField = el.accountForm.querySelector('[data-account-field="balance-mode"]');
+        if (modeField) modeField.hidden = !creditInput;
+        if (el.accountBalanceMode) {
+          el.accountBalanceMode.disabled = !creditInput;
+          const hasCreditLimit = Number(String(el.accountCreditLimit ? el.accountCreditLimit.value : "").replace(",", ".")) > 0;
+          const context = action + ":" + (el.accountTarget ? el.accountTarget.value : "") + ":" + (el.accountType ? el.accountType.value : "") + ":" + hasCreditLimit;
+          if (el.accountBalanceMode.dataset.context !== context) {
+            el.accountBalanceMode.value = action === "create" && creditInput && hasCreditLimit ? "available_credit" : "net";
+            el.accountBalanceMode.dataset.context = context;
+          }
+          ["starting", "balance"].forEach(function (field) {
+            const label = el.accountForm.querySelector('[data-account-field="' + field + '"] span');
+            if (label) label.textContent = creditInput ? tr(el.accountBalanceMode.value === "available_credit" ? "moneyAvailableCredit" : "moneyNetBalance") : tr(field === "starting" ? "moneyStartingBalance" : "moneyTargetBalance");
+          });
+        }
       }
 
       function hydrateAccountFormFromTarget() {
@@ -6031,6 +6076,7 @@
             ? el.accountCustomCurrency.value.trim().toUpperCase()
             : selectedCurrency,
           account_type: el.accountType ? el.accountType.value : "",
+          balance_input_mode: accountCreditInputEnabled() && el.accountBalanceMode ? el.accountBalanceMode.value : "net",
           starting_balance: el.accountStartingBalance ? el.accountStartingBalance.value : "",
           target_balance: el.accountTargetBalance ? el.accountTargetBalance.value : "",
           credit_limit: el.accountCreditLimit ? el.accountCreditLimit.value : "",
@@ -6273,6 +6319,8 @@
           updateAccountActionFields();
         });
         if (el.accountType) el.accountType.addEventListener("change", updateAccountActionFields);
+        if (el.accountCreditLimit) el.accountCreditLimit.addEventListener("input", updateAccountActionFields);
+        if (el.accountBalanceMode) el.accountBalanceMode.addEventListener("change", function () { resetAccountDraft(); updateAccountActionFields(); });
         if (el.accountCurrency) el.accountCurrency.addEventListener("change", updateAccountActionFields);
         if (el.accountCustomCurrency) el.accountCustomCurrency.addEventListener("input", function () {
           el.accountCustomCurrency.value = el.accountCustomCurrency.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 10);
@@ -6343,6 +6391,8 @@
           currency: baseCurrency,
           custom_currency: "",
           starting_balance: "0",
+          balance_input_mode: "net",
+          monthly_interest_rate: "",
           credit_limit: ""
         };
       }
@@ -6387,6 +6437,8 @@
         }).join("");
         const customCurrency = account.currency === "custom" ? '<label class="onboarding-field"><span>' + onboardingEscape(copy.custom) + '</span><input data-onboarding-field="custom_currency" value="' + onboardingEscape(account.custom_currency) + '" maxlength="10" autocomplete="off"></label>' : "";
         const creditLimit = account.account_type === "credit" ? '<label class="onboarding-field"><span>' + onboardingEscape(copy.creditLimit) + '</span><input data-onboarding-field="credit_limit" inputmode="decimal" value="' + onboardingEscape(account.credit_limit) + '" placeholder="0"></label>' : "";
+        const creditMode = account.account_type === "credit" ? '<label class="onboarding-field"><span>' + onboardingEscape(tr("moneyBalanceMode")) + '</span><select data-onboarding-field="balance_input_mode"><option value="available_credit"' + (account.balance_input_mode !== "net" ? " selected" : "") + '>' + onboardingEscape(tr("moneyAvailableCredit")) + '</option><option value="net"' + (account.balance_input_mode === "net" ? " selected" : "") + '>' + onboardingEscape(tr("moneyNetBalance")) + '</option></select><small>' + onboardingEscape(tr("moneyCreditBalanceHelp")) + '</small></label>' : "";
+        const interest = account.account_type === "credit" ? '<label class="onboarding-field"><span>' + onboardingEscape(tr("moneyInterest")) + '</span><input data-onboarding-field="monthly_interest_rate" inputmode="decimal" value="' + onboardingEscape(account.monthly_interest_rate || "") + '" placeholder="3,5"><small>' + onboardingEscape(tr("moneyInterestHelp")) + '</small></label>' : "";
         return [
           '<article class="onboarding-account-card" data-index="' + index + '">',
           '<div class="onboarding-account-heading"><strong>' + onboardingEscape(copy.accountFallback) + " " + String(index + 1) + '</strong>',
@@ -6397,8 +6449,10 @@
           '<div class="onboarding-grid two"><label class="onboarding-field"><span>' + onboardingEscape(copy.accountType) + '</span><select data-onboarding-field="account_type">' + types + "</select></label>",
           '<label class="onboarding-field"><span>' + onboardingEscape(copy.accountCurrency) + '</span><select data-onboarding-field="currency">' + currencies + '<option value="custom"' + (account.currency === "custom" ? " selected" : "") + ">" + onboardingEscape(copy.custom) + "</option></select></label></div>",
           customCurrency,
-          '<label class="onboarding-field"><span>' + onboardingEscape(copy.openingBalance) + '</span><input data-onboarding-field="starting_balance" inputmode="decimal" value="' + onboardingEscape(account.starting_balance) + '" placeholder="0"></label>',
+          creditMode,
+          '<label class="onboarding-field"><span>' + onboardingEscape(account.account_type === "credit" ? tr(account.balance_input_mode === "net" ? "moneyNetBalance" : "moneyAvailableCredit") : copy.openingBalance) + '</span><input data-onboarding-field="starting_balance" inputmode="decimal" value="' + onboardingEscape(account.starting_balance) + '" placeholder="0"></label>',
           creditLimit,
+          interest,
           "</article>"
         ].join("");
       }
@@ -6513,7 +6567,18 @@
         document.querySelectorAll(".onboarding-account-card [data-onboarding-field]").forEach(function (field) {
           field.addEventListener("change", function () {
             syncOnboardingAccounts();
-            if (field.dataset.onboardingField === "currency" || field.dataset.onboardingField === "account_type") renderOnboarding();
+            if (field.dataset.onboardingField === "credit_limit") {
+              const card = field.closest(".onboarding-account-card");
+              const account = onboardingState.accounts[Number(card.dataset.index)];
+              if (account) {
+                account.balance_input_mode = Number(String(account.credit_limit || "").replace(",", ".")) > 0 ? "available_credit" : "net";
+                const mode = card.querySelector('[data-onboarding-field="balance_input_mode"]');
+                const balance = card.querySelector('[data-onboarding-field="starting_balance"]');
+                if (mode) mode.value = account.balance_input_mode;
+                if (balance && account.account_type === "credit") balance.parentElement.querySelector("span").textContent = tr(account.balance_input_mode === "net" ? "moneyNetBalance" : "moneyAvailableCredit");
+              }
+            }
+            if (["currency", "account_type", "balance_input_mode"].indexOf(field.dataset.onboardingField) !== -1) renderOnboarding();
             if (field.dataset.onboardingField === "source") {
               const card = field.closest(".onboarding-account-card");
               const account = onboardingState.accounts[Number(card.dataset.index)];
@@ -6554,6 +6619,8 @@
               account_type: account.account_type,
               currency: account.currency === "custom" ? account.custom_currency : account.currency,
               starting_balance: account.starting_balance,
+              balance_input_mode: account.account_type === "credit" ? account.balance_input_mode || "available_credit" : "net",
+              monthly_interest_rate: account.account_type === "credit" ? account.monthly_interest_rate : "",
               credit_limit: account.account_type === "credit" ? account.credit_limit : ""
             };
           })
@@ -6901,6 +6968,7 @@
           }),
           heroDebtAmount: moneyDisplay(currentDebtPayload, "0 грн"),
           heroDebtAmountRaw: currentDebt,
+          creditCards: debtItems,
           debtAmount: moneyDisplay(creditDebtPayload, "0 грн"),
           debtAmountRaw: creditDebt,
           activeCards: String((creditPreview.summary && creditPreview.summary.cards_count) || 0),
@@ -7909,6 +7977,21 @@
         setText("accountsTotal", data.totalBalance);
         setText("accountsUsd", data.accountsUsd);
         setText("debtAmount", data.debtAmount);
+        const creditDetails = document.getElementById("creditCardDetails");
+        if (creditDetails) {
+          creditDetails.replaceChildren();
+          (data.creditCards || []).forEach(function (card) {
+            const line = document.createElement("p");
+            line.textContent = card.label + ": " + (activeLocale === "uk" ? "борг " : "debt ") + moneyDisplay(card.debt, "–") + "; " + tr("moneyCreditLimit") + ": " + moneyDisplay(card.credit_limit, "–") + "; " + tr("moneyAvailableCredit") + ": " + moneyDisplay(card.available_credit, "–");
+            if (card.monthly_interest_rate != null) line.textContent += "; " + card.monthly_interest_rate + "% / " + (activeLocale === "uk" ? "місяць; прогноз " : "month; estimate ") + moneyDisplay(card.monthly_interest_forecast, "–");
+            creditDetails.appendChild(line);
+          });
+          if ((data.creditCards || []).length) {
+            const note = document.createElement("small");
+            note.textContent = tr("moneyInterestHelp");
+            creditDetails.appendChild(note);
+          }
+        }
         setText("activeCards", data.activeCards);
         setText("owedToUser", data.owedToUser);
         setText("owedByUser", data.owedByUser);

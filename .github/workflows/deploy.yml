@@ -45,6 +45,8 @@ jobs:
           python -m pip install --require-hashes -r admin_service/build-requirements.lock
           python -m pip install --require-hashes --no-build-isolation -r admin_service/requirements.lock -r bot/requirements.lock
           python -m pip check
+      - name: Frontend regression tests
+        run: node --test admin_service/miniapp/*.test.cjs
       - name: Release policy tests
         run: python -m unittest discover -s ops/tests -v
       - name: Bot tests

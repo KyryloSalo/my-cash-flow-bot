@@ -58,40 +58,39 @@ test("overview shows only active financial goals", () => {
     moneyState: { options: { accounts } },
     moneyElements: () => ({ overviewGoalsList, overviewGoalsEmpty }),
     goalAccountType: (account) => account.account_type,
-    goalMoneyValue: (payload) => Number(payload && payload.value || 0),
-    goalProgress: (account) => Math.round((Number(account.balance.value) / Number(account.goal_amount.value)) * 100),
-    goalIsClosed: (account) => account.goal_status === "funded" || account.goal_status === "spent",
     createGoalCard: (account) => ({ accountId: account.id }),
   });
 
   vm.runInContext(
-    `${functionSource("renderOverviewGoals", "openGoalEditor")}\nthis.renderOverviewGoals = renderOverviewGoals;`,
+    `${functionSource("goalMoneyValue", "goalScopeLabel")}\n${functionSource("renderOverviewGoals", "openGoalEditor")}\nthis.renderOverviewGoals = renderOverviewGoals;`,
     context,
   );
   context.renderOverviewGoals();
 
   assert.deepEqual(
     overviewGoalsList.children.map((child) => child.accountId),
-    ["active"],
+    ["funded", "active"],
   );
   assert.equal(overviewGoalsList.hidden, false);
   assert.equal(overviewGoalsEmpty.hidden, true);
 });
 
-test("closed goals keep a completed visual state after their balance is spent", () => {
-  const context = vm.createContext({
-    goalProgress: (account) => Math.round((Number(account.balance.value) / Number(account.goal_amount.value)) * 100),
-    goalIsClosed: (account) => account.goal_status === "funded" || account.goal_status === "spent",
-  });
-
+test("goal lifecycle keeps actual progress, including spent and overfunded balances", () => {
+  const context = vm.createContext({});
   vm.runInContext(
-    `${functionSource("goalDisplayProgress", "goalScopeLabel")}\nthis.goalDisplayProgress = goalDisplayProgress;`,
+    `${functionSource("goalMoneyValue", "goalScopeLabel")}\nthis.goalDisplayProgress = goalDisplayProgress; this.goalIsClosed = goalIsClosed; this.goalProgressWidth = goalProgressWidth;`,
     context,
   );
 
-  assert.equal(context.goalDisplayProgress({
-    balance: { value: "0" },
-    goal_amount: { value: "1250" },
-    goal_status: "spent",
-  }), 100);
+  for (const [status, balance, progress, closed] of [
+    ["active", "625", 50, false],
+    ["funded", "1400", 112, false],
+    ["spent", "0", 0, true],
+    ["completed", "250", 20, true],
+  ]) {
+    const account = { balance: { value: balance }, goal_amount: { value: "1250" }, goal_status: status };
+    assert.equal(context.goalDisplayProgress(account), progress, status);
+    assert.equal(context.goalIsClosed(account), closed, status);
+    assert.equal(context.goalProgressWidth(progress), Math.min(100, progress), status);
+  }
 });
