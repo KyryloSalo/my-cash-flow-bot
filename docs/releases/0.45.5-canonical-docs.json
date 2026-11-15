@@ -1,0 +1,69 @@
+{
+  "version": "0.45.5",
+  "runtime_sha": "2f0dcf3b048ff787372b1f9780f0c32bcbeeaef5",
+  "production_run": "43748971445",
+  "production_deployed_at_utc": "2026-11-15T18:54:07.857943+00:00",
+  "apply_policy": "Apply only after independent review, required CI and docs PR merge. Verify exact raw baseline SHA256, unique normalized UTF-8 anchors and unchanged top-level heading count. Restore original BOM/newline convention; preserve historical warnings. Abort on baseline drift. Read back rendered changes. No runtime deployment.",
+  "files": [
+    {
+      "path": "VERSION",
+      "base_sha256": "08380296e8087df5628a4f9cba1efb962d427f97d235c82366447be7b47ec05d",
+      "replacements": [
+        {
+          "old": "0.45.4",
+          "new": "0.45.5"
+        }
+      ]
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "base_sha256": "97aeb747d9a80be07d631694f47763f974fd1092bf4d85b0643ca5fcc78783c4",
+      "replacements": [
+        {
+          "old": "Current production version: `0.45.4` (deployed 2026-11-15; runtime SHA `00bbcce7f35ea0c5042915eb70daf5503dd82d29`, validation `43740158393`, production run `43740828643`, readback passed at `2026-11-15T17:29:21.742598+00:00`). PATCH: repairs the existing paid-binding/access contract; no new price, bonus duration, renewal policy, product capability or financial-confirmation terms. Live customer retry/activation and provider settlement remain unverified. Previous unrelated recognition/photo/provider/review, effective recognition flags and named R10 acceptance remain unverified; previous acceptance gaps remain unchanged.",
+          "new": "Current production version: `0.45.5` (deployed 2026-11-15; runtime SHA `2f0dcf3b048ff787372b1f9780f0c32bcbeeaef5`, validation `43748299136`, production run `43748971445`, readback passed at `2026-11-15T18:54:07.857943+00:00`). PATCH: credit creation/onboarding converts explicitly available credit to signed net balance (100000 available / 300000 limit = 200000 debt, zero own funds); percentage-rate precision and actual-debt interest preview are corrected. Existing balances are not automatically recalculated. Financial confirmation and transfer/FX invariants remain. Billing recovery is preserved; goals runtime retains actual progress and funded-open/spent-completed-closed lifecycle. Frontend regressions now run in required CI. Integrated local credit and billing Chromium/PostgreSQL acceptance passed, with 129 credit, 4 history, 35 billing, 48 frontend and 666 bot tests (18 skips); ops 82/82 used an explicit local Git Bash transport. Independent integration Spec/Quality review and required PR/main CI passed. Production artifact/revision/readiness are verified; authenticated customer credit mutation, live payment/retry/bonus activation and physical-device acceptance were not performed in production. Prior unrelated recognition/photo/provider/review, effective recognition flags and named R10 gaps remain unchanged."
+        }
+      ]
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "base_sha256": "56a4bc35d2841d59e2fd1b18ba5783bc440b42fac15b3f187ffaffa87a191cc6",
+      "replacements": [
+        {
+          "old": "# Release Notes\n\n",
+          "new": "# Release Notes\n\n## 0.45.5 - 2026-11-15 (deployed)\n\nPR #90 deployed runtime SHA `2f0dcf3b048ff787372b1f9780f0c32bcbeeaef5` to `production` on **2026-11-15**. Exact-main validation `43748299136` and approved production run `43748971445` passed, including immutable bundle verification, encrypted off-host backup, deployment/readback and promotion. Readback passed at `2026-11-15T18:54:07.857943+00:00`; separate public readiness passed.\n\nPATCH: credit creation/onboarding converts explicitly available credit to signed net balance (100000 available / 300000 limit = 200000 debt, zero own funds); percentage-rate precision and actual-debt interest preview are corrected. Existing balances are not automatically recalculated. Financial confirmation and transfer/FX invariants remain. Billing recovery is preserved; goals runtime retains actual progress and funded-open/spent-completed-closed lifecycle. Frontend regressions now run in required CI.\n\nIntegrated local credit and billing Chromium/PostgreSQL acceptance passed, with 129 credit, 4 history, 35 billing, 48 frontend and 666 bot tests (18 skips); ops 82/82 used an explicit local Git Bash transport. Independent integration Spec/Quality review and required PR/main CI passed. Production artifact/revision/readiness are verified; authenticated customer credit mutation, live payment/retry/bonus activation and physical-device acceptance were not performed in production. Prior unrelated recognition/photo/provider/review, effective recognition flags and named R10 gaps remain unchanged.\n\nSee `code/docs/releases/0.45.5-credit-account-semantics.md`. Documentation merge SHA is distinct from the deployed runtime SHA; no runtime redeploy.\n\n"
+        }
+      ]
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "base_sha256": "f0f99ec73f9d05688352372067c2fa3b70475899fd5ad8bf91d6eb43a90a524f",
+      "replacements": [
+        {
+          "old": "## Runtime delivery status — 2026-11-15 (0.45.4)",
+          "new": "## Runtime delivery status — 2026-11-15 (0.45.5)\n\nPR #90 deployed runtime SHA `2f0dcf3b048ff787372b1f9780f0c32bcbeeaef5` to `production` on **2026-11-15**. Exact-main validation `43748299136` and approved production run `43748971445` passed, including immutable bundle verification, encrypted off-host backup, deployment/readback and promotion. Readback passed at `2026-11-15T18:54:07.857943+00:00`; separate public readiness passed.\n\nPATCH: credit creation/onboarding converts explicitly available credit to signed net balance (100000 available / 300000 limit = 200000 debt, zero own funds); percentage-rate precision and actual-debt interest preview are corrected. Existing balances are not automatically recalculated. Financial confirmation and transfer/FX invariants remain. Billing recovery is preserved; goals runtime retains actual progress and funded-open/spent-completed-closed lifecycle. Frontend regressions now run in required CI.\n\nIntegrated local credit and billing Chromium/PostgreSQL acceptance passed, with 129 credit, 4 history, 35 billing, 48 frontend and 666 bot tests (18 skips); ops 82/82 used an explicit local Git Bash transport. Independent integration Spec/Quality review and required PR/main CI passed. Production artifact/revision/readiness are verified; authenticated customer credit mutation, live payment/retry/bonus activation and physical-device acceptance were not performed in production. Prior unrelated recognition/photo/provider/review, effective recognition flags and named R10 gaps remain unchanged.\n\nSee `code/docs/releases/0.45.5-credit-account-semantics.md`. Documentation merge SHA is distinct from the deployed runtime SHA; no runtime redeploy.\n\n## Previous runtime delivery status — 2026-11-15 (0.45.4)"
+        }
+      ]
+    },
+    {
+      "path": "README.md",
+      "base_sha256": "0fb24c9eb7694f68557e7290757de24a50ea15ecc5968c711e1123020e8b5d46",
+      "replacements": [
+        {
+          "old": "## Current Mini App Delivery\n\n",
+          "new": "## Current Mini App Delivery\n\nCurrent production release: **0.45.5**. PR #90 deployed runtime SHA `2f0dcf3b048ff787372b1f9780f0c32bcbeeaef5` to `production` on **2026-11-15**. Exact-main validation `43748299136` and approved production run `43748971445` passed, including immutable bundle verification, encrypted off-host backup, deployment/readback and promotion. Readback passed at `2026-11-15T18:54:07.857943+00:00`; separate public readiness passed.\n\nPATCH: credit creation/onboarding converts explicitly available credit to signed net balance (100000 available / 300000 limit = 200000 debt, zero own funds); percentage-rate precision and actual-debt interest preview are corrected. Existing balances are not automatically recalculated. Financial confirmation and transfer/FX invariants remain. Billing recovery is preserved; goals runtime retains actual progress and funded-open/spent-completed-closed lifecycle. Frontend regressions now run in required CI.\n\nIntegrated local credit and billing Chromium/PostgreSQL acceptance passed, with 129 credit, 4 history, 35 billing, 48 frontend and 666 bot tests (18 skips); ops 82/82 used an explicit local Git Bash transport. Independent integration Spec/Quality review and required PR/main CI passed. Production artifact/revision/readiness are verified; authenticated customer credit mutation, live payment/retry/bonus activation and physical-device acceptance were not performed in production. Prior unrelated recognition/photo/provider/review, effective recognition flags and named R10 gaps remain unchanged.\n\nSee `code/docs/releases/0.45.5-credit-account-semantics.md`. Documentation merge SHA is distinct from the deployed runtime SHA; no runtime redeploy.\n\nPrevious 0.45.4 delivery record (historical; unresolved acceptance retained):\n"
+        }
+      ]
+    },
+    {
+      "path": "docs/MINI_APP_API_SPEC.md",
+      "base_sha256": "54106567972bb1bf58653524a40b5850019c91ca5d8eb26ce45c613ec087e13b",
+      "replacements": [
+        {
+          "old": "## 2. Shared Conventions\n\n",
+          "new": "## 2. Shared Conventions\n\n### Release 0.45.5 credit input semantics\n\nCredit creation explicitly using `balance_input_mode=available_credit` subtracts `credit_limit` from supplied bank-available balance to store canonical signed net balance. Omitted/legacy mode preserves net semantics. With limit 300000 and available 100000, debt is 200000 and own funds zero. Existing account balances are not automatically migrated; correction still requires a separate confirmation. Credit interest is a percentage rate with decimal precision and preview based on actual debt. Transfers and FX confirmation rules are unchanged. Local browser fixtures are not authenticated production financial acceptance.\n\n"
+        }
+      ]
+    }
+  ]
+}
