@@ -17,7 +17,7 @@ from gamification.producers import enqueue_transaction_created
 from miniapp.fx import get_latest_rates
 from miniapp.image_uploads import detect_heif_mime
 from miniapp.models import AiTransactionDraft, SavingPromptSetting
-from subscriptions.models import BillingProfile, PromoOffer, Subscription
+from subscriptions.models import BillingProfile, Payment, PromoOffer, Subscription
 from subscriptions.consent import activated_course_bonus
 from transactions.models import Debt, DebtPayment, Transaction
 from users.models import TelegramUser, UserAdminState
@@ -705,7 +705,29 @@ def resolve_access(user: TelegramUser) -> dict[str, object]:
             locale,
         )
 
+    activation_state = "active" if mode == "active" else "not_started"
+    if mode != "active":
+        # Payment is not entitlement; later rebinds must not hide unapplied payment.
+        paid_unapplied = Payment.objects.filter(
+            user_id=user.tg_user_id, provider="monobank", kind=Payment.Kind.BIND,
+            status=Payment.Status.PAID, subscription__isnull=True,
+        ).exists()
+        pending = Payment.objects.filter(
+            user_id=user.tg_user_id, provider="monobank", kind=Payment.Kind.BIND,
+            status__in=[Payment.Status.PENDING, Payment.Status.PROCESSING, Payment.Status.CREATED],
+        ).exists()
+        if paid_unapplied or pending:
+            activation_state = "paid_activation_pending" if paid_unapplied else "payment_pending"
+            recommended_action = "continue_payment" if pending and not paid_unapplied and profile and profile.last_action_url else "check_activation"
+            entry_title = mt("Оплату отримано — доступ ще не активний", "Payment received — access not active yet", locale) if paid_unapplied else mt("Оплата обробляється", "Payment is processing", locale)
+            entry_message = mt(
+                "Не сплачуйте повторно. Перевірте статус активації; якщо доступ не з’являється, зверніться до підтримки.",
+                "Do not pay again. Check activation status; if access remains unavailable, contact support.", locale,
+            )
+            billing_banner = entry_message
+
     return {
+        "activation_state": activation_state,
         "locale": locale,
         "mode": mode,
         "access_scope": access_scope,

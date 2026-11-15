@@ -25,8 +25,8 @@ class PaidConsentHookTests(SimpleTestCase):
     @patch("subscriptions.billing.Subscription.objects.filter")
     def test_bind_success_records_payment_after_subscription_state(
         self,
-        partner_claim_filter,
         subscription_filter,
+        partner_claim_filter,
         _bind_context,
         _bind_mode,
         _trial_granted,

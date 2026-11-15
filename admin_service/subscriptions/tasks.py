@@ -5,6 +5,7 @@ from celery import shared_task
 from subscriptions.billing import (
     reconcile_pending_monobank_charges,
     reconcile_monobank_refunds,
+    reconcile_pending_monobank_binds,
     run_due_monobank_charges,
 )
 from subscriptions.trial_recovery import dispatch_trial_recovery
@@ -18,6 +19,8 @@ def run_due_monobank_charges_task() -> dict[str, int]:
 @shared_task(name="subscriptions.reconcile_pending_monobank_charges")
 def reconcile_pending_monobank_charges_task() -> dict[str, int]:
     result = reconcile_pending_monobank_charges()
+    binds = reconcile_pending_monobank_binds()
+    result.update({f"bind_{key}": value for key, value in binds.items()})
     refunds = reconcile_monobank_refunds()
     result.update({f"refund_{key}": value for key, value in refunds.items()})
     return result
