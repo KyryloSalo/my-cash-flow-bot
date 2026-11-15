@@ -531,6 +531,45 @@ def get_latest_bind_payment(*, user_id: int) -> Payment | None:
     )
 
 
+def _pending_partner_entitlement(user_id: int) -> Payment | None:
+    """Only immutable, reserved partner entitlements are repairable; never replay legacy binds."""
+    claim = PartnerTrialClaim.objects.filter(user_id=user_id, activated_at__isnull=True).first()
+    if claim is None:
+        return None
+    subscription = latest_subscription_for_user(TelegramUser.objects.get(pk=user_id))
+    if subscription is not None and (subscription.source != Subscription.Source.PAYMENT or
+            subscription.status in {Subscription.Status.MANUAL, Subscription.Status.LIFETIME,
+                                    Subscription.Status.ACTIVE, Subscription.Status.PAID, Subscription.Status.TRIAL}):
+        return None
+    state = UserAdminState.objects.filter(telegram_user_id=user_id).first()
+    if state is not None and state.access_source in {"manual", "admin"}:
+        return None
+    for payment in Payment.objects.filter(user_id=user_id, provider=MONO_PROVIDER,
+            kind=Payment.Kind.BIND, status=Payment.Status.PAID).order_by("pk"):
+        context = _bind_context(payment)
+        if (context.get("trial_granted") and context.get("partner_claim_id") == claim.pk
+                and not _refund_already_requested(payment)
+                and not (payment.raw_payload or {}).get("mandate_revoked_at")):
+            return payment
+    return None
+
+
+def get_bind_activation_pending_payment(user_id: int) -> Payment | None:
+    """Reserved entitlement; its funding row need not be the current mandate."""
+    payment = _pending_partner_entitlement(user_id)
+    return payment if payment is not None and _activation_mandate(user_id) is not None else None
+
+
+def _activation_mandate(user_id: int) -> Payment | None:
+    """Use only the latest paid card intent, never fall back past revocation/refund."""
+    payment = Payment.objects.filter(user_id=user_id, provider=MONO_PROVIDER,
+        kind=Payment.Kind.BIND, status__in={Payment.Status.PAID, Payment.Status.REFUNDED}).order_by("-pk").first()
+    if (payment is None or payment.status != Payment.Status.PAID or _refund_already_requested(payment)
+            or not _payment_mandate_is_current(payment, newer_pending_blocks=False)):
+        return None
+    return payment
+
+
 def _pending_bind_checkout_for_reuse(*, user_id: int) -> dict[str, Any] | None:
     cutoff = timezone.now() - timedelta(seconds=_bind_invoice_validity_seconds())
     payments = (
@@ -1431,6 +1470,17 @@ def _handle_bind_success(payment: Payment, payload: dict[str, Any], *, apply_eff
         last_action_url="",
         last_bound_at=modified_at,
     )
+    # A newer valid mandate can complete the original reserved entitlement, but
+    # may not replay the old mandate or touch a protected/manual subscription.
+    canonical = _pending_partner_entitlement(payment.user_id) if card_token and partner_claim is not None else None
+    if canonical is not None and canonical.pk != payment.pk:
+        subscription = _apply_bind_subscription_state(canonical, provider=provider,
+            trial_days=int(partner_claim.trial_days), mode="bind", trial_granted=True)
+        PartnerTrialClaim.objects.filter(pk=partner_claim.pk, activated_at__isnull=True).update(activated_at=timezone.now())
+        finalize_paid_consent(payment=canonical, first_renewal_at=None)
+        logger.info("bind_activation_completed payment_id=%s mandate_payment_id=%s claim_id=%s",
+                    canonical.pk, payment.pk, partner_claim.pk)
+        return
     if not apply_effect:
         return
     if partner_claim is not None and not card_token:
@@ -1526,6 +1576,8 @@ def _handle_refunded_bind(payment: Payment, payload: dict[str, Any]) -> None:
     if (
         subscription is not None
         and canonical_bind is not None
+        and subscription.source == Subscription.Source.PAYMENT
+        and subscription.status not in {Subscription.Status.MANUAL, Subscription.Status.LIFETIME}
         and (not subscription.payment_id or subscription.payment_id == payment.provider_payment_id)
     ):
         subscription.payment_id = canonical_bind.provider_payment_id or ""
@@ -1877,6 +1929,9 @@ def finalize_payment_event(event: ProviderPaymentEvent) -> tuple[Payment | None,
         return payment, False
     if previous_status in {Payment.Status.FAILED, Payment.Status.REJECTED} and incoming_status == Payment.Status.PENDING:
         return payment, False
+    activation_pending = (incoming_status == Payment.Status.PAID and payment.kind == Payment.Kind.BIND
+        and get_bind_activation_pending_payment(payment.user_id) is not None
+        and getattr(_activation_mandate(payment.user_id), "pk", None) == payment.pk)
     reconcile_card = (
         incoming_status == previous_status == Payment.Status.PAID
         and _payment_uses_save_card_data(payment)
@@ -1890,7 +1945,7 @@ def finalize_payment_event(event: ProviderPaymentEvent) -> tuple[Payment | None,
             payment.provider_modified_at == modified_at
             and payment.status == incoming_status
             and payment.action_url == incoming_action_url
-            and not reconcile_card
+            and not reconcile_card and not activation_pending
         ):
             return payment, False
 
@@ -1917,7 +1972,9 @@ def finalize_payment_event(event: ProviderPaymentEvent) -> tuple[Payment | None,
             payment.raw_payload = {**payment.raw_payload, "applied_effects": effects}
             payment.save(update_fields=["raw_payload", "updated_at"])
         if already_applied:
-            if reconcile_card:
+            if activation_pending:
+                _handle_bind_success(payment, payload)
+            elif reconcile_card:
                 if payment.kind == Payment.Kind.BIND:
                     _handle_bind_success(payment, payload, apply_effect=False)
                 else:
@@ -2045,6 +2102,9 @@ def build_bind_invoice(*, user_id: int, trial_days: int, mode: str = "bind", pro
     if user is None:
         raise ValueError("User not found.")
 
+    if get_bind_activation_pending_payment(user.tg_user_id) is not None:
+        raise ValueError("bind_activation_pending")
+
     profile, _ = BillingProfile.objects.get_or_create(
         user_id=user.tg_user_id,
         defaults={"provider": MONO_PROVIDER, "wallet_id": _wallet_id(user.tg_user_id)},
@@ -2157,6 +2217,9 @@ def build_recovery_invoice(*, user_id: int) -> dict[str, Any]:
     if _subscription_grants_full_access(subscription):
         raise ValueError("Existing access has not expired; recovery payment is not allowed.")
 
+    if get_bind_activation_pending_payment(user.tg_user_id) is not None:
+        raise ValueError("bind_activation_pending")
+
     profile, _ = BillingProfile.objects.get_or_create(
         user_id=user.tg_user_id,
         defaults={"provider": MONO_PROVIDER, "wallet_id": _wallet_id(user.tg_user_id)},
@@ -2242,18 +2305,35 @@ def build_recovery_invoice(*, user_id: int) -> dict[str, Any]:
     }
 
 
+@transaction.atomic
 def sync_pending_bind_status(*, user_id: int) -> dict[str, Any]:
     user = TelegramUser.objects.filter(tg_user_id=user_id).first()
     if user is None:
         raise ValueError("User not found.")
 
+    TelegramUser.objects.select_for_update().get(pk=user_id)
+    activation_pending = get_bind_activation_pending_payment(user_id)
+    if activation_pending is not None:
+        retry = dict((activation_pending.raw_payload or {}).get("activation_reconciliation") or {})
+        attempts = int(retry.get("attempts") or 0)
+        next_at = _parse_timestamp(retry.get("next_retry_at"))
+        if attempts >= 8 or (next_at is not None and next_at > timezone.now()):
+            return {"payment_id": activation_pending.pk, "updated": False,
+                    "activation_pending": True, "operator_required": attempts >= 8}
+        retry = {"attempts": attempts + 1,
+                 "next_retry_at": _serialize_datetime(timezone.now() + timedelta(minutes=min(60, 2 ** attempts)))}
+        activation_pending.raw_payload = {**(activation_pending.raw_payload or {}), "activation_reconciliation": retry}
+        activation_pending.save(update_fields=["raw_payload", "updated_at"])
+        logger.warning("activation_pending payment_id=%s user_id=%s attempt=%s next_retry_at=%s action=reconcile_or_support",
+                       activation_pending.pk, user_id, attempts + 1, retry["next_retry_at"])
+    mandate = _activation_mandate(user_id) if activation_pending is not None else None
     payments = list(
         Payment.objects.select_related("user", "subscription", "plan")
         .filter(
+            Q(status=Payment.Status.PENDING) | Q(pk=getattr(mandate, "pk", None)),
             user_id=user_id,
             provider=MONO_PROVIDER,
             kind=Payment.Kind.BIND,
-            status=Payment.Status.PENDING,
         )
         .order_by("-created_at", "-pk")
     [:5]
@@ -2269,7 +2349,13 @@ def sync_pending_bind_status(*, user_id: int) -> dict[str, Any]:
 
     latest_pending_result: dict[str, Any] | None = None
     for pending_payment in payments:
-        payload = dict(fetch_invoice_status(pending_payment.provider_payment_id))
+        try:
+            payload = dict(fetch_invoice_status(pending_payment.provider_payment_id))
+        except MonobankAPIError:
+            if activation_pending is None:
+                raise
+            return {"payment_id": activation_pending.pk, "updated": False,
+                    "activation_pending": True, "provider_unavailable": True}
         payload.setdefault("invoiceId", pending_payment.provider_payment_id)
         monobank_status = str(payload.get("status") or "").strip().lower()
         if monobank_status in {"", "created", "processing", "hold"}:
@@ -2430,18 +2516,33 @@ def reconcile_pending_monobank_binds(*, limit: int = 50) -> dict[str, int]:
         Payment.objects.filter(
             provider=MONO_PROVIDER,
             kind=Payment.Kind.BIND,
-            status=Payment.Status.PENDING,
-        )
+        ).filter(Q(status=Payment.Status.PENDING) | Q(status=Payment.Status.PAID,
+            user_id__in=PartnerTrialClaim.objects.filter(activated_at__isnull=True).values("user_id")))
         .exclude(provider_payment_id__isnull=True)
         .exclude(provider_payment_id="")
         .order_by("created_at", "pk")
         .values_list("user_id", flat=True)
     )
+    operator_required = 0
     for user_id in pending_payments:
         normalized_user_id = int(user_id)
         if normalized_user_id in seen_users:
             continue
         seen_users.add(normalized_user_id)
+        activation = get_bind_activation_pending_payment(normalized_user_id)
+        if activation is not None:
+            retry = (activation.raw_payload or {}).get("activation_reconciliation") or {}
+            if int(retry.get("attempts") or 0) >= 8:
+                operator_required += 1
+                logger.warning("bind_activation_operator_required payment_id=%s user_id=%s action=review_activation",
+                               activation.pk, normalized_user_id)
+                continue
+            next_at = _parse_timestamp(retry.get("next_retry_at"))
+            if next_at is not None and next_at > timezone.now():
+                continue
+        elif not Payment.objects.filter(user_id=normalized_user_id, provider=MONO_PROVIDER,
+                kind=Payment.Kind.BIND, status=Payment.Status.PENDING).exists():
+            continue
         pending_user_ids.append(normalized_user_id)
         if len(pending_user_ids) >= max(int(limit or 0), 1):
             break
@@ -2455,7 +2556,7 @@ def reconcile_pending_monobank_binds(*, limit: int = 50) -> dict[str, int]:
             result = sync_pending_bind_status(user_id=user_id)
         except (ValueError, MonobankAPIError) as exc:
             failed += 1
-            logger.warning("Pending Monobank bind sync failed for %s: %s", user_id, exc)
+            logger.warning("Pending Monobank bind sync failed user_id=%s error_type=%s", user_id, type(exc).__name__)
             continue
 
         checked += 1
@@ -2469,6 +2570,7 @@ def reconcile_pending_monobank_binds(*, limit: int = 50) -> dict[str, int]:
         "updated": updated,
         "still_pending": still_pending,
         "failed": failed,
+        **({"operator_required": operator_required} if operator_required else {}),
     }
 
 

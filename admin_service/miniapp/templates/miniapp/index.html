@@ -8161,6 +8161,8 @@
       }
 
       function billingStatusLabel(access, copy) {
+        if (access.activation_state === "paid_activation_pending") return activeLocale === "en" ? "Payment received — activation pending" : "Оплату отримано — очікується активація";
+        if (access.activation_state === "payment_pending") return activeLocale === "en" ? "Payment is processing" : "Оплата обробляється";
         if (access.mode === "active") return copy.active;
         if (access.mode === "grace_read_only") return copy.readOnly;
         return copy.blocked;
@@ -8264,6 +8266,21 @@
         replaceSettingsOptions(el.savingsTarget, targetOptions, savings.default_target_account_id || "");
 
         const access = data.access || {};
+        const activationPending = access.recommended_action === "check_activation" || access.recommended_action === "continue_payment";
+        let activationCheck = document.getElementById("billingActivationCheck");
+        if (!activationCheck && el.billingBind) {
+          activationCheck = document.createElement("button");
+          activationCheck.id = "billingActivationCheck";
+          activationCheck.type = "button";
+          activationCheck.className = el.billingBind.className;
+          activationCheck.addEventListener("click", refreshBillingActivation);
+          el.billingBind.parentNode.appendChild(activationCheck);
+        }
+        if (activationCheck) {
+          activationCheck.hidden = !activationPending;
+          activationCheck.textContent = activeLocale === "en" ? "Check activation" : "Перевірити активацію";
+        }
+        if (el.billingConsentAccepted && el.billingConsentAccepted.closest("label")) el.billingConsentAccepted.closest("label").hidden = activationPending;
         if (el.billingConsentTerms) el.billingConsentTerms.textContent = billingConsentText(access);
         setText("settingsBillingStatus", billingStatusLabel(access, copy));
         setText("settingsBillingCard", access.has_card ? (access.masked_pan || access.card_status_label || copy.active) : copy.noCard);
@@ -8272,16 +8289,16 @@
         setText("settingsBillingMessage", access.billing_banner || access.entry_message || "");
         if (el.billingBind) {
           el.billingBind.textContent = access.recommended_action === "resume_subscription" ? copy.restore : (access.has_card ? copy.rebind : copy.bind);
-          el.billingBind.hidden = false;
+          el.billingBind.hidden = activationPending;
           el.billingBind.disabled = settingsState.busy || !el.billingConsentAccepted || !el.billingConsentAccepted.checked;
         }
         if (el.billingContinue) {
-          el.billingContinue.hidden = !access.last_action_url;
+          el.billingContinue.hidden = (activationPending && access.recommended_action !== "continue_payment") || !access.last_action_url;
           el.billingContinue.textContent = copy.continuePayment;
           el.billingContinue.disabled = settingsState.busy;
         }
         if (el.billingRetry) {
-          el.billingRetry.hidden = !(access.has_card && (access.mode !== "active" || access.last_failure_reason));
+          el.billingRetry.hidden = activationPending || !(access.has_card && (access.mode !== "active" || access.last_failure_reason));
           el.billingRetry.textContent = copy.retry;
           el.billingRetry.disabled = settingsState.busy;
         }
@@ -8473,6 +8490,7 @@
 
       function runBillingAction(action) {
         const el = settingsElements();
+        if ((settingsState.data || {}).access && ["check_activation", "continue_payment"].includes(settingsState.data.access.recommended_action) && action !== "cancel_autorenew") return refreshBillingActivation();
         if (action === "bind" && (!el.billingConsentAccepted || !el.billingConsentAccepted.checked)) {
           setSettingsStatus(
             el.billingStatus,
@@ -9181,6 +9199,7 @@
 
       function showCardBindingNudge(settingsPayload) {
         const access = settingsPayload && settingsPayload.access ? settingsPayload.access : {};
+        if (["check_activation", "continue_payment"].includes(access.recommended_action)) return false;
         if (String(access.access_scope || "") !== "paywall" || access.has_card) return false;
         const modal = document.getElementById("cardBindingModal");
         if (!modal) return false;
@@ -9219,6 +9238,10 @@
       }
 
       function startCardBindingFromNudge() {
+        if ((settingsState.data || {}).access && ["check_activation", "continue_payment"].includes(settingsState.data.access.recommended_action)) {
+          hideCardBindingNudge();
+          return refreshBillingActivation();
+        }
         const primary = document.getElementById("cardBindingPrimary");
         const consentAccepted = document.getElementById("cardBindingConsentAccepted");
         if (!consentAccepted || !consentAccepted.checked) {
@@ -9801,6 +9824,24 @@
         updateAllPeriodWidgets();
         return loadLiveDashboard();
       }
+
+      let billingRefreshInFlight = null;
+      function refreshBillingActivation() {
+        if (!sessionEstablished) return Promise.resolve(null);
+        if (billingRefreshInFlight) return billingRefreshInFlight;
+        billingRefreshInFlight = loadSettingsOptions().then(function (payload) {
+          if (((payload || {}).access || {}).mode === "active") return loadDashboardData();
+          hideCardBindingNudge();
+          return payload;
+        }).catch(function () { return null; }).finally(function () { billingRefreshInFlight = null; });
+        return billingRefreshInFlight;
+      }
+      window.addEventListener("focus", function () {
+        if (["check_activation", "continue_payment"].includes(((settingsState.data || {}).access || {}).recommended_action)) refreshBillingActivation();
+      });
+      document.addEventListener("visibilitychange", function () {
+        if (!document.hidden && ["check_activation", "continue_payment"].includes(((settingsState.data || {}).access || {}).recommended_action)) refreshBillingActivation();
+      });
 
       function showBillingGate(access) {
         showDashboard();

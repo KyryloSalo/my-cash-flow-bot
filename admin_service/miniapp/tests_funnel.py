@@ -404,6 +404,15 @@ class FirstTransactionFunnelHookTests(SimpleTestCase):
 
 
 class BillingConsentCheckoutTests(SimpleTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        # Keep the decorated view; isolate its transaction/ORM seams so these
+        # request-contract tests never open a SimpleTestCase connection.
+        self.enterContext(patch.object(views.db_transaction.Atomic, "__enter__", return_value=None))
+        self.enterContext(patch.object(views.db_transaction.Atomic, "__exit__", return_value=False))
+        self.lock_user = self.enterContext(patch.object(views.TelegramUser.objects, "select_for_update"))
+        self.enterContext(patch.object(views, "is_canary_user", return_value=False))
+
     @patch("miniapp.views._settings_payload", return_value={})
     @patch("miniapp.views.build_bind_invoice")
     @patch("miniapp.views.resolve_access", return_value={"trial_days": 30, "has_card": False})
@@ -427,6 +436,7 @@ class BillingConsentCheckoutTests(SimpleTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(json.loads(response.content)["error"]["code"], "billing_consent_required")
         build_bind_invoice.assert_not_called()
+        self.lock_user.assert_not_called()
 
     @patch("miniapp.views._settings_payload", return_value={})
     @patch("miniapp.views.attach_consent_to_payment_id")
@@ -443,8 +453,9 @@ class BillingConsentCheckoutTests(SimpleTestCase):
         attach_consent,
         _settings_payload,
     ) -> None:
-        user = SimpleNamespace(tg_user_id=812345)
+        user = SimpleNamespace(pk=812345, tg_user_id=812345)
         get_user.return_value = user
+        get_billing_consent.return_value = SimpleNamespace(payment_id=None)
         resolve_access.return_value = {"trial_days": 30, "has_card": False}
         build_bind_invoice.return_value = {
             "payment_id": 41,
@@ -466,11 +477,37 @@ class BillingConsentCheckoutTests(SimpleTestCase):
         response = views.billing_action(request)
 
         self.assertEqual(response.status_code, 200)
+        self.lock_user.return_value.get.assert_called_once_with(pk=user.pk)
         attach_consent.assert_called_once_with(
             consent_id="bbaf6f4f-800d-43d5-81d0-9c2e419f561e",
             user=user,
             payment_id=41,
         )
+
+
+    def test_bind_action_rejects_consumed_consent_without_provider_call(self) -> None:
+        user = SimpleNamespace(pk=812345, tg_user_id=812345)
+        request = RequestFactory().post(
+            "/app/api/settings/billing",
+            data=json.dumps({"action": "bind", "consent_id": "bbaf6f4f-800d-43d5-81d0-9c2e419f561e"}),
+            content_type="application/json",
+        )
+        with (
+            patch.object(views, "_get_session_user_or_response", return_value=user),
+            patch.object(views, "resolve_access", return_value={"trial_days": 30, "has_card": False}),
+            patch.object(views, "get_billing_consent_for_user", return_value=SimpleNamespace(payment_id=41)),
+            patch.object(views, "build_bind_invoice") as bind_invoice,
+            patch.object(views, "build_recovery_invoice") as recovery_invoice,
+            patch.object(views, "attach_consent_to_payment_id") as attach_consent,
+        ):
+            response = views.billing_action(request)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(json.loads(response.content)["error"]["code"], "billing_consent_consumed")
+        self.lock_user.return_value.get.assert_called_once_with(pk=user.pk)
+        bind_invoice.assert_not_called()
+        recovery_invoice.assert_not_called()
+        attach_consent.assert_not_called()
 
 
 class BillingConsentClientContractTests(SimpleTestCase):

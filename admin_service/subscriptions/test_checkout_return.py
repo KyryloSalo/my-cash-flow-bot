@@ -1,4 +1,5 @@
 import time
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -15,7 +16,7 @@ from miniapp.auth import (
 )
 from miniapp.models import BrowserLoginTokenUse
 from subscriptions.billing import RETURN_TOKEN_SALT, build_bind_return_token, parse_bind_return_token
-from subscriptions.models import Payment
+from subscriptions.models import Payment, Subscription
 from users.models import TelegramUser
 
 
@@ -31,17 +32,46 @@ class CheckoutReturnTests(TestCase):
             onboarding_completed=True, onboarding_version=2,
         )
 
-    def checkout(self, *, flow="bind", status=Payment.Status.PAID, lang="uk"):
+    def checkout(self, *, flow="bind", status=Payment.Status.PAID, lang="uk", active_access=True):
         token = build_bind_return_token(user_id=self.user.pk, flow=flow, lang=lang)
         context = "recovery_context" if flow == "recovery" else "bind_context"
+        # A paid invoice alone is not an entitlement. Success/handoff fixtures
+        # represent a completed activation with a real, unexpired subscription.
+        subscription = None
+        if status == Payment.Status.PAID and active_access:
+            now = timezone.now()
+            subscription = Subscription.objects.create(
+                user=self.user, provider="monobank", status=Subscription.Status.ACTIVE,
+                source=Subscription.Source.PAYMENT, started_at=now,
+                expires_at=now + timedelta(days=30),
+            )
         payment = Payment.objects.create(
-            user=self.user, provider="monobank", provider_payment_id=f"checkout-{Payment.objects.count()}",
+            user=self.user, subscription=subscription,
+            provider="monobank", provider_payment_id=f"checkout-{Payment.objects.count()}",
             amount=Decimal("1.00"), currency="UAH", status=status,
             kind=Payment.Kind.RETRY if flow == "recovery" else Payment.Kind.BIND,
             paid_at=timezone.now() if status == Payment.Status.PAID else None,
             raw_payload={context: {"return_token": token, "trial_granted": False}},
         )
         return token, payment
+
+    @patch("subscriptions.views.sync_pending_bind_status", return_value={})
+    def test_paid_without_access_does_not_offer_success_handoff(self, sync):
+        token, payment = self.checkout(active_access=False)
+        response = self.client.get(reverse("billing-mono-return"), {"return_token": token})
+        self.assertContains(response, "Оплату отримано")
+        self.assertContains(response, "Не сплачуйте повторно")
+        self.assertNotContains(response, "Доступ активовано")
+        self.assertNotContains(response, "Відкрити застосунок")
+        self.assertFalse(response.context["app_return_token"])
+        self.assertIn("no-store", response["Cache-Control"])
+        self.assertNotIn("miniapp_tg_user_id", self.client.session)
+        self.assertFalse(BrowserLoginTokenUse.objects.exists())
+        self.assertFalse(Subscription.objects.filter(user=self.user).exists())
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, Payment.Status.PAID)
+        self.assertIsNone(payment.subscription_id)
+        sync.assert_called_once_with(user_id=self.user.pk)
 
     def sign_in(self, user):
         request = RequestFactory().get("/app/")

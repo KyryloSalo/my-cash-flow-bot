@@ -2200,6 +2200,7 @@ def settings_savings(request: HttpRequest) -> JsonResponse:
 
 @csrf_exempt
 @require_POST
+@db_transaction.atomic
 def billing_action(request: HttpRequest) -> JsonResponse:
     result = _get_session_user_or_response(request)
     if isinstance(result, JsonResponse):
@@ -2215,7 +2216,11 @@ def billing_action(request: HttpRequest) -> JsonResponse:
                     "billing_consent_required",
                     "Accept the current billing terms before opening checkout.",
                 )
-            get_billing_consent_for_user(consent_id=consent_id, user=result)
+            TelegramUser.objects.select_for_update().get(pk=result.pk)
+            consent = get_billing_consent_for_user(consent_id=consent_id, user=result)
+            if consent.payment_id is not None:
+                raise FunnelValidationError("billing_consent_consumed",
+                    "This consent already has a checkout; refresh billing status.", status=409)
             if is_canary_user(result):
                 from subscriptions.canary import init_canary_bind
                 plan = Plan.objects.filter(slug="solo").first()

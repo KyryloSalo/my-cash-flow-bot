@@ -300,7 +300,7 @@ def monobank_return(request: HttpRequest) -> HttpResponse:
     else:
         latest_payment = get_latest_bind_payment(user_id=telegram_user_id)
         payment = _checkout_return_payment(payload, token) if bound_return else latest_payment
-        if payment is not None and payment.status == Payment.Status.PENDING and latest_payment is not None and payment.pk == latest_payment.pk:
+        if payment is not None and payment.status in {Payment.Status.PENDING, Payment.Status.PAID} and latest_payment is not None and payment.pk == latest_payment.pk:
             try:
                 sync_result = sync_pending_bind_status(user_id=telegram_user_id)
             except (ValueError, MonobankAPIError):
@@ -324,6 +324,16 @@ def monobank_return(request: HttpRequest) -> HttpResponse:
         )
 
     if payment.status == Payment.Status.PAID:
+        from miniapp.services import resolve_access
+        if resolve_access(payment.user)["mode"] != "active":
+            lang = _resolve_return_lang(request)
+            return _render_return_page(
+                request, tone="processing", lang=lang,
+                title=_return_copy(lang, "Оплату отримано", "Payment received"),
+                message=_return_copy(lang,
+                    "Оплату підтверджено, але доступ ще не активний. Не сплачуйте повторно. Перевірте статус або зверніться до підтримки.",
+                    "Payment is confirmed, but access is not active yet. Do not pay again. Check status or contact support."),
+            )
         if flow == "bind" and _payment_bind_trial_granted(payment):
             send_bind_activation_notification(payment)
         return _render_return_page(
