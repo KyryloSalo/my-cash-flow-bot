@@ -72,6 +72,12 @@ Use manual server access only for an explicitly approved incident. Any emergency
 
 ## Current verified release
 
+As of November 15, 2026, production runtime is `00bbcce7f35ea0c5042915eb70daf5503dd82d29` (PR #89), documented as PATCH `0.45.4` after canonical documentation synchronization. Exact-main validation `43740158393` and approved production run `43740828643` passed, including encrypted off-host backup, deployment/readback and promotion at `2026-11-15T17:29:21.742598+00:00`.
+
+See `docs/releases/0.45.4-billing-lifecycle-recovery.md` for scope, guarded read-only findings and limitations. Source/template hashes matched the exact runtime Git revision; all six app containers were healthy/running, and bounded beat/worker logs showed three reconciliation sends and three successful executions with no traceback. Live new payment/end-user retry and eligible-claim activation remain unverified. The companion seven-file canonical replacement manifest is pending review, CI and docs PR merge before application. This docs change does not deploy a new runtime or waive historical acceptance gaps.
+
+### Historical release 0.45.1
+
 As of October 23, 2026:
 
 - version: `0.45.1` (registration administrator-notification PATCH);

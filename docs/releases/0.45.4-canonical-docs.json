@@ -1,0 +1,115 @@
+{
+  "version": "0.45.4",
+  "runtime_sha": "00bbcce7f35ea0c5042915eb70daf5503dd82d29",
+  "production_run": "43740828643",
+  "production_deployed_at_utc": "2026-11-15T17:29:21.742598+00:00",
+  "apply_policy": "Apply only after this docs PR is reviewed and merged. Verify SHA256 against raw outer canonical bytes first. Match replacements against UTF-8 decoded text with CRLF normalized to LF, then restore each original BOM and newline convention. Require unique anchors, preserved top-level heading counts, rendered review and unchanged historical warnings. No runtime deployment. Abort on baseline drift.",
+  "files": [
+    {
+      "path": "VERSION",
+      "base_sha256": "dc92e92b8efe507bb61c482cbaaa3b2a0ea0d7c5734ace624e2d0f5645988e3b",
+      "replacements": [
+        {
+          "old": "0.45.3",
+          "new": "0.45.4"
+        }
+      ]
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "base_sha256": "e6208b724c60211beb0dee5127707c17e956507a64cd84058b8f4751c4b49063",
+      "replacements": [
+        {
+          "old": "Last updated: 2026-11-14",
+          "new": "Last updated: 2026-11-15"
+        },
+        {
+          "old": "Current production version: `0.45.3` (deployed 2026-11-14; runtime SHA `8b8c22ffe3b51d3a345942c1cb97796a19523dfb`, production run `43539198834`, readback passed at `2026-11-14T01:18:35.463851+00:00`). Semver rationale: PATCH restoring existing partner billing offer validation without a new public surface or changes to bonus/renewal/financial confirmation terms. The affected production offer now validates and retains 90 days; real customer card-binding retry/bonus activation and the formal named production acceptance remain unverified. Production photo/provider/review acceptance, effective recognition flags and named R10 acceptance remain unverified; previous acceptance gaps remain unchanged.",
+          "new": "Current production version: `0.45.4` (deployed 2026-11-15; runtime SHA `00bbcce7f35ea0c5042915eb70daf5503dd82d29`, validation `43740158393`, production run `43740828643`, readback passed at `2026-11-15T17:29:21.742598+00:00`). PATCH: repairs the existing paid-binding/access contract; no new price, bonus duration, renewal policy, product capability or financial-confirmation terms. Live customer retry/activation and provider settlement remain unverified. Previous unrelated recognition/photo/provider/review, effective recognition flags and named R10 acceptance remain unverified; previous acceptance gaps remain unchanged."
+        },
+        {
+          "old": "- `0.43.2` - current production artifact",
+          "new": "- `0.43.2` - historical artifact"
+        }
+      ]
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "base_sha256": "963398b207d10e6f67a657a29cce46f6b3c1e9906cd9a52f5ab7baeebd5e1ebf",
+      "replacements": [
+        {
+          "old": "# Release Notes\n\n",
+          "new": "# Release Notes\n\n## 0.45.4 - 2026-11-15 (deployed)\n\nPR #89 deployed runtime SHA `00bbcce7f35ea0c5042915eb70daf5503dd82d29` to `production` on **2026-11-15**. Exact-main validation `43740158393` and approved production run `43740828643` passed, including immutable artifact validation, encrypted off-host backup, deployment/readback and promotion. Deployment evidence records `deployed_at_utc=2026-11-15T17:29:21.742598+00:00` and readback `passed`.\n\nPATCH: repairs the existing paid-binding/access contract; no new price, bonus duration, renewal policy, product capability or financial-confirmation terms.\n\nConfirmed payment is not itself active access. Activation requires usable authorization and the reserved entitlement; recovery applies that same payment exactly once, prefers the latest valid rebind mandate, and preserves manual access, trial consumption, refunded/revoked payments and superseded mandates. Duplicate invoices and consumed consent are blocked before provider invocation. Reconciliation uses the existing beat task with persisted exponential cooldown and at most eight attempts; this is activation recovery, not permission for another debit.\n\nRecorded candidate evidence: Django suite 1196 tests OK (83 skipped), 151 targeted backend tests, 35 signed-return tests plus Chromium acceptance, partner browser acceptance and independent Spec/Quality review passed. Required main CI including the real isolated PWA route passed. Isolated fixtures are not production payment acceptance. Generic local Compose boot/readiness remains BLOCKED by missing worktree `.env`; no secrets were copied. Previous unrelated recognition/photo/provider/review, effective recognition flags, real-device and named R10 acceptance warnings remain unchanged; formal historical acceptance gaps are not waived.\n\n**No live new payment, real bank-card retry, end-user production retry/bonus activation, or bank refund settlement was observed by this verification.** Guarded production readback used PostgreSQL READ ONLY, blocked provider/network calls and preserved snapshot counts: one paid payment / 1 UAH and ten refunded payments / 10 UAH. Existing manual incident access through 2027-02-12 remained intact. Two unresolved claims were all guarded out, not failed eligible activations. The read-only probe found the task registered and one schedule entry with the recovery source call; the probe itself did not invoke it. Separate bounded production readback confirmed seven source hashes and all six changed runtime source/template hashes against exact Git `00bbcce7f35ea0c5042915eb70daf5503dd82d29`; these sets overlap and are not thirteen distinct files. Public `/app/` returned 200 with the `paid_activation_pending` marker (release headers were empty). All six application containers were healthy/running. In the bounded last-15-minute logs since newly created containers, beat sent reconciliation three times and the worker received and succeeded three times, with no traceback. This proves bounded worker/beat liveness and actual task execution, not eligible-claim activation or live payment success.\n\nSee `code/docs/releases/0.45.4-billing-lifecycle-recovery.md`. Documentation merge SHA is distinct from the deployed runtime SHA; this synchronization requires no runtime rollout.\n\n"
+        }
+      ]
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "base_sha256": "1fe15094b8c95efedf9f361a867a6b1287c5962c1fb069dd45b16b6f636c8994",
+      "replacements": [
+        {
+          "old": "  - successful `1 грн` payment activates the subscription immediately",
+          "new": "  - successful `1 грн` payment activates the reserved entitlement exactly once only with usable authorization; `PAID` alone can remain activation-pending and must recover through the same payment, without another debit"
+        },
+        {
+          "old": "  - rebind updates the saved card but does not grant a new trial or restore access by itself",
+          "new": "  - rebind updates the saved card and may recover an eligible paid-but-unapplied entitlement under the latest valid mandate; it never grants a fresh trial or restores access without that entitlement"
+        },
+        {
+          "old": "Last updated: 2026-11-14\n\n## Runtime delivery status — 2026-11-14 (0.45.3)",
+          "new": "Last updated: 2026-11-15\n\n## Runtime delivery status — 2026-11-15 (0.45.4)\n\nPR #89 deployed runtime SHA `00bbcce7f35ea0c5042915eb70daf5503dd82d29` to `production` on **2026-11-15**. Exact-main validation `43740158393` and approved production run `43740828643` passed, including immutable artifact validation, encrypted off-host backup, deployment/readback and promotion. Deployment evidence records `deployed_at_utc=2026-11-15T17:29:21.742598+00:00` and readback `passed`.\n\nPATCH: repairs the existing paid-binding/access contract; no new price, bonus duration, renewal policy, product capability or financial-confirmation terms.\n\nConfirmed payment is not itself active access. Activation requires usable authorization and the reserved entitlement; recovery applies that same payment exactly once, prefers the latest valid rebind mandate, and preserves manual access, trial consumption, refunded/revoked payments and superseded mandates. Duplicate invoices and consumed consent are blocked before provider invocation. Reconciliation uses the existing beat task with persisted exponential cooldown and at most eight attempts; this is activation recovery, not permission for another debit.\n\nRecorded candidate evidence: Django suite 1196 tests OK (83 skipped), 151 targeted backend tests, 35 signed-return tests plus Chromium acceptance, partner browser acceptance and independent Spec/Quality review passed. Required main CI including the real isolated PWA route passed. Isolated fixtures are not production payment acceptance. Generic local Compose boot/readiness remains BLOCKED by missing worktree `.env`; no secrets were copied. Previous unrelated recognition/photo/provider/review, effective recognition flags, real-device and named R10 acceptance warnings remain unchanged; formal historical acceptance gaps are not waived.\n\n**No live new payment, real bank-card retry, end-user production retry/bonus activation, or bank refund settlement was observed by this verification.** Guarded production readback used PostgreSQL READ ONLY, blocked provider/network calls and preserved snapshot counts: one paid payment / 1 UAH and ten refunded payments / 10 UAH. Existing manual incident access through 2027-02-12 remained intact. Two unresolved claims were all guarded out, not failed eligible activations. The read-only probe found the task registered and one schedule entry with the recovery source call; the probe itself did not invoke it. Separate bounded production readback confirmed seven source hashes and all six changed runtime source/template hashes against exact Git `00bbcce7f35ea0c5042915eb70daf5503dd82d29`; these sets overlap and are not thirteen distinct files. Public `/app/` returned 200 with the `paid_activation_pending` marker (release headers were empty). All six application containers were healthy/running. In the bounded last-15-minute logs since newly created containers, beat sent reconciliation three times and the worker received and succeeded three times, with no traceback. This proves bounded worker/beat liveness and actual task execution, not eligible-claim activation or live payment success.\n\nSee `code/docs/releases/0.45.4-billing-lifecycle-recovery.md`. Documentation merge SHA is distinct from the deployed runtime SHA; this synchronization requires no runtime rollout.\n\n## Previous runtime delivery status — 2026-11-14 (0.45.3)"
+        }
+      ]
+    },
+    {
+      "path": "README.md",
+      "base_sha256": "c0250e6679035eebc2d5d6d937b2bdfcc7c0d7cc7917db4191f0f4eb9353b4da",
+      "replacements": [
+        {
+          "old": "## Current Mini App Delivery\n\n",
+          "new": "## Current Mini App Delivery\n\nCurrent production release: **0.45.4**. PR #89 deployed runtime SHA `00bbcce7f35ea0c5042915eb70daf5503dd82d29` to `production` on **2026-11-15**. Exact-main validation `43740158393` and approved production run `43740828643` passed, including immutable artifact validation, encrypted off-host backup, deployment/readback and promotion. Deployment evidence records `deployed_at_utc=2026-11-15T17:29:21.742598+00:00` and readback `passed`.\n\nPATCH: repairs the existing paid-binding/access contract; no new price, bonus duration, renewal policy, product capability or financial-confirmation terms. Paid-but-pending access recovers the original entitlement, not another charge. Source hashes match the exact deployed Git revision; six containers were healthy, and bounded beat/worker logs show three successful reconciliation executions. Live customer retry/activation remains unverified. Prior unrelated acceptance gaps remain unchanged. See `code/docs/releases/0.45.4-billing-lifecycle-recovery.md`. Documentation merge SHA is distinct from the deployed runtime SHA; this synchronization requires no runtime rollout.\n\nPrevious 0.45.3 delivery record (historical; unresolved acceptance retained):\n"
+        }
+      ]
+    },
+    {
+      "path": "docs/BILLING.md",
+      "base_sha256": "a8de5a448339f315ec37eeacfdcc70450380f7510bed7bc36a3b90fd5ab6517c",
+      "replacements": [
+        {
+          "old": "- Subscription is considered active immediately after the first successful `1 грн` payment.",
+          "new": "- The first successful `1 грн` payment activates the reserved trial only once usable authorization and the entitlement are applied. `PAID` alone is not active access; recover the same payment without another debit."
+        },
+        {
+          "old": "4. store billing profile and activate the trial immediately",
+          "new": "4. store usable authorization and apply the reserved trial entitlement exactly once; if authorization is unavailable, expose paid activation pending and reconcile the same payment"
+        },
+        {
+          "old": "- after successful `1 грн` bind payment, subscription becomes `trial`",
+          "new": "- after successful `1 грн` bind payment with usable authorization, the reserved entitlement is applied once and subscription becomes `trial`; payment alone can remain activation-pending"
+        },
+        {
+          "old": "- rebind only updates the saved card; if access has already stopped, the user must still use `Оплатити зараз`",
+          "new": "- rebind updates the saved card; an eligible paid-but-unapplied entitlement recovers exactly once under the latest valid mandate without another payment or fresh trial. Without that entitlement, stopped access still requires the existing separately consented `Оплатити зараз` flow"
+        },
+        {
+          "old": "## Product Rules\n\n",
+          "new": "## Product Rules\n\n### Release 0.45.4 lifecycle recovery\n\nConfirmed payment is not itself active access. Activation requires usable authorization and the reserved entitlement; recovery applies that same payment exactly once, prefers the latest valid rebind mandate, and preserves manual access, trial consumption, refunded/revoked payments and superseded mandates. Duplicate invoices and consumed consent are blocked before provider invocation. Reconciliation uses the existing beat task with persisted exponential cooldown and at most eight attempts; this is activation recovery, not permission for another debit.\n\n`access.activation_state` is `active`, `not_started`, `payment_pending` or `paid_activation_pending`. `recommended_action=continue_payment` is only for an unpaid existing invoice with an action URL; pending recovery otherwise uses `check_activation`. Consumed consent returns `billing_consent_consumed` before provider calls; a definitive failure permits a separately consented retry. Signed return refreshes the fresh-browser PWA state and never equates paid with active.\n\nDeployment: runtime `00bbcce7f35ea0c5042915eb70daf5503dd82d29`, production `43740828643`, readback `2026-11-15T17:29:21.742598+00:00`. Live end-user retry/activation remains unverified; see `code/docs/releases/0.45.4-billing-lifecycle-recovery.md`.\n\n"
+        }
+      ]
+    },
+    {
+      "path": "docs/MINI_APP_API_SPEC.md",
+      "base_sha256": "246c7d73cd6e3a25f9c3ecb2b54823a94f4755049f19a14e72c072314d25a99c",
+      "replacements": [
+        {
+          "old": "Updated: 2026-09-22",
+          "new": "Updated: 2026-11-15"
+        },
+        {
+          "old": "## 2. Shared Conventions\n\n",
+          "new": "## 2. Shared Conventions\n\n### Release 0.45.4 billing activation state\n\n`access.activation_state` is `active`, `not_started`, `payment_pending` or `paid_activation_pending`. `recommended_action=continue_payment` is only for an unpaid existing invoice with an action URL; pending recovery otherwise uses `check_activation`. Consumed consent returns `billing_consent_consumed` before provider calls; a definitive failure permits a separately consented retry. Signed return refreshes the fresh-browser PWA state and never equates paid with active.\n\nConfirmed payment is not itself active access. Activation requires usable authorization and the reserved entitlement; recovery applies that same payment exactly once, prefers the latest valid rebind mandate, and preserves manual access, trial consumption, refunded/revoked payments and superseded mandates. Duplicate invoices and consumed consent are blocked before provider invocation. Reconciliation uses the existing beat task with persisted exponential cooldown and at most eight attempts; this is activation recovery, not permission for another debit.\n\nThese fields clarify the existing billing contract; they do not authorize another debit or change consent/price/trial terms. Live production customer retry is not verified by local signed-return/browser fixtures.\n\n"
+        }
+      ]
+    }
+  ]
+}
