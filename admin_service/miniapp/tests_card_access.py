@@ -25,6 +25,7 @@ class CardAccessTests(SimpleTestCase):
             patch.object(services.UserAdminState.objects, "filter") as states,
             patch.object(services.Subscription.objects, "filter") as subscriptions,
             patch.object(services.BillingProfile.objects, "filter") as profiles,
+            patch.object(services.Payment.objects, "filter") as payments,
             patch.object(services, "_resolve_finance_scope", return_value=SimpleNamespace(is_family=False)),
             patch.object(services, "activated_course_bonus", return_value=None),
             patch.object(services, "partner_offer_for_user", return_value={"trial_days": 90}),
@@ -32,6 +33,7 @@ class CardAccessTests(SimpleTestCase):
             states.return_value.first.return_value = None
             subscriptions.return_value.order_by.return_value.first.return_value = subscription
             profiles.return_value.first.return_value = profile
+            payments.return_value.exists.return_value = False
             return services.resolve_access(user)
 
     def test_cardless_partner_trial_is_blocked_despite_future_expiry(self):

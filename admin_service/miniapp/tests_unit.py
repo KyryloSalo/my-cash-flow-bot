@@ -770,13 +770,18 @@ class MiniAppViewUnitTests(unittest.TestCase):
             content_type="application/json",
         )
         request.session = FakeSession()
-        fake_user = SimpleNamespace(tg_user_id=1001)
+        fake_user = SimpleNamespace(pk=1001, tg_user_id=1001)
         access = {"mode": "blocked", "access_scope": "paywall", "has_card": False, "trial_days": 30}
 
         with (
             patch.object(views, "get_session_user", return_value=fake_user),
             patch.object(views, "resolve_access", return_value=access),
-            patch.object(views, "get_billing_consent_for_user", return_value=object()),
+            # Exercise the decorated view without opening a real DB transaction.
+            patch.object(views.db_transaction.Atomic, "__enter__", return_value=None),
+            patch.object(views.db_transaction.Atomic, "__exit__", return_value=False),
+            patch.object(views.TelegramUser.objects, "select_for_update") as lock_user,
+            patch.object(views, "is_canary_user", return_value=False),
+            patch.object(views, "get_billing_consent_for_user", return_value=SimpleNamespace(payment_id=None)),
             patch.object(views, "attach_consent_to_payment_id") as attach_consent,
             patch.object(views, "build_bind_invoice", return_value={"page_url": "https://pay.example/1001", "payment_id": 91, "trial_days": 30, "trial_granted": True}) as bind_invoice,
             patch.object(views, "_settings_payload", return_value={"user": {"tg_user_id": 1001}}),
@@ -787,6 +792,7 @@ class MiniAppViewUnitTests(unittest.TestCase):
         payload = json.loads(response.content)
         self.assertEqual(payload["action"], "bind")
         self.assertEqual(payload["action_url"], "https://pay.example/1001")
+        lock_user.return_value.get.assert_called_once_with(pk=fake_user.pk)
         bind_invoice.assert_called_once_with(user_id=1001, trial_days=30, mode="bind", promo_code="")
         attach_consent.assert_called_once_with(
             consent_id="5e48ce86-24cc-4998-80a3-6e1f34fe81a9",
