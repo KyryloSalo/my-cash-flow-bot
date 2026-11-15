@@ -72,6 +72,10 @@ Use manual server access only for an explicitly approved incident. Any emergency
 
 ## Current verified release
 
+As of November 15, 2026, production runtime is `2f0dcf3b048ff787372b1f9780f0c32bcbeeaef5` (PR #90), recorded as PATCH `0.45.5`. Exact-main validation `43748299136` and approved production run `43748971445` passed, including immutable bundle verification, encrypted off-host backup, deployment/readback and promotion at `2026-11-15T18:54:07.857943+00:00`. Separate public route readiness passed. See `docs/releases/0.45.5-credit-account-semantics.md` for credit semantics, preserved billing/financial invariants and verification boundaries. The six-file canonical replacement manifest requires docs PR review/CI/merge before application. Authenticated customer credit mutations and live payment/retry were not tested in production; prior acceptance gaps remain unchanged. This docs synchronization does not redeploy runtime.
+
+### Historical release 0.45.4
+
 As of November 15, 2026, production runtime is `00bbcce7f35ea0c5042915eb70daf5503dd82d29` (PR #89), documented as PATCH `0.45.4` after canonical documentation synchronization. Exact-main validation `43740158393` and approved production run `43740828643` passed, including encrypted off-host backup, deployment/readback and promotion at `2026-11-15T17:29:21.742598+00:00`.
 
 See `docs/releases/0.45.4-billing-lifecycle-recovery.md` for scope, guarded read-only findings and limitations. Source/template hashes matched the exact runtime Git revision; all six app containers were healthy/running, and bounded beat/worker logs showed three reconciliation sends and three successful executions with no traceback. Live new payment/end-user retry and eligible-claim activation remain unverified. The companion seven-file canonical replacement manifest is pending review, CI and docs PR merge before application. This docs change does not deploy a new runtime or waive historical acceptance gaps.
