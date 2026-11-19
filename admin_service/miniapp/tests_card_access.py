@@ -9,7 +9,7 @@ from miniapp import services
 
 
 class CardAccessTests(SimpleTestCase):
-    def resolve(self, *, status="trial", card=False, source="promo", grace=False, payment_id=""):
+    def resolve(self, *, status="trial", card=False, source="promo", grace=False, payment_id="", family=False, sponsor=False, blocked=False):
         now = timezone.now()
         subscription = SimpleNamespace(
             status=status, source=source, expires_at=now + timedelta(days=-1 if grace else 90),
@@ -26,15 +26,29 @@ class CardAccessTests(SimpleTestCase):
             patch.object(services.Subscription.objects, "filter") as subscriptions,
             patch.object(services.BillingProfile.objects, "filter") as profiles,
             patch.object(services.Payment.objects, "filter") as payments,
-            patch.object(services, "_resolve_finance_scope", return_value=SimpleNamespace(is_family=False)),
+            patch.object(services, "_resolve_finance_scope", return_value=SimpleNamespace(is_family=family, role="member", family_id=3)),
+            patch.object(services, "_family_sponsor_has_access", return_value=sponsor),
             patch.object(services, "activated_course_bonus", return_value=None),
             patch.object(services, "partner_offer_for_user", return_value={"trial_days": 90}),
         ):
-            states.return_value.first.return_value = None
+            states.return_value.first.return_value = SimpleNamespace(is_blocked=True, status="banned", access_scope="family_full", pending_start_payload="") if blocked else None
             subscriptions.return_value.order_by.return_value.first.return_value = subscription
             profiles.return_value.first.return_value = profile
             payments.return_value.exists.return_value = False
             return services.resolve_access(user)
+
+    def test_cardless_family_member_inherits_owner_access_without_activation_prompt(self):
+        access = self.resolve(family=True, sponsor=True)
+        self.assertEqual(access["access_scope"], "family_full")
+        self.assertEqual(access["mode"], "active")
+        self.assertFalse(access["has_card"])
+        self.assertIsNone(access["recommended_action"])
+        self.assertIsNone(access["entry_message"])
+
+    def test_inactive_sponsor_or_removed_membership_does_not_grant_access(self):
+        for family, sponsor, blocked in ((True, False, False), (False, True, False), (True, True, True)):
+            with self.subTest(family=family, sponsor=sponsor, blocked=blocked):
+                self.assertEqual(self.resolve(family=family, sponsor=sponsor, blocked=blocked)["mode"], "blocked")
 
     def test_cardless_partner_trial_is_blocked_despite_future_expiry(self):
         access = self.resolve()

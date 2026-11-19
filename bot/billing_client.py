@@ -270,7 +270,7 @@ async def get_access_state(conn: asyncpg.Connection, tg_user_id: int) -> dict[st
         state["promo_trial_days"] = _pending_payload_trial_days(pending_payload)
 
     finance_scope = await get_current_finance_scope(conn, tg_user_id)
-    if billing_state.get("has_card") and billing_state.get("profile_status") == "active" and await _family_has_sponsored_full_access(conn, finance_scope):
+    if await _family_has_sponsored_full_access(conn, finance_scope):
         state["access_scope"] = "family_full"
         if not state["access_source"]:
             state["access_source"] = "family"
