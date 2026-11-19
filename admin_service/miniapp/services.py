@@ -599,7 +599,9 @@ def resolve_access(user: TelegramUser) -> dict[str, object]:
     access_scope = str(admin_state.access_scope if admin_state else UserAdminState.AccessScope.PAYWALL)
     is_blocked = bool(admin_state.is_blocked or getattr(admin_state, "status", "") == "banned") if admin_state else False
     scope = _resolve_finance_scope(user, refresh=True)
-    sponsored = has_card and not is_blocked and scope.is_family and scope.role != "owner" and _family_sponsor_has_access(scope.family_id)
+    sponsored = not is_blocked and scope.is_family and scope.role != "owner" and _family_sponsor_has_access(scope.family_id)
+    # A family member consumes the owner's entitlement, not a personal card mandate.
+    card_required = card_required and not sponsored
     personal_full = not card_required and billing_access_mode == "full" and (subscription_status in PERSONAL_FULL_STATUSES or soft_grace_active)
     # AccessScope is only a UI projection. Manual/lifetime grants live in Subscription.
     access_scope = "family_full" if sponsored else "personal_full" if personal_full else "debt_only" if access_scope == "debt_only" else "paywall"

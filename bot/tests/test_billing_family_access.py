@@ -223,6 +223,33 @@ class BillingFamilyAccessTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state["access_scope"], "family_full")
         self.assertEqual(state["access_source"], "family")
 
+    async def test_cardless_family_member_inherits_paid_owner_access(self) -> None:
+        owner = _personal_full_billing_state()
+        owner.update(subscription_status="paid", subscription_source="payment", has_card=False)
+        conn = BillingFamilyAccessConn(
+            finance_scope={"family_id": 3, "role": "member"},
+            billing_states={288834786: owner},
+            family_owner_by_id={3: 288834786},
+        )
+        state = await billing_client.get_access_state(conn, 541428261)
+        self.assertEqual(state["access_scope"], "family_full")
+        self.assertFalse(state["billing_state"]["has_card"])
+
+    async def test_family_access_is_revoked_when_owner_expires_or_membership_is_removed(self) -> None:
+        for membership in ({"family_id": 3, "role": "member"}, None):
+            with self.subTest(membership=membership):
+                owner = _personal_full_billing_state()
+                if membership:
+                    owner.update(subscription_status="expired", expires_at=datetime(2020, 1, 1, tzinfo=UTC))
+                conn = BillingFamilyAccessConn(
+                    finance_scope=membership,
+                    billing_states={288834786: owner},
+                    family_owner_by_id={3: 288834786},
+                    admin_state={"access_scope": "family_full", "access_source": "family"},
+                )
+                state = await billing_client.get_access_state(conn, 541428261)
+                self.assertEqual(state["access_scope"], "paywall")
+
     async def test_family_member_keeps_personal_full_when_owner_is_not_sponsored(self) -> None:
         conn = BillingFamilyAccessConn(
             finance_scope={"family_id": 3, "role": "member"},
