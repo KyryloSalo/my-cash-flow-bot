@@ -1,0 +1,77 @@
+{
+  "version": "0.45.6",
+  "runtime_sha": "6cf9edb1ef703e9f3623cf196e8e2ef7a8ea0cf4",
+  "production_run": "44603180478",
+  "production_deployed_at_utc": "2026-11-19T23:21:34.215656+00:00",
+  "apply_policy": "Apply only after independent review, required CI and docs PR merge. Verify exact raw baseline SHA256, unique normalized UTF-8 anchors and unchanged top-level heading count. Restore original BOM/newline convention; preserve historical warnings. Abort on baseline drift. Read back rendered changes. No runtime deployment.",
+  "files": [
+    {
+      "path": "VERSION",
+      "base_sha256": "0ccca2f9d822a3196e0c85e6b219eb84402ccd7ee46642bed2b4c1efc68c017c",
+      "replacements": [
+        {
+          "old": "0.45.5",
+          "new": "0.45.6"
+        }
+      ]
+    },
+    {
+      "path": "docs/VERSIONING.md",
+      "base_sha256": "68a03a6edefbef85b18fb46f1278c0ae6524bdf4267bbd7fff6adc6b5ad3a517",
+      "replacements": [
+        {
+          "old": "Last updated: 2026-11-15",
+          "new": "Last updated: 2026-11-20"
+        },
+        {
+          "old": "Current production version: `0.45.5`",
+          "new": "Current production version: `0.45.6`. PR #93 deployed runtime SHA `6cf9edb1ef703e9f3623cf196e8e2ef7a8ea0cf4` to `production` on **2026-11-19 UTC** (2026-11-20 UTC+03:00). Exact-main validation `44601512269` and human-approved production run `44603180478` passed, including immutable bundle verification, encrypted off-host backup, deployment/readback and release promotion. Readback passed at `2026-11-19T23:21:34.215656+00:00`; separate public route readiness passed. PATCH: eligible active non-owner family members inherit the paying owner's subscription without binding a personal card. PWA suppresses the personal card gate and payment banner when sponsored; bot grants family_full independently of the member's card. Owner expiry and membership revocation remove inherited access; unpaid nonfamily users retain their existing gates. No prices, renewal policies, financial confirmation, transfer/FX rules or customer data were changed. Local real PostgreSQL/Chromium acceptance covered paid owner -> expired -> restored -> removed membership, with independent candidate review and required PR/main CI. Post-deploy read-only evaluation of the affected existing member returned PWA mode=active/access_scope=family_full, no payment recommendation/banner, and bot access_scope=family_full despite no personal card. The actual owner was eligible and active. Both probes used READ ONLY transactions, forbade new network/provider calls after DB connection and preserved financial row counts; no locks were omitted. The two changed runtime source hashes matched exact Git bytes and all six app containers were healthy. No production login impersonation, customer mutation, live payment/provider call, or authenticated physical-device session was performed. The preexisting bot/PWA discrepancy for banned or mismatched-owner sponsors is a separate follow-up, not repaired by this card-gate fix. Prior unrelated acceptance gaps remain unchanged.\n\nPrevious production version (historical): `0.45.5`"
+        }
+      ]
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "base_sha256": "422fdef2acf1edf9d88d091245060a49f20185b4122c50285e5e788819ff8949",
+      "replacements": [
+        {
+          "old": "# Release Notes\n\n",
+          "new": "# Release Notes\n\n## 0.45.6 - 2026-11-19 UTC (deployed; 2026-11-20 UTC+03:00)\n\nPR #93 deployed runtime SHA `6cf9edb1ef703e9f3623cf196e8e2ef7a8ea0cf4` to `production` on **2026-11-19 UTC** (2026-11-20 UTC+03:00). Exact-main validation `44601512269` and human-approved production run `44603180478` passed, including immutable bundle verification, encrypted off-host backup, deployment/readback and release promotion. Readback passed at `2026-11-19T23:21:34.215656+00:00`; separate public route readiness passed.\n\nPATCH: eligible active non-owner family members inherit the paying owner's subscription without binding a personal card. PWA suppresses the personal card gate and payment banner when sponsored; bot grants family_full independently of the member's card. Owner expiry and membership revocation remove inherited access; unpaid nonfamily users retain their existing gates. No prices, renewal policies, financial confirmation, transfer/FX rules or customer data were changed.\n\nLocal real PostgreSQL/Chromium acceptance covered paid owner -> expired -> restored -> removed membership, with independent candidate review and required PR/main CI. Post-deploy read-only evaluation of the affected existing member returned PWA mode=active/access_scope=family_full, no payment recommendation/banner, and bot access_scope=family_full despite no personal card. The actual owner was eligible and active. Both probes used READ ONLY transactions, forbade new network/provider calls after DB connection and preserved financial row counts; no locks were omitted. The two changed runtime source hashes matched exact Git bytes and all six app containers were healthy. No production login impersonation, customer mutation, live payment/provider call, or authenticated physical-device session was performed. The preexisting bot/PWA discrepancy for banned or mismatched-owner sponsors is a separate follow-up, not repaired by this card-gate fix. Prior unrelated acceptance gaps remain unchanged.\n\nSee `code/docs/releases/0.45.6-family-subscription.md`. Documentation merge SHA is distinct from the deployed runtime SHA; no runtime redeploy.\n\n"
+        }
+      ]
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "base_sha256": "acc520edfd2579542afdfd41144b38fa699329c378d8b7f60a484fd9825a5e03",
+      "replacements": [
+        {
+          "old": "Last updated: 2026-11-15",
+          "new": "Last updated: 2026-11-20"
+        },
+        {
+          "old": "## Runtime delivery status — 2026-11-15 (0.45.5)",
+          "new": "## Runtime delivery status — 2026-11-19 UTC (0.45.6)\n\nPR #93 deployed runtime SHA `6cf9edb1ef703e9f3623cf196e8e2ef7a8ea0cf4` to `production` on **2026-11-19 UTC** (2026-11-20 UTC+03:00). Exact-main validation `44601512269` and human-approved production run `44603180478` passed, including immutable bundle verification, encrypted off-host backup, deployment/readback and release promotion. Readback passed at `2026-11-19T23:21:34.215656+00:00`; separate public route readiness passed.\n\nPATCH: eligible active non-owner family members inherit the paying owner's subscription without binding a personal card. PWA suppresses the personal card gate and payment banner when sponsored; bot grants family_full independently of the member's card. Owner expiry and membership revocation remove inherited access; unpaid nonfamily users retain their existing gates. No prices, renewal policies, financial confirmation, transfer/FX rules or customer data were changed.\n\nLocal real PostgreSQL/Chromium acceptance covered paid owner -> expired -> restored -> removed membership, with independent candidate review and required PR/main CI. Post-deploy read-only evaluation of the affected existing member returned PWA mode=active/access_scope=family_full, no payment recommendation/banner, and bot access_scope=family_full despite no personal card. The actual owner was eligible and active. Both probes used READ ONLY transactions, forbade new network/provider calls after DB connection and preserved financial row counts; no locks were omitted. The two changed runtime source hashes matched exact Git bytes and all six app containers were healthy. No production login impersonation, customer mutation, live payment/provider call, or authenticated physical-device session was performed. The preexisting bot/PWA discrepancy for banned or mismatched-owner sponsors is a separate follow-up, not repaired by this card-gate fix. Prior unrelated acceptance gaps remain unchanged.\n\nSee `code/docs/releases/0.45.6-family-subscription.md`. Documentation merge SHA is distinct from the deployed runtime SHA; no runtime redeploy.\n\n## Previous runtime delivery status — 2026-11-15 (0.45.5)"
+        }
+      ]
+    },
+    {
+      "path": "README.md",
+      "base_sha256": "3936fe5744f5390c7353a90255b5d1a50b4e05c4685033cb873d0f5cd26189ff",
+      "replacements": [
+        {
+          "old": "## Current Mini App Delivery\n\n",
+          "new": "## Current Mini App Delivery\n\nCurrent production release: **0.45.6**. PR #93 deployed runtime SHA `6cf9edb1ef703e9f3623cf196e8e2ef7a8ea0cf4` to `production` on **2026-11-19 UTC** (2026-11-20 UTC+03:00). Exact-main validation `44601512269` and human-approved production run `44603180478` passed, including immutable bundle verification, encrypted off-host backup, deployment/readback and release promotion. Readback passed at `2026-11-19T23:21:34.215656+00:00`; separate public route readiness passed.\n\nPATCH: eligible active non-owner family members inherit the paying owner's subscription without binding a personal card. PWA suppresses the personal card gate and payment banner when sponsored; bot grants family_full independently of the member's card. Owner expiry and membership revocation remove inherited access; unpaid nonfamily users retain their existing gates. No prices, renewal policies, financial confirmation, transfer/FX rules or customer data were changed.\n\nLocal real PostgreSQL/Chromium acceptance covered paid owner -> expired -> restored -> removed membership, with independent candidate review and required PR/main CI. Post-deploy read-only evaluation of the affected existing member returned PWA mode=active/access_scope=family_full, no payment recommendation/banner, and bot access_scope=family_full despite no personal card. The actual owner was eligible and active. Both probes used READ ONLY transactions, forbade new network/provider calls after DB connection and preserved financial row counts; no locks were omitted. The two changed runtime source hashes matched exact Git bytes and all six app containers were healthy. No production login impersonation, customer mutation, live payment/provider call, or authenticated physical-device session was performed. The preexisting bot/PWA discrepancy for banned or mismatched-owner sponsors is a separate follow-up, not repaired by this card-gate fix. Prior unrelated acceptance gaps remain unchanged.\n\nSee `code/docs/releases/0.45.6-family-subscription.md`. Documentation merge SHA is distinct from the deployed runtime SHA; no runtime redeploy.\n\nPrevious 0.45.5 delivery record (historical; unresolved acceptance retained):\n"
+        }
+      ]
+    },
+    {
+      "path": "docs/MINI_APP_API_SPEC.md",
+      "base_sha256": "defcd7aba749a0b15592034d7533f3cee674e6e361183260289df73ccc6bb5c0",
+      "replacements": [
+        {
+          "old": "## 2. Shared Conventions\n\n",
+          "new": "## 2. Shared Conventions\n\n### Release 0.45.6 family subscription inheritance\n\nAn eligible active non-owner family member consumes the active owner subscription without a personal card. PWA access resolves to `mode=active`, `access_scope=family_full` and no payment recommendation/banner; bot returns `family_full`. Canonical owner eligibility, owner expiry and membership revocation remain authoritative. No user identity may be supplied through query/body to obtain this entitlement. Actual production access decisions were verified read-only, not through an impersonated session or payment. Existing financial confirmation and transfer/FX rules remain unchanged. The preexisting bot sponsor handling of banned/mismatched owners remains a separately documented follow-up.\n\n"
+        }
+      ]
+    }
+  ]
+}
