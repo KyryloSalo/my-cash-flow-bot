@@ -273,7 +273,7 @@ services:
     - admin_static:/var/www/admin-static:ro
     - ./nginx/landing:/var/www/landing:ro
     - /etc/letsencrypt:/etc/letsencrypt:ro
-    - ./nginx/www:/var/www/certbot:ro
+    - /opt/my-cash-flow-bot/shared/acme-webroot:/var/www/certbot:ro
     restart: unless-stopped
     image: mcf-nginx:${RELEASE_ID:-local}
     networks:

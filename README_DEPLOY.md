@@ -29,6 +29,45 @@ Do not copy secret values into commands, issues, pull requests, release notes, o
 
 ## Safety guarantees
 
+### TLS renewal and independent monitoring
+
+The ACME webroot is `/opt/my-cash-flow-bot/shared/acme-webroot`, mounted
+read-only into nginx at `/var/www/certbot`. Never replace it with a path under
+`current` or a release directory. Deployment verifies a unique, exact-body
+HTTP challenge on every configured certificate domain before promotion.
+
+The reviewed release installs host-owned controls in `shared/tls-ops` and
+systemd units via `ops/install_tls_ops.py`. The existing `certbot.timer`
+invokes a persistent renewal wrapper under the deployment lock. Its deploy
+hook validates nginx, reloads without restarting the application, verifies
+public TLS against local TLS, and checks that renewed domains actually changed
+certificates. A weekly staging dry-run exercises the same hook without
+requiring certificate replacement. Failed renewal/dry-run units trigger a
+retryable notification using the existing bot runtime configuration.
+
+`vydno-public-monitor.timer` checks public HTTPS every five minutes. The
+separate GitHub `tls-monitor` workflow checks independently of the VPS and
+maintains one incident issue. A separately scheduled external Telegram watcher
+can reuse configured Hermes access without copying credentials; its machine
+must be awake and online. GitHub schedules may be delayed, so they are not a
+strict five-minute delivery SLA. Threshold transitions at 21/14/7 days and
+recoveries are deduplicated; failed notification attempts must not acknowledge
+the state transition.
+
+After deployment run these on the host, recording real outputs:
+
+```sh
+python3 /opt/my-cash-flow-bot/current/ops/tls_acceptance.py --production
+systemctl start vydno-tls-dry-run.service
+systemctl show vydno-tls-dry-run.service -p Result -p ExecMainStatus
+systemctl list-timers certbot.timer vydno-tls-dry-run.timer vydno-public-monitor.timer
+printf '%s' 'Vydno TLS notification delivery test' | bash /opt/my-cash-flow-bot/shared/tls-ops/notify_ops.sh
+```
+
+The installer does not prove activation or notification delivery; those require
+the explicit production readbacks above. Do not disable TLS validation or read
+private keys to diagnose a renewal failure.
+
 The production workflow fails closed unless all of the following are true:
 
 - the requested SHA is the current protected `main` SHA;

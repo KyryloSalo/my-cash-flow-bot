@@ -111,8 +111,19 @@ if any((stat.S_IMODE(path.stat().st_mode) & 0o005) != 0o005 for path in director
 ):
     raise SystemExit('Release tree is not readable by unprivileged containers')
 PY
+TLS_TRANSACTION_STARTED=0
+tls_installer() {
+    docker run --rm --user 0:0 --network none \
+        --mount type=bind,src=/,dst=/host \
+        --entrypoint python "mcf-admin:$RELEASE_ID" -c \
+        'import os,sys; os.chroot("/host"); os.chdir("/"); os.execv("/usr/bin/python3", ["python3", *sys.argv[1:]])' \
+        "$RELEASE_DIR/ops/install_tls_ops.py" "$1"
+}
 rollback_stop() {
-    printf '%s\n' 'RELEASE FAILED. Stopping candidate and restoring the previous application release; database is never auto-restored.' >&2
+    printf '%s\n' 'RELEASE FAILED. Rolling back transactional TLS host controls, then restoring the previous application release; database is never auto-restored.' >&2
+    if [[ "$TLS_TRANSACTION_STARTED" == 1 ]]; then
+        tls_installer rollback || printf '%s\n' 'CRITICAL: TLS host rollback failed; retained transaction requires manual recovery.' >&2
+    fi
     compose_at "${ACTIVE_PROJECT:-$OLD_PROJECT}" stop nginx bot api admin worker beat || true
     if [[ "${ACTIVE_PROJECT:-}" == "$CURRENT" ]]; then
         if [[ -n "$PREVIOUS_CURRENT" ]]; then
@@ -123,6 +134,7 @@ rollback_stop() {
         fi
     fi
     if [[ -n "$PREVIOUS_RELEASE_ID" ]]; then
+        printf '%s\n' "$PREVIOUS_RELEASE_ID" > "$CURRENT_RELEASE"
         RELEASE_ID="$PREVIOUS_RELEASE_ID" compose_at "$OLD_PROJECT" up -d --no-build || true
     else
         compose_at "$OLD_PROJECT" up -d --no-build || true
@@ -130,6 +142,8 @@ rollback_stop() {
 }
 trap rollback_stop ERR
 ACTIVE_PROJECT=$OLD_PROJECT
+# ACME challenges belong to the host, never to an immutable release directory.
+install -d -m 755 "$ROOT/shared" "$ROOT/shared/acme-webroot" "$ROOT/shared/acme-webroot/.well-known" "$ROOT/shared/acme-webroot/.well-known/acme-challenge"
 compose_at "$OLD_PROJECT" stop nginx bot api admin worker beat
 docker load --input "$ARTIFACT/images.tar" >/dev/null
 python3 "$SCRIPT_DIR/ops/release_evidence.py" verify-images "$ARTIFACT"
@@ -147,6 +161,13 @@ compose_at "$CURRENT" up -d --no-build --wait --wait-timeout 300
 compose_at "$CURRENT" exec -T admin python manage.py migrate --check
 compose_at "$CURRENT" exec -T admin python manage.py check --deploy --fail-level WARNING
 python3 "$CURRENT/ops/readiness_smoke.py"
+python3 "$CURRENT/ops/tls_ops.py" acme-check
+# Docker is the established deployment privilege boundary. Execute only the
+# immutable exact-SHA installer; retain its rollback until acceptance succeeds.
+TLS_TRANSACTION_STARTED=1
+tls_installer install
+python3 "$CURRENT/ops/tls_acceptance.py" --production
 printf '%s\n' "$RELEASE_ID" > "$CURRENT_RELEASE"
+tls_installer commit
 trap - ERR
 printf '%s\n' 'Release readiness passed; production restore is NOT verified by this deployment.'
