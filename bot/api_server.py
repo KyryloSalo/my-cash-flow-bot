@@ -23,6 +23,7 @@ from vision_tx import (
     OpenAIVisionConfigError,
     OpenAIVisionError,
     OpenAIVisionInvalidResponseError,
+    PhotoEvidenceReviewRequired,
     analyze_screenshot,
     serialize_miniapp_screenshot_analysis,
 )
@@ -374,6 +375,8 @@ def create_app() -> FastAPI:
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except PhotoEvidenceReviewRequired as exc:
+            raise HTTPException(status_code=400, detail="Photo evidence requires review") from exc
         except OpenAIVisionConfigError as exc:
             logger.warning("Mini App image parsing unavailable: %s", exc)
             raise HTTPException(status_code=503, detail="Image recognition is unavailable") from exc
